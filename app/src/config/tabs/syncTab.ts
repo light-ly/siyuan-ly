@@ -1,6 +1,5 @@
 import {openInputDialog} from "../../dialog/inputDialog";
 import type {SettingTabBuilder} from "../setting/builder";
-import {registerAccountGroup} from "./accountUi";
 import {Constants} from "../../constants";
 import {fetchPost} from "../../util/fetch";
 import {confirmDialog} from "../../dialog/confirmDialog";
@@ -9,7 +8,7 @@ import {processSync} from "../../dialog/processSystem";
 import {writeText} from "../../protyle/util/compatibility";
 import {bindSyncCloudListEvent, renderSyncCloudList, setKey} from "../../sync/syncGuide";
 import {genConfigItemMainHtml, genConfigItemName} from "../render/fragments";
-import {getLANSyncSearchAvailability, getSyncProviderConfigKeywords} from "./syncUi";
+import {getLANSyncSearchAvailability, getSyncProviderConfigKeywords, getSyncProviderOptions} from "./syncUi";
 import {mountLANSyncStatus, mountSyncAssetDownloadMode, mountSyncProvider} from "./syncRuntime";
 import {openHistory} from "../../history/history";
 
@@ -20,22 +19,12 @@ const registerSyncGroup = (tab: SettingTabBuilder) => {
         title: window.siyuan.languages.syncProvider,
         desc: window.siyuan.languages.syncProviderTip,
         afterMount: mountSyncProvider,
-        options: [
-            {value: 0, label: "SiYuan"},
-            {value: 2, label: "S3"},
-            {value: 3, label: "WebDAV"},
-            ...(["std", "docker"].includes(window.siyuan.config.system.container) ? [{value: 4, label: window.siyuan.languages.localFileSystem}] : []),
-        ],
+        options: getSyncProviderOptions(),
     });
     group.slot({
         key: "syncProviderConfig",
         keywords: getSyncProviderConfigKeywords(),
         html: () => '<div id="syncProviderConfig" class="b3-label config-item"></div>',
-    });
-    group.slot({
-        key: "cloudSpace",
-        keywords: [window.siyuan.languages.cloudStorage, window.siyuan.languages.trafficStat, window.siyuan.languages.backup],
-        html: () => '<div id="cloudSpace" class="b3-label config-item"></div>',
     });
     group.switch("sync.enabled", {
         title: window.siyuan.languages.cloudSync,
@@ -262,7 +251,6 @@ const mountRepoKey = (root: HTMLElement) => {
 };
 
 export const registerSyncTab = (tab: SettingTabBuilder) => {
-    registerAccountGroup(tab);
     registerSyncGroup(tab);
     registerRepoGroup(tab);
 };

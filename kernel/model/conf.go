@@ -1017,20 +1017,14 @@ var exitLock = sync.Mutex{}
 //
 // setCurrentWorkspace：是否将当前工作空间放到工作空间列表的最后一个
 //
-// execInstallPkg：是否返回新版本安装包
-//
-//	0：默认按照设置项 System.DownloadInstallPkg 检查并推送提示
-//	1：不返回新版本安装包
-//	2：返回新版本安装包路径并退出，由桌面宿主执行安装
+// execInstallPkg：桌面宿主传入的安装包执行参数，本构建已停用更新，不再返回安装包
 //
 // 返回值 exitCode：
 //
 //	0：正常退出
 //	1：同步执行失败
-//	2：提示新安装包
 //
-// 当 force 为 true（强制退出）并且 execInstallPkg 为 0（默认检查更新）并且新版本安装包已经准备就绪时，将安装包路径返回给桌面宿主
-// https://github.com/siyuan-note/siyuan/issues/10288
+// installPkgPath 始终为空字符串。
 func Close(force, setCurrentWorkspace bool, execInstallPkg int) (exitCode int, installPkgPath string) {
 	exitLock.Lock()
 	defer exitLock.Unlock()
@@ -1053,9 +1047,6 @@ func Close(force, setCurrentWorkspace bool, execInstallPkg int) (exitCode int, i
 			syncData(true, false)
 			if 0 != ExitSyncSucc {
 				exitCode = 1
-				if 1 != execInstallPkg && !skipNewVerInstallPkg() {
-					installPkgPath = getNewVerInstallPkgPath()
-				}
 				return
 			}
 		}
@@ -1071,18 +1062,6 @@ func Close(force, setCurrentWorkspace bool, execInstallPkg int) (exitCode int, i
 	// 等待正在执行的路径批次退出，未完成任务保留在配置目录供下次启动恢复。
 	hpathRefresh.Lock()
 	hpathRefresh.Unlock()
-	newVerInstallPkgPath := getNewVerInstallPkgPath()
-	if !skipNewVerInstallPkg() && "" != newVerInstallPkgPath {
-		if 2 == execInstallPkg || (force && 0 == execInstallPkg) { // 将新版本安装包交给桌面宿主执行
-			installPkgPath = newVerInstallPkgPath
-			logging.LogInfof("the new version install pkg is ready for the desktop host [%s]", newVerInstallPkgPath)
-		} else if 0 == execInstallPkg { // 新版本安装包已经准备就绪
-			installPkgPath = newVerInstallPkgPath
-			exitCode = 2
-			logging.LogInfof("the new version install pkg is ready [%s], waiting for the user's next instruction", newVerInstallPkgPath)
-			return
-		}
-	}
 
 	Conf.Close()
 	// 退出前关闭已打开的加密笔记本并推送 closeBox，让前端关闭对应的明文文档标签页，避免重启后泄密。

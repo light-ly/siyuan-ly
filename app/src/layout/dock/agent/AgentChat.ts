@@ -602,17 +602,16 @@ export class AgentChat extends Model {
         });
     }
 
-    // 打开设置面板并切换到「人工智能」tab。动态 import config 模块避免与 AgentChat 的循环依赖。
+    // 打开设置面板并切换到「人工智能」tab 的 API 提供商分组。动态 import config 模块避免与 AgentChat 的循环依赖。
     private async openAiSetting() {
         if (this.host.openAiSetting) {
             this.host.openAiSetting();
             return;
         }
-        const {openSetting} = await import("../../../config");
-        // openSetting 若已有设置对话框会先销毁重建，先检测复用避免闪烁。
-        const existing = window.siyuan.dialogs.find(d => d.element.querySelector(".config__tab-container"));
-        if (!existing) {
-            openSetting(this.app, "ai");
+        const {openSetting, reuseSettingDialog} = await import("../../../config");
+        // 已有设置面板时复用并切换，避免销毁重建闪烁。
+        if (!reuseSettingDialog(this.app, "ai", "providers")) {
+            openSetting(this.app, "ai", "providers");
         }
     }
 

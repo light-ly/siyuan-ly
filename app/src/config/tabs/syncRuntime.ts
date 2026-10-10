@@ -1,7 +1,6 @@
 import {fetchPost, fetchSyncPost} from "../../util/fetch";
 import {processSync, progressLoading} from "../../dialog/processSystem";
 import {confirmDialog} from "../../dialog/confirmDialog";
-import {updateAccountPanelVisibility} from "./accountUi";
 import {hideMessage, showMessage} from "../../dialog/message";
 import {
     refreshLANSyncConfigItemVisibility,
@@ -112,7 +111,6 @@ export const clearSyncTabElement = (root?: HTMLElement) => {
 export const mountSyncTabExtras = (root: HTMLElement) => {
     syncTabElement = root;
     refreshSyncTabPanels(root);
-    updateAccountPanelVisibility(root);
 };
 
 export const refreshLANSyncStatus = (root: Element) => {

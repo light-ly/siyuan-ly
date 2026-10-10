@@ -26,13 +26,15 @@ func TestCheckSyncPreservesEnabledWithoutUser(t *testing.T) {
 	originalConf := Conf
 	Conf = NewAppConf()
 	Conf.Sync = conf.NewSync()
+	Conf.Sync.Provider = conf.ProviderS3
 	Conf.Sync.Enabled = true
 	t.Cleanup(func() {
 		Conf = originalConf
 	})
 
-	if checkSync(false, false, true) {
-		t.Fatal("sync must not start without a user")
+	// 第三方存储不依赖思源账号，无账号时同步应正常启动且开关保持不变
+	if !checkSync(false, false, true) {
+		t.Fatal("third-party sync must start without a user")
 	}
 	if !Conf.Sync.Enabled {
 		t.Fatal("sync configuration must remain enabled without a user")

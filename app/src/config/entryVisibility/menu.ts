@@ -31,9 +31,6 @@ const getEntryIcon = (path: string): Pick<IMenu, "icon" | "iconHTML"> => {
         // 动态状态内容不作为菜单图标，保留默认图标占位。
         return {};
     }
-    if (path === `${TOP_BAR_ROOT_PATH}.toolbarVIP` || path === `${TOP_BAR_ROOT_PATH}.toolbarTitle`) {
-        return {icon: "iconAccount"};
-    }
     const element = findEntryElement(path);
     if (!element) {
         return {};

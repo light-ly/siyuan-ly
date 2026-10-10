@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 
 	"github.com/88250/gulu"
-	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/conf"
 	"github.com/siyuan-note/siyuan/kernel/util"
@@ -54,24 +53,11 @@ func loadGlobalUpdateChannel() string {
 	return config.Channel
 }
 
-// SetUpdateChannel 校验并保存应用级更新通道。
-func SetUpdateChannel(channel string) error {
+// ValidateUpdateChannel 校验更新通道取值，本构建已停用通道设置，不持久化。
+func ValidateUpdateChannel(channel string) error {
 	if !isValidUpdateChannel(channel) {
 		return errors.New("update channel is invalid")
 	}
-
-	data, err := gulu.JSON.MarshalIndentJSON(&globalUpdateConf{Channel: channel}, "", "  ")
-	if err != nil {
-		return err
-	}
-	configPath := globalUpdateConfPath()
-	if err = os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-		return err
-	}
-	if err = filelock.WriteFile(configPath, data); err != nil {
-		return err
-	}
-	Conf.System.UpdateChannel = channel
 	return nil
 }
 

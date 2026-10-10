@@ -9,7 +9,7 @@ import {Menus} from "./menus";
 import {Model} from "./layout/Model";
 import {loadDesktopHostConnection, onGetConfig} from "./boot/onGetConfig";
 import {initBlockPopover} from "./block/popover";
-import {applyCloudUserState, onSetaccount} from "./config/tabs/accountUi";
+import {applyCloudUserState} from "./config/tabs/accountUi";
 import {addScript, addScriptSync} from "./protyle/util/addScript";
 import {genUUID} from "./util/genID";
 import {fetchPost} from "./util/fetch";
@@ -335,12 +335,10 @@ export class App {
                     );
                     window.siyuan.menus = new Menus(this);
                     bootSync();
-                    fetchPost("/api/setting/getCloudUser", {cached: true}, async userResponse => {
-                        window.siyuan.user = userResponse.data && "userId" in userResponse.data ? userResponse.data : null;
+                    void (async () => {
                         await ensureOnboarding();
                         await setNoteBook();
                         await onGetConfig(response.data.start, this);
-                        onSetaccount();
                         setTitle("", true);
                         initMessage();
                         /// #if BROWSER && !MOBILE
@@ -352,8 +350,7 @@ export class App {
                         /// #endif
                         window.siyuan.isReady = true;
                         mainWs.flushMainMessages();
-                        fetchPost("/api/setting/getCloudUser", {});
-                    });
+                    })();
                 });
             });
         });

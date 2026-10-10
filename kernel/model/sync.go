@@ -399,24 +399,17 @@ func checkSync(boot, exit, byHand bool) bool {
 		}
 		return false
 	}
-	if nil == Conf.GetUser() {
+
+	if conf.ProviderSiYuan == Conf.Sync.Provider {
+		// 官方云同步已停用，仅关闭同步开关，不修改或删除任何现有配置与本地快照
+		if Conf.Sync.Enabled {
+			Conf.Sync.Enabled = false
+			Conf.Save()
+		}
 		return false
 	}
 
-	switch Conf.Sync.Provider {
-	case conf.ProviderSiYuan:
-		if !IsSubscriber() {
-			Conf.Sync.Enabled = false
-			Conf.Save()
-			return false
-		}
-	case conf.ProviderWebDAV, conf.ProviderS3, conf.ProviderLocal:
-		if !IsPaidUser() {
-			Conf.Sync.Enabled = false
-			Conf.Save()
-			return false
-		}
-	}
+	// S3、WebDAV、本地文件系统不依赖思源账号或订阅，仓库密钥等其余校验保持不变
 
 	if 7 < autoSyncErrCount && !byHand {
 		logging.LogErrorf("failed to auto-sync too many times, delay auto-sync 64 minutes")

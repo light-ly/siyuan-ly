@@ -26,15 +26,9 @@ func installPackageVersion(name string) string {
 	return ""
 }
 
+// clearOldInstallPackages 清理临时目录中早于当前版本的安装包，保留指定路径。
 func clearOldInstallPackages(preservePath string) {
-	checkDownloadInstallPkgLock.Lock()
-	defer checkDownloadInstallPkgLock.Unlock()
-	clearOldInstallPackagesLocked("v"+util.Ver, preservePath)
-}
-
-// clearOldInstallPackagesLocked 与下载共用互斥锁，保留当前版本及交给桌面宿主的安装包。
-func clearOldInstallPackagesLocked(beforeVersion, preservePath string) {
-	clearInstallPackagesBefore(filepath.Join(util.TempDir, "install"), "v"+util.Ver, beforeVersion, preservePath)
+	clearInstallPackagesBefore(filepath.Join(util.TempDir, "install"), "v"+util.Ver, "v"+util.Ver, preservePath)
 }
 
 func clearInstallPackagesBefore(installDir, currentVersion, beforeVersion, preservePath string) {

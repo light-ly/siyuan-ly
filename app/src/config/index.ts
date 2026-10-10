@@ -7,6 +7,7 @@ import {Dialog} from "../dialog";
 import {Constants} from "../constants";
 import {focusByRange} from "../protyle/util/selection";
 import {initSettingDrag} from "./setting/drag";
+import {focusSettingGroup} from "./setting/focusGroup";
 /// #endif
 import {unmountBazaarTab, withMountedBazaar} from "./bazaarTab";
 import {fetchSyncPost} from "../util/fetch";
@@ -24,7 +25,7 @@ import {getHostCapabilities} from "../util/hostCapabilities";
 import {unmountWorkspaceStorage} from "./tabs/workspaceStorage";
 
 /// #if !MOBILE
-const openSettingDialog = (app: App, initialTab: TSettingTab = "editor") => {
+const openSettingDialog = (app: App, initialTab: TSettingTab = "editor", group?: string) => {
     window.siyuan.dialogs.find((item) => item.element.querySelector(".config__tab-container"))?.destroy();
     let range: Range;
     if (getSelection().rangeCount > 0) {
@@ -102,11 +103,27 @@ const openSettingDialog = (app: App, initialTab: TSettingTab = "editor") => {
         });
     });
     switchSettingTab(dialog.element, app, initialTab);
+    if (group) {
+        focusSettingGroup(dialog.element, group);
+    }
     return dialog;
+};
+
+/** 复用已打开的设置面板：切换到指定 Tab 并定位分组；面板未打开时返回 false */
+export const reuseSettingDialog = (app: App, tab: TSettingTab, group?: string): boolean => {
+    const dialog = window.siyuan.dialogs.find((item) => item.element.querySelector(".config__tab-container"));
+    if (!dialog) {
+        return false;
+    }
+    switchSettingTab(dialog.element, app, tab);
+    if (group) {
+        focusSettingGroup(dialog.element, group);
+    }
+    return true;
 };
 /// #endif
 
-export const openSetting = (app: App, tab?: TSettingTab) => {
+export const openSetting = (app: App, tab?: TSettingTab, group?: string) => {
     if (tab === "bazaar" && !isBazaarAvailable()) {
         return;
     }
@@ -116,7 +133,7 @@ export const openSetting = (app: App, tab?: TSettingTab) => {
     /// #if MOBILE
     openMobileSetting(app, tab);
     /// #else
-    return openSettingDialog(app, tab);
+    return openSettingDialog(app, tab, group);
     /// #endif
 };
 

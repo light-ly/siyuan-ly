@@ -424,11 +424,9 @@ func normalizeCustomEmojiPath(name, ext string) (string, error) {
 }
 
 var checkUpdate = contractHandler(apicontract.SystemCheckUpdate, func(c *gin.Context, request apicontract.SystemCheckUpdateRequest) (ret apicontract.Response[apicontract.Null]) {
-	ret = apicontract.Success(apicontract.Null{})
-
-	showMsg := request.ShowMsg
-	model.CheckUpdate(showMsg)
-	return
+	// 本构建已停用更新检查，不发起网络请求，直接返回无更新结果。
+	logging.LogInfof("update check is disabled in this build")
+	return apicontract.Success(apicontract.Null{})
 })
 
 var exportLog = contractHandler(apicontract.SystemExportLog, func(c *gin.Context, request apicontract.EmptyRequest) (ret apicontract.Response[apicontract.SystemZipData]) {
@@ -1320,13 +1318,13 @@ var setAutoLaunch = contractHandler(apicontract.SetAutoLaunch, func(c *gin.Conte
 })
 
 var setDownloadInstallPkg = contractHandler(apicontract.SetDownloadInstallPkg, func(c *gin.Context, request apicontract.DownloadInstallPkgRequest) apicontract.Response[apicontract.Null] {
-	model.Conf.System.DownloadInstallPkg = request.DownloadInstallPkg
-	model.Conf.Save()
+	// 本构建已停用更新安装包下载，忽略设置且不持久化。
 	return apicontract.Success(apicontract.Null{})
 })
 
 var setUpdateChannel = contractHandler(apicontract.SetUpdateChannel, func(c *gin.Context, request apicontract.UpdateChannelRequest) apicontract.Response[apicontract.Null] {
-	if err := model.SetUpdateChannel(request.UpdateChannel); err != nil {
+	// 本构建已停用更新通道，仅校验取值且不持久化。
+	if err := model.ValidateUpdateChannel(request.UpdateChannel); err != nil {
 		return apicontract.Failure[apicontract.Null](-1, err.Error())
 	}
 	return apicontract.Success(apicontract.Null{})

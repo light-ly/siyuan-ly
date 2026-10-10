@@ -5,7 +5,7 @@ import {test} from "node:test";
 import {runInNewContext} from "node:vm";
 import {ModuleKind, transpileModule} from "typescript";
 
-const setup = () => {
+const setup = (container = "std") => {
     const source = readFileSync(resolve(process.cwd(), "src/config/tabs/syncUi.ts"), "utf8");
     const code = transpileModule(source + "\nexports.bind = bindProviderConfigEvent;", {
         compilerOptions: {module: ModuleKind.CommonJS},
@@ -23,10 +23,18 @@ const setup = () => {
         addEventListener: (name: string, callback: (event: unknown) => void) => { events[name] = callback; },
     };
     const requests: {data: {s3: typeof s3}, resolve: (response: unknown) => void, reject: (error: Error) => void}[] = [];
-    const moduleExports = {} as {bind: (config: unknown, root: unknown) => void};
+    const moduleExports = {} as {
+        bind: (config: unknown, root: unknown) => void;
+        getSyncProviderOptions: () => {value: number, label: string}[];
+    };
     runInNewContext(code, {
         exports: moduleExports,
-        window: {siyuan: {config: {sync}, languages: {_kernel: {142: "Input can not be empty"}}}},
+        window: {
+            siyuan: {
+                config: {sync, system: {container}},
+                languages: {_kernel: {142: "Input can not be empty"}, localFileSystem: "Local file system"},
+            },
+        },
         require: (name: string) => {
             if (name === "../../util/fetch") {
                 return {fetchSyncPost: (_url: string, data: {s3: typeof s3}) => new Promise((resolve, reject) => {
@@ -37,7 +45,8 @@ const setup = () => {
                 return {showMessage: (message: string) => messages.push(message)};
             }
             if (name === "../../util/needSubscribe") {
-                return {isPaidUser: () => true};
+                // 第三方同步配置不再依赖账号或订阅，任何账号检查都会导致测试失败
+                return {isPaidUser: () => { throw new Error("account checks must not be used for sync configuration"); }};
             }
             return {};
         },
@@ -49,7 +58,15 @@ const setup = () => {
             events.change({target: {matches: () => true}});
         }
     };
-    return {sync, inputs, requests, messages, fill, change: () => events.change({target: {matches: () => true}})};
+    return {
+        sync,
+        inputs,
+        requests,
+        messages,
+        fill,
+        change: () => events.change({target: {matches: () => true}}),
+        getSyncProviderOptions: moduleExports.getSyncProviderOptions,
+    };
 };
 
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
@@ -64,6 +81,25 @@ test("S3 configuration saves automatically once required fields are complete", a
     await settle();
     assert.equal(ui.requests.length, 1);
     assert.equal(ui.requests[0].data.s3.region, "region");
+});
+
+test("third-party configuration does not require an account or subscription", async () => {
+    const ui = setup();
+    ui.fill();
+    await settle();
+    assert.equal(ui.requests.length, 1);
+});
+
+test("sync settings expose only third-party providers", () => {
+    const providers = setup().getSyncProviderOptions();
+    assert.equal(providers.map((provider) => provider.value).join(","), "2,3,4");
+    assert.ok(providers.every((provider) => provider.label !== "SiYuan"));
+    assert.ok(providers.every((provider) => provider.value !== 0));
+});
+
+test("local file system provider is hidden when the container does not support it", () => {
+    const providers = setup("ios").getSyncProviderOptions();
+    assert.equal(providers.map((provider) => provider.value).join(","), "2,3");
 });
 
 test("failed S3 saves retain all inputs and allow retry", async () => {

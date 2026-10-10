@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
@@ -72,20 +71,4 @@ func TestClearOldInstallPackages(t *testing.T) {
 		assertExists(name, true)
 	}
 	assertExists(names[2], true)
-	// 清理等待下载释放互斥锁。
-	checkDownloadInstallPkgLock.Lock()
-	done := make(chan struct{})
-	go func() { clearOldInstallPackages(""); close(done) }()
-	select {
-	case <-done:
-		checkDownloadInstallPkgLock.Unlock()
-		t.Fatal("cleanup did not wait for download lock")
-	case <-time.After(20 * time.Millisecond):
-	}
-	checkDownloadInstallPkgLock.Unlock()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("cleanup did not finish after download lock was released")
-	}
 }

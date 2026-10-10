@@ -4,7 +4,6 @@ import {openLink} from "../../editor/openLink";
 import {showMessage} from "../../dialog/message";
 import {previewDocImage} from "./image";
 import {getDiagramBlock, previewDiagram} from "./diagram";
-import {needSubscribe} from "../../util/needSubscribe";
 import {Constants} from "../../constants";
 /// #if !BROWSER
 import {
@@ -290,7 +289,7 @@ export class Preview {
     }
 
     private link2online(copyElement: HTMLElement) {
-        if (needSubscribe("")) {
+        if (!window.siyuan.user) {
             return;
         }
         copyElement.querySelectorAll("[href],[src]").forEach(item => {

@@ -195,7 +195,7 @@ class App {
             correctHotkey(siyuanApp);
             await loadPlugins(this);
             getLocalStorage(() => {
-                void loadLanguages(window.siyuan.config.appearance.lang, Constants.SIYUAN_VERSION, (languages: IObject) => {
+                void loadLanguages(window.siyuan.config.appearance.lang, Constants.SIYUAN_VERSION, async (languages: IObject) => {
                     window.siyuan.languages = languages;
                     void initializeEnglishCommandTranslations(
                         window.siyuan.config.appearance.lang,
@@ -221,24 +221,21 @@ class App {
                     } else if (!isInIOS()) {
                         document.querySelector('meta[name="viewport"]').setAttribute("content", "width=device-width, height=device-height, interactive-widget=resizes-visual, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover");
                     }
-                    fetchPost("/api/setting/getCloudUser", {cached: true}, async userResponse => {
-                        window.siyuan.user = userResponse.data && "userId" in userResponse.data ? userResponse.data : null;
-                        await ensureOnboarding();
-                        fetchPost("/api/system/getEmojiConf", {}, async emojiResponse => {
-                            window.siyuan.emojis = emojiResponse.data as IEmoji[];
-                            await setNoteBook();
-                            try {
-                                await initFramework(this, confResponse.data.start);
-                                initRightMenu(this);
-                                openChangelog();
-                                window.siyuan.isReady = true;
-                                mainWs.flushMainMessages();
-                                fetchPost("/api/setting/getCloudUser", {});
-                            } catch (error) {
-                                console.error("Failed to initialize mobile framework:", error);
-                                finishMobileStartup();
-                            }
-                        });
+                    window.siyuan.user = null;
+                    await ensureOnboarding();
+                    fetchPost("/api/system/getEmojiConf", {}, async emojiResponse => {
+                        window.siyuan.emojis = emojiResponse.data as IEmoji[];
+                        await setNoteBook();
+                        try {
+                            await initFramework(this, confResponse.data.start);
+                            initRightMenu(this);
+                            openChangelog();
+                            window.siyuan.isReady = true;
+                            mainWs.flushMainMessages();
+                        } catch (error) {
+                            console.error("Failed to initialize mobile framework:", error);
+                            finishMobileStartup();
+                        }
                     });
                 });
             });

@@ -1565,25 +1565,17 @@ func DownloadCloudSnapshot(tag, id string) (err error) {
 		err = errors.New(Conf.Language(26))
 		return
 	}
+	if conf.ProviderSiYuan == Conf.Sync.Provider {
+		// 官方云同步已停用，保留全部现有配置并拒绝云端快照下载
+		util.PushErrMsg(Conf.Language(410), 5000)
+		return
+	}
 
 	handleCloudError := cloudRepoErrorHandler()
 	defer func() { handleCloudError(err) }()
 	repo, err := newCloudRepositoryWithAssetSourceLocked()
 	if err != nil {
 		return
-	}
-
-	switch Conf.Sync.Provider {
-	case conf.ProviderSiYuan:
-		if !IsSubscriber() {
-			util.PushErrMsg(Conf.Language(29), 5000)
-			return
-		}
-	case conf.ProviderWebDAV, conf.ProviderS3, conf.ProviderLocal:
-		if !IsPaidUser() {
-			util.PushErrMsg(Conf.Language(214), 5000)
-			return
-		}
 	}
 
 	defer util.PushClearProgress()
@@ -1611,6 +1603,11 @@ func UploadCloudSnapshot(tag, id string) (err error) {
 		err = errors.New(Conf.Language(26))
 		return
 	}
+	if conf.ProviderSiYuan == Conf.Sync.Provider {
+		// 官方云同步已停用，保留全部现有配置并拒绝云端快照上传
+		util.PushErrMsg(Conf.Language(410), 5000)
+		return
+	}
 
 	handleCloudError := cloudRepoErrorHandler()
 	defer func() { handleCloudError(err) }()
@@ -1619,34 +1616,12 @@ func UploadCloudSnapshot(tag, id string) (err error) {
 		return
 	}
 
-	switch Conf.Sync.Provider {
-	case conf.ProviderSiYuan:
-		if !IsSubscriber() {
-			util.PushErrMsg(Conf.Language(29), 5000)
-			return
-		}
-	case conf.ProviderWebDAV, conf.ProviderS3, conf.ProviderLocal:
-		if !IsPaidUser() {
-			util.PushErrMsg(Conf.Language(214), 5000)
-			return
-		}
-	}
-
 	util.PushEndlessProgress(Conf.Language(116))
 	defer util.PushClearProgress()
 	uploadFileCount, uploadChunkCount, uploadBytes, err := repo.UploadTagIndex(tag, id, map[string]any{eventbus.CtxPushMsg: eventbus.CtxPushMsgToStatusBarAndProgress})
 	if err != nil {
 		if errors.Is(err, dejavu.ErrCloudBackupCountExceeded) {
 			err = fmt.Errorf(Conf.Language(84), Conf.Language(154))
-			return
-		}
-		if conf.ProviderSiYuan == Conf.Sync.Provider && errors.Is(err, dejavu.ErrCloudStorageSizeExceeded) {
-			u := Conf.GetUser()
-			msg := fmt.Sprintf(Conf.Language(43), humanize.BytesCustomCeil(uint64(u.UserSiYuanRepoSize), 2))
-			if 2 == u.UserSiYuanSubscriptionPlan {
-				msg = fmt.Sprintf(Conf.Language(68), humanize.BytesCustomCeil(uint64(u.UserSiYuanRepoSize), 2))
-			}
-			err = fmt.Errorf(Conf.Language(84), msg)
 			return
 		}
 		handleCloudError(err)
@@ -1666,25 +1641,17 @@ func RemoveCloudRepoTag(tag string) (err error) {
 		err = errors.New(Conf.Language(26))
 		return
 	}
+	if conf.ProviderSiYuan == Conf.Sync.Provider {
+		// 官方云同步已停用，保留全部现有配置并拒绝删除云端快照标签
+		util.PushErrMsg(Conf.Language(410), 5000)
+		return
+	}
 
 	handleCloudError := cloudRepoErrorHandler()
 	defer func() { handleCloudError(err) }()
 	repo, err := newCloudRepositoryWithAssetSourceLocked()
 	if err != nil {
 		return
-	}
-
-	switch Conf.Sync.Provider {
-	case conf.ProviderSiYuan:
-		if !IsSubscriber() {
-			util.PushErrMsg(Conf.Language(29), 5000)
-			return
-		}
-	case conf.ProviderWebDAV, conf.ProviderS3, conf.ProviderLocal:
-		if !IsPaidUser() {
-			util.PushErrMsg(Conf.Language(214), 5000)
-			return
-		}
 	}
 
 	err = repo.RemoveCloudRepoTag(tag)
@@ -1702,25 +1669,17 @@ func GetCloudRepoTagSnapshots() (ret []*dejavu.Log, err error) {
 		err = errors.New(Conf.Language(26))
 		return
 	}
+	if conf.ProviderSiYuan == Conf.Sync.Provider {
+		// 官方云同步已停用，保留全部现有配置并拒绝读取云端快照标签
+		util.PushErrMsg(Conf.Language(410), 5000)
+		return
+	}
 
 	handleCloudError := cloudRepoErrorHandler()
 	defer func() { handleCloudError(err) }()
 	repo, err := newCloudRepositoryWithAssetSourceLocked()
 	if err != nil {
 		return
-	}
-
-	switch Conf.Sync.Provider {
-	case conf.ProviderSiYuan:
-		if !IsSubscriber() {
-			util.PushErrMsg(Conf.Language(29), 5000)
-			return
-		}
-	case conf.ProviderWebDAV, conf.ProviderS3, conf.ProviderLocal:
-		if !IsPaidUser() {
-			util.PushErrMsg(Conf.Language(214), 5000)
-			return
-		}
 	}
 
 	logs, err := repo.GetCloudRepoTagLogs(map[string]any{eventbus.CtxPushMsg: eventbus.CtxPushMsgToStatusBar})
@@ -1742,25 +1701,17 @@ func GetCloudRepoSnapshots(page int) (ret []*dejavu.Log, pageCount, totalCount i
 		err = errors.New(Conf.Language(26))
 		return
 	}
+	if conf.ProviderSiYuan == Conf.Sync.Provider {
+		// 官方云同步已停用，保留全部现有配置并拒绝读取云端快照
+		util.PushErrMsg(Conf.Language(410), 5000)
+		return
+	}
 
 	handleCloudError := cloudRepoErrorHandler()
 	defer func() { handleCloudError(err) }()
 	repo, err := newCloudRepositoryWithAssetSourceLocked()
 	if err != nil {
 		return
-	}
-
-	switch Conf.Sync.Provider {
-	case conf.ProviderSiYuan:
-		if !IsSubscriber() {
-			util.PushErrMsg(Conf.Language(29), 5000)
-			return
-		}
-	case conf.ProviderWebDAV, conf.ProviderS3, conf.ProviderLocal:
-		if !IsPaidUser() {
-			util.PushErrMsg(Conf.Language(214), 5000)
-			return
-		}
 	}
 
 	if 1 > page {

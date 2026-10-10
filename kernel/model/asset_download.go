@@ -97,18 +97,9 @@ func validateAssetDownloadSourceScope(scope string) error {
 }
 
 func checkAssetDownloadAccess() error {
-	if Conf.Sync == nil || !Conf.Sync.Enabled || Conf.GetUser() == nil {
+	// 资源补齐只依赖同步开关与存储提供者，官方云同步已停用，第三方存储不校验思源账号
+	if Conf.Sync == nil || !Conf.Sync.Enabled || conf.ProviderSiYuan == Conf.Sync.Provider {
 		return errors.New(Conf.Language(376))
-	}
-	switch Conf.Sync.Provider {
-	case conf.ProviderSiYuan:
-		if !IsSubscriber() {
-			return errors.New(Conf.Language(376))
-		}
-	case conf.ProviderS3, conf.ProviderWebDAV, conf.ProviderLocal:
-		if !IsPaidUser() {
-			return errors.New(Conf.Language(376))
-		}
 	}
 	return nil
 }

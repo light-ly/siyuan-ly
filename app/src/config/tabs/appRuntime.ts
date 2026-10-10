@@ -59,20 +59,6 @@ export const sendAppSetting = (controlId: string, value: unknown) => {
             });
             break;
         }
-        case "system.downloadInstallPkg": {
-            const downloadInstallPkg = Boolean(value) as Config.ISystem["downloadInstallPkg"];
-            fetchPost("/api/system/setDownloadInstallPkg", {downloadInstallPkg}, () => {
-                window.siyuan.config.system.downloadInstallPkg = downloadInstallPkg;
-            });
-            break;
-        }
-        case "system.updateChannel": {
-            const updateChannel = value as Config.TUpdateChannel;
-            fetchPost("/api/system/setUpdateChannel", {updateChannel}, () => {
-                window.siyuan.config.system.updateChannel = updateChannel;
-            });
-            break;
-        }
         default:
             console.warn(`[config] sendAppSetting: unhandled controlId "${controlId}"`);
             break;
