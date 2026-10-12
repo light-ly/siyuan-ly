@@ -6,7 +6,7 @@
 
 This plan is based on the `v3.8.6` tag and the `patch/v3.8.6-custom` branch. The target is a custom build that does not depend on SiYuan official accounts or official cloud services, supports user-owned synchronization backends, exposes local AI capabilities, disables update checks and unnecessary background network activity, and removes forced brand watermarks from exports.
 
-The baseline commit is `158812497497c6fa8a6d1031bfa2f025a61ee5c2`. The workspace was clean when this plan was created. This file records the plan only; it does not mean that the related source changes have been implemented.
+The baseline commit is `158812497497c6fa8a6d1031bfa2f025a61ee5c2`. The workspace was clean when this plan was created. 2026-10-10 update: phases A, B, C and part of E have landed in commit `bcf8e5408a`, and this document now also covers the local Windows release-packaging environment; phases D and F are in progress and the phase G integration verification is pending.
 
 ## 2. Confirmed scope decisions
 
@@ -216,6 +216,44 @@ The npm registry `https://registry.npmjs.org/` is reachable directly; the defaul
 3. To verify the absence of updates and telemetry, use `tcpdump`, mitmproxy or a local HTTP mock to record outbound requests; never put production API keys into a capture environment.
 4. For the full Go suite, allow sufficient disk space and time; use the `fts5 sqlcipher` tags and never connect tests to production synchronization services.
 
+### Windows release packaging environment (this machine)
+
+Package the custom Windows installer with the repository's own local script `scripts/win-build.bat`; the official release orchestration script `scripts/build-release.py` is not required (it enforces YubiKey code signing and a fixed ARM64 compiler path, and suits only the official release machine).
+
+**Required tools**
+
+| Tool | Requirement | Notes and this machine |
+|---|---|---|
+| Git | Any recent version | Installed: 2.55.0 |
+| Node.js | 24.x | Matches CI; installed: v24.18.1 |
+| pnpm | `12.6.0` | Follow the `packageManager` field in `app/package.json`; do not use Corepack or standalone `@pnpm/exe`; installed: 12.6.0 |
+| Go | `1.26.5` | Declared by `kernel/go.mod`; installed: go1.26.5 windows/amd64 |
+| gcc or clang (MinGW toolchain) | Any recent version | Required for CGO sqlite/sqlcipher; this machine has the MSYS2 clang64 toolchain (clang 22.1.8, target `x86_64-w64-windows-gnu`, with the lld linker) at `C:\msys64\clang64\bin`; because that directory is not on PATH and no system gcc exists, Go defaults to `CGO_ENABLED=0` — set `CC=/c/msys64/clang64/bin/cc.exe` and `CGO_ENABLED=1` at the command level for kernel builds and tests, or add that `bin` directory to the system PATH; CGO probe passed on 2026-10-12 |
+| Python | 3.11 or later | Only needed for `scripts/build-release.py`; not needed for the recommended path; installed: 3.14.7 |
+
+On Windows, sqlcipher does not require a separate OpenSSL installation: the go-sqlite3 replacement in `kernel/go.mod` bundles SQLCipher with libtomcrypt, so kernel compilation only needs `CGO_ENABLED=1` and a working MinGW gcc. Packaging an ARM64 installer additionally requires the `aarch64-w64-mingw32-gcc.exe` from llvm-mingw; its default path can be changed in `scripts/win-build.bat`.
+
+**Packaging steps (AMD64)**
+
+Run from the repository root:
+
+```bat
+scripts\win-build.bat --target=amd64
+```
+
+The script performs, in order: deleting stale `app/build` and `app/kernel*`; from `app/`: `pnpm install`, `pnpm run install:electron`, `pnpm run build` (the four webpack production builds); installing goversioninfo and generating the Windows version resource; from `kernel/`: `go build -tags "fts5 sqlcipher"` producing `app\kernel\SiYuan-Kernel.exe`; copying `app\elevator\elevator-amd64.exe` to `app\kernel\elevator.exe`; from `app/`: `pnpm run dist` (electron-builder producing the NSIS installer).
+
+The artifact is `app\build\siyuan-<version>-win.exe`, unpacked at `app\build\win-unpacked`; for ARM64 use `--target=arm64`, producing `siyuan-<version>-win-arm64.exe`.
+
+**Notes**
+
+1. Since Electron 42, `pnpm install` no longer downloads the Electron binary automatically; `pnpm run install:electron` is mandatory. When downloads are slow, set `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` first.
+2. Before packaging, confirm that `Ver` in `kernel/util/working.go` matches the `version` in `app/package.json` and that `Mode` is `prod`; a stable release also requires the `app/changelogs/v<version>/` directory.
+3. Do not place `siyuan.exe` into `app/kernel/` before running electron-builder; the NSIS installer creates the hard link at install time.
+4. `pnpm run dist` does not enforce code signing; to sign, set the electron-builder `CSC_LINK` and `CSC_KEY_PASSWORD` environment variables.
+5. The installer refuses Windows versions below Windows 10 and refuses to install into a directory that already contains a `data` workspace.
+6. Consistent with AGENTS.md: use `pnpm run lint` for routine change verification; `win-build.bat` runs `pnpm run build` internally, which conflicts with a manually running `pnpm dev`, so run them at separate times.
+
 ## 7. Environment status, baseline verification and implementation gate
 
 The user authorized environment preparation and baseline testing, but not the six feature changes. Node.js `v24.21.0`, pnpm `12.6.0`, Go `1.26.5` and Conda Python `3.11.17` are confirmed available on this Linux machine.
@@ -234,6 +272,9 @@ The user authorized environment preparation and baseline testing, but not the si
 | Pure-Go API contract tests | From `kernel/`: `go test ./apicontract/...` with `GOPROXY=https://goproxy.cn,direct` at the command level | Passed: the first attempt failed only on module-download timeouts and passed on retry via the mirror; the failure was unrelated to code |
 | Sync and asset Go baseline | From `kernel/`: `go test -tags 'fts5 sqlcipher' ./model ./api -run 'Test(CheckSync\|SyncProvider\|AssetDownload\|APIContractSync)' -count=1` with `GOPROXY=https://goproxy.cn,direct` at the command level | Passed: `model` and `api` compiled under the fts5 sqlcipher tags, 20 top-level tests and 9 subtests passed with 0 failures; missing-cloud-object log lines during sync tests are expected negative paths |
 | Language packs | From the repository root: `~/miniconda3/envs/siyuan-ly-env/bin/python scripts/check-lang-keys.py` | Passed: 22 language files and 2999 expected keys, 0 unexpected keys, with complete keys and compatible Go placeholders |
+| Windows CGO toolchain | On the Windows machine, compile and run a temporary cgo program with `CC=/c/msys64/clang64/bin/cc.exe CGO_ENABLED=1` at the command level | Passed (2026-10-12); MSYS2 clang64 (clang 22.1.8, target `x86_64-w64-windows-gnu`, with lld), usable for kernel tests and packaging |
+| Asset-index Go regressions | From `kernel/`: `go test -tags "fts5 sqlcipher" ./sql -run TestFlushAssetContentQueue -count=1` and `go test -tags "fts5 sqlcipher" ./model -run TestEncryptedAssetPathsSkipPlaintextContentIndex -count=1`, with `CC`/`CGO_ENABLED`/`GOPROXY=https://goproxy.cn,direct` set at the command level | Passed (2026-10-12); a failed queue operation publishes the rebuild event, a commit failure does not, and encrypted assets stay out of the plaintext index on incremental index, delete and full reindex |
+| AI-disabled regressions | From `kernel/`: `go test -tags "fts5 sqlcipher" ./api -run TestAPIContractAIDisabled -count=1`, `./model -run TestAIDisabledBackgroundFeatures -count=1` and `./mcp/client -run TestAIDisabledMCPConnections -count=1` | Passed (2026-10-12); with `ai` explicitly disabled, the API contract, background features and MCP connections correctly fail |
 
 ### Local caches and access
 
@@ -245,7 +286,7 @@ There are three repository-local cache directories: `.pnpm-store-temp` (frontend
 2. `app/stage/build` has not been generated, no kernel binary has been compiled, and no running kernel has been restarted.
 3. The sibling `../petal` workspace is not prepared, so `api:check` does not verify external Petal declaration synchronization.
 
-No functional source, lockfile or generated declaration changed, and no commit or push was performed. The six feature changes remain gated on an explicit request to start; this authorization covers only environment configuration and testing.
+When this plan was created, no functional source, lockfile or generated declaration had changed, and no commit or push had been performed. 2026-10-10 update: the implementation gate has passed — phases A, B, C and part of E landed in commit `bcf8e5408a`. 2026-10-12 update: phases D (editor AI unconfigured guidance) and F (full-text asset-search regressions) are implemented, the MSYS2 clang64 toolchain is installed on the Windows machine, and the kernel-side regression verification has passed (see the table above); Go tests on this machine require `CC`/`CGO_ENABLED` at the command level. The phase G integration verification is still pending.
 
 ## 8. Completion criteria
 

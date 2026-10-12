@@ -6,7 +6,7 @@
 
 本计划基于 `v3.8.6` 标签和分支 `patch/v3.8.6-custom`，目标是构建一个不依赖思源官方账号和官方云服务、支持自有同步后端、开放本地 AI 能力、关闭更新检查与不必要后台外联、取消品牌附加水印的定制版本。
 
-当前基线提交为 `158812497497c6fa8a6d1031bfa2f025a61ee5c2`，计划创建时工作区干净；本文件只记录方案，不代表相关源码已经修改。
+当前基线提交为 `158812497497c6fa8a6d1031bfa2f025a61ee5c2`，计划创建时工作区干净。2026-10-10 更新：阶段 A、B、C 及部分 E 已以提交 `bcf8e5408a` 落地，本文档相应补充了 Windows 打包 release 环境；阶段 D、F 的实施与阶段 G 整体验证仍在进行。
 
 ## 2. 已确认的范围决策
 
@@ -216,6 +216,44 @@ npm registry `https://registry.npmjs.org/` 可直连；Go 模块默认代理 `pr
 3. 如需检查无更新和无遥测请求，可使用 `tcpdump`、mitmproxy 或本地 HTTP mock 服务记录出站请求；不要把真实生产 API Key 放入抓包环境。
 4. 如需执行全量 Go 测试，准备足够磁盘空间和时间；测试使用 `fts5 sqlcipher` 标签，并且不应连接生产同步服务。
 
+### Windows 打包 release 环境（本机）
+
+定制版打包 Windows 安装包使用仓库自带的本机脚本 `scripts/win-build.bat`；不需要官方发布编排脚本 `scripts/build-release.py`（它强制 YubiKey 代码签名并固定 ARM64 编译器路径，只适用于官方发布机）。
+
+**必需工具**
+
+| 工具 | 要求 | 说明与本机状态 |
+|---|---|---|
+| Git | 任意近期版本 | 本机已安装 2.55.0 |
+| Node.js | 24.x | 与 CI 一致；本机已安装 v24.18.1 |
+| pnpm | `12.6.0` | 以 `app/package.json` 的 `packageManager` 字段为准，不要使用 Corepack 或独立 `@pnpm/exe`；本机已安装 12.6.0 |
+| Go | `1.26.5` | `kernel/go.mod` 声明；本机已安装 go1.26.5 windows/amd64 |
+| gcc 或 clang（MinGW 工具链） | 任意近期版本 | CGO 编译 sqlite/sqlcipher 必需；本机已安装 MSYS2 clang64 工具链（clang 22.1.8，目标 `x86_64-w64-windows-gnu`，自带 lld 链接器），位于 `C:\msys64\clang64\bin`；由于该目录不在 PATH 且系统无 gcc，Go 默认 `CGO_ENABLED=0`，执行内核编译或测试时需在命令级设置 `CC=/c/msys64/clang64/bin/cc.exe` 和 `CGO_ENABLED=1`，或把该 `bin` 目录加入系统 PATH；2026-10-12 CGO 探针通过 |
+| Python | 3.11 以上 | 仅运行 `scripts/build-release.py` 时需要，推荐打包路径不需要；本机已安装 3.14.7 |
+
+Windows 下 sqlcipher 不需要单独安装 OpenSSL：`kernel/go.mod` 替换的 go-sqlite3 内置 SQLCipher 与 libtomcrypt，内核编译只需要 `CGO_ENABLED=1` 和一个能编译 C 的 MinGW gcc。打包 ARM64 安装包时另需 llvm-mingw 的 `aarch64-w64-mingw32-gcc.exe`，默认路径可在 `scripts/win-build.bat` 中修改。
+
+**打包步骤（AMD64）**
+
+在仓库根目录执行：
+
+```bat
+scripts\win-build.bat --target=amd64
+```
+
+脚本依次完成：删除旧的 `app/build` 与 `app/kernel*`；在 `app/` 执行 `pnpm install`、`pnpm run install:electron`、`pnpm run build`（四个 webpack 生产构建）；安装 goversioninfo 并生成 Windows 版本资源；在 `kernel/` 执行 `go build -tags "fts5 sqlcipher"` 输出 `app\kernel\SiYuan-Kernel.exe`；复制 `app\elevator\elevator-amd64.exe` 为 `app\kernel\elevator.exe`；在 `app/` 执行 `pnpm run dist`（electron-builder 生成 NSIS 安装包）。
+
+产物为 `app\build\siyuan-<版本>-win.exe`，解包目录为 `app\build\win-unpacked`；ARM64 使用 `--target=arm64`，产物为 `siyuan-<版本>-win-arm64.exe`。
+
+**注意事项**
+
+1. Electron 42 起 `pnpm install` 不再自动下载 Electron 二进制，必须执行 `pnpm run install:electron`；下载受限时可先设置 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`
+2. 打包前确认 `kernel/util/working.go` 的 `Ver` 与 `app/package.json` 的 `version` 一致且 `Mode` 为 `prod`；发布正式版还需要 `app/changelogs/v<版本>/` 目录
+3. 不要把 `siyuan.exe` 放进 `app/kernel/` 后再运行 electron-builder，安装阶段由 NSIS 创建硬链接
+4. `pnpm run dist` 不强制代码签名；如需签名，设置 electron-builder 的 `CSC_LINK` 与 `CSC_KEY_PASSWORD` 环境变量
+5. 安装器拒绝 Windows 10 以下系统，并拒绝安装到包含 `data` 工作区的目录
+6. 与 AGENTS.md 约束一致：日常改动验证使用 `pnpm run lint`；`win-build.bat` 内部执行 `pnpm run build`，与开发者手动运行的 `pnpm dev` 冲突，需错开执行
+
 ## 7. 当前环境状态、基线验证和实施闸门
 
 用户已明确授权环境准备与基线测试，但尚未授权六项功能实施。Node.js `v24.21.0`、pnpm `12.6.0`、Go `1.26.5` 和 Conda Python `3.11.17` 已在本机 Linux 环境确认可用。
@@ -234,6 +272,9 @@ npm registry `https://registry.npmjs.org/` 可直连；Go 模块默认代理 `pr
 | 纯 Go API 契约测试 | 在 `kernel/` 执行 `go test ./apicontract/...`，命令级设置 `GOPROXY=https://goproxy.cn,direct` | 通过；首次因模块下载超时失败，镜像重试后通过，失败与代码无关 |
 | 同步和资源 Go 基线 | 在 `kernel/` 执行 `go test -tags 'fts5 sqlcipher' ./model ./api -run 'Test(CheckSync\|SyncProvider\|AssetDownload\|APIContractSync)' -count=1`，命令级设置 `GOPROXY=https://goproxy.cn,direct` | 通过；`model`、`api` 在 fts5 sqlcipher 标签下编译成功，20 个顶层测试与 9 个子测试全部通过、0 失败；同步测试中的云端对象缺失日志是预期负路径 |
 | 语言包检查 | 在仓库根目录执行 `~/miniconda3/envs/siyuan-ly-env/bin/python scripts/check-lang-keys.py` | 通过；检查 22 个语言文件、2999 个预期键，0 个非预期键，键完整且 Go 占位符兼容 |
+| Windows CGO 工具链 | 在 Windows 本机命令级设置 `CC=/c/msys64/clang64/bin/cc.exe CGO_ENABLED=1` 编译运行临时 cgo 程序 | 通过（2026-10-12）；MSYS2 clang64（clang 22.1.8，目标 `x86_64-w64-windows-gnu`，自带 lld），内核测试与打包可用 |
+| 资源索引 Go 回归测试 | 在 `kernel/` 执行 `go test -tags "fts5 sqlcipher" ./sql -run TestFlushAssetContentQueue -count=1` 和 `go test -tags "fts5 sqlcipher" ./model -run TestEncryptedAssetPathsSkipPlaintextContentIndex -count=1`，命令级设置 `CC`/`CGO_ENABLED`/`GOPROXY=https://goproxy.cn,direct` | 通过（2026-10-12）；队列操作失败发布重建事件、提交失败不重建、加密资源在增量索引/删除/全量重建三路径均不入明文索引 |
+| AI 禁用回归测试 | 在 `kernel/` 执行 `go test -tags "fts5 sqlcipher" ./api -run TestAPIContractAIDisabled -count=1`、`./model -run TestAIDisabledBackgroundFeatures -count=1`、`./mcp/client -run TestAIDisabledMCPConnections -count=1` | 通过（2026-10-12）；显式禁用 `ai` 后 API 契约、后台功能与 MCP 连接均正确失效 |
 
 ### 本机缓存和权限
 
@@ -245,7 +286,7 @@ npm registry `https://registry.npmjs.org/` 可直连；Go 模块默认代理 `pr
 2. 尚未生成 `app/stage/build`，尚未编译内核二进制，也没有重启任何正在运行的内核。
 3. 同级 `../petal` 工作区尚未准备，因此 `api:check` 不包含外部 Petal 声明同步验证。
 
-没有功能源码、lockfile 或生成声明改动，没有提交或推送。你审阅计划并明确说“开始”之前，不执行六项功能实施；本轮授权仅涵盖环境配置和测试。
+计划创建时没有功能源码、lockfile 或生成声明改动，也没有提交或推送。2026-10-10 更新：实施闸门已通过，阶段 A、B、C 及部分 E 以提交 `bcf8e5408a` 落地。2026-10-12 更新：阶段 D（编辑器 AI 未配置引导）与阶段 F（资源全文搜索回归测试）已实施，Windows 本机已安装 MSYS2 clang64 工具链并完成内核侧回归验证（见上表）；Go 测试在本机需命令级设置 `CC`/`CGO_ENABLED`。阶段 G 整体验证待完成。
 
 ## 8. 完成标准
 
