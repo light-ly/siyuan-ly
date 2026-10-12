@@ -145,3 +145,15 @@ func getAssetContentOperations() (ops []*assetContentDBQueueOperation) {
 	assetContentOperationQueue = nil
 	return
 }
+
+// AssetContentOperationCountForTest 返回当前资源索引队列长度，供跨包回归测试断言入队行为。
+func AssetContentOperationCountForTest() int {
+	assetContentDBQueueLock.Lock()
+	defer assetContentDBQueueLock.Unlock()
+	return len(assetContentOperationQueue)
+}
+
+// DiscardAssetContentOperationsForTest 清空资源索引队列，供跨包回归测试隔离前后入队结果。
+func DiscardAssetContentOperationsForTest() {
+	getAssetContentOperations()
+}
