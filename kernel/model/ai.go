@@ -154,12 +154,13 @@ func (stream *AIEditorChatStream) Close() {
 // NewAIEditorChatStream 创建绑定到编辑器请求生命周期的模型流。
 func NewAIEditorChatStream(ctx context.Context, ids []string, input, action string, history []AIEditorMessage) (*AIEditorChatStream, error) {
 	if !Conf.AI.HasAnyProvider() {
-		return nil, errors.New("no AI provider configured")
+		// 与 AI 接口准入一致，返回可本地化的未配置提示，供前端引导打开设置。
+		return nil, errors.New(Conf.Language(193))
 	}
 
 	prov, m := Conf.AI.GetEditingModel()
 	if nil == prov || nil == m {
-		return nil, errors.New("no AI editing model configured")
+		return nil, errors.New(Conf.Language(193))
 	}
 	editing := Conf.AI.Editing
 	if nil == editing {

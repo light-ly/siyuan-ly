@@ -325,7 +325,8 @@ func agentChatTitleContract(c *gin.Context, req apicontract.AITitleRequest) apic
 	if nil == selectedProvider || nil == selectedModel {
 		ret := gulu.Ret.NewResult()
 		ret.Code = -1
-		ret.Msg = "no AI provider configured"
+		// 与 AI 接口准入一致，返回可本地化的未配置提示。
+		ret.Msg = model.Conf.Language(193)
 		return contractFailure[string](ret)
 	}
 	client := util.NewAIClientWithModel(selectedProvider.APIKey, selectedProvider.BaseURL, selectedModel.Name, model.ResolveAIProviderHeaders(selectedProvider))

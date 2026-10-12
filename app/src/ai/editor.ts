@@ -21,6 +21,7 @@ import {Constants} from "../constants";
 import {bindThinkingCardToggle, updateThinkingBody} from "./thinkingCard";
 import {BLOCK_SELECTION_MODE_CLASS} from "../protyle/wysiwyg/blockSelection";
 import {normalizeHTMLAssetIFrameBlockDOM} from "../asset/html";
+import type {App} from "../index";
 
 type TAIEditorSourceKind = "selection" | "blocks" | "writing";
 type TAIEditorTaskStatus = "streaming" | "done" | "stopped" | "error";
@@ -429,6 +430,44 @@ const scheduleTaskPreview = (task: IAIEditorTask) => {
     });
 };
 
+// 未配置提供商或编辑模型时，内核返回当前语言的 _kernel[193]，据此给出打开设置的入口。
+const isUnconfiguredAIError = (message: string) => {
+    return message !== "" && message === window.siyuan.languages._kernel[193];
+};
+
+// 桌面与分离窗口复用设置对话框；移动端打开人工智能设置页。动态 import 避免与设置模块循环依赖。
+const openAIProviderSetting = async (app: App) => {
+    /// #if MOBILE
+    const {openMobileSetting} = await import("../mobile/menu");
+    openMobileSetting(app, "ai");
+    /// #else
+    const {openSetting, reuseSettingDialog} = await import("../config");
+    // 已有设置面板时复用并切换，避免销毁重建闪烁。
+    if (!reuseSettingDialog(app, "ai", "providers")) {
+        openSetting(app, "ai", "providers");
+    }
+    /// #endif
+};
+
+const updateUnconfiguredGuide = (task: IAIEditorTask) => {
+    const existing = task.panel.querySelector<HTMLButtonElement>(".ai-editor-panel__guide");
+    if (!isUnconfiguredAIError(task.notice)) {
+        existing?.remove();
+        return;
+    }
+    if (existing) {
+        return;
+    }
+    const button = document.createElement("button");
+    button.className = "b3-button b3-button--text ai-editor-panel__guide";
+    button.dataset.action = "open-ai-setting";
+    button.textContent = window.siyuan.languages.agentGoToSetting;
+    button.addEventListener("click", () => {
+        void openAIProviderSetting(task.protyle.app);
+    });
+    task.actionsElement.before(button);
+};
+
 const updateTaskActions = (task: IAIEditorTask) => {
     const conflict = getSourceConflict(task);
     const sourceButton = task.actionsElement.querySelector<HTMLButtonElement>('[data-action="source"]');
@@ -446,6 +485,7 @@ const updateTaskActions = (task: IAIEditorTask) => {
         task.statusElement.textContent = "";
     } else if (task.notice) {
         task.statusElement.textContent = task.notice;
+        updateUnconfiguredGuide(task);
     } else if (task.status === "stopped") {
         task.statusElement.textContent = window.siyuan.languages.aiStopped;
     } else if (task.status === "done") {
@@ -542,6 +582,7 @@ const startTaskStream = (task: IAIEditorTask) => {
     task.statusElement.textContent = "";
     task.stopButton.classList.remove("fn__none");
     task.actionsElement.classList.add("fn__none");
+    updateUnconfiguredGuide(task);
     fetchAIEditorSSE({
         taskID: task.id,
         ids: task.source.ids,

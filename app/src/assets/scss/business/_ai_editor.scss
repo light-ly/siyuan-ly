@@ -70,6 +70,12 @@
     border-top: 1px solid var(--b3-border-color);
   }
 
+  &__guide {
+    box-sizing: border-box;
+    flex-shrink: 0;
+    max-width: 100%;
+  }
+
   &--mobile {
     top: auto !important;
     right: max(8px, env(safe-area-inset-right));
@@ -78,7 +84,8 @@
     width: auto;
     max-height: 55%;
 
-    .ai-editor-panel__actions .b3-button {
+    .ai-editor-panel__actions .b3-button,
+    .ai-editor-panel__guide {
       min-height: 36px;
     }
   }
