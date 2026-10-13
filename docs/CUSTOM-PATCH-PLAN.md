@@ -247,12 +247,36 @@ The artifact is `app\build\siyuan-<version>-win.exe`, unpacked at `app\build\win
 
 **Notes**
 
-1. Since Electron 42, `pnpm install` no longer downloads the Electron binary automatically; `pnpm run install:electron` is mandatory. When downloads are slow, set `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` first.
+1. Since Electron 42, `pnpm install` no longer downloads the Electron binary automatically; `pnpm run install:electron` is mandatory. When downloads are slow, set `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` first; electron-builder downloads NSIS and other components from GitHub, so set `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/` when the connection times out (observed on this machine on 2026-10-12)
 2. Before packaging, confirm that `Ver` in `kernel/util/working.go` matches the `version` in `app/package.json` and that `Mode` is `prod`; a stable release also requires the `app/changelogs/v<version>/` directory.
 3. Do not place `siyuan.exe` into `app/kernel/` before running electron-builder; the NSIS installer creates the hard link at install time.
 4. `pnpm run dist` does not enforce code signing; to sign, set the electron-builder `CSC_LINK` and `CSC_KEY_PASSWORD` environment variables.
 5. The installer refuses Windows versions below Windows 10 and refuses to install into a directory that already contains a `data` workspace.
 6. Consistent with AGENTS.md: use `pnpm run lint` for routine change verification; `win-build.bat` runs `pnpm run build` internally, which conflicts with a manually running `pnpm dev`, so run them at separate times.
+
+### macOS release packaging environment
+
+The macOS installer **must be built on macOS**: the kernel needs the Xcode Command Line Tools clang for `GOOS=darwin CGO_ENABLED=1`, DMG creation relies on `hdiutil`, and code signing relies on `codesign` — none of which work on a Windows or Linux host. The current Windows machine only maintains the source; the actual build can take either of two routes.
+
+**Route 1: local Mac with `scripts/darwin-build.sh`**
+
+| Tool | Requirement |
+|---|---|
+| Git | Any recent version |
+| Node.js | 24.x |
+| pnpm | `12.6.0`, following the `packageManager` field in `app/package.json` |
+| Go | `1.26.5`, declared by `kernel/go.mod` |
+| Xcode Command Line Tools | Any recent version, providing the clang needed by CGO; the full Xcode is not required |
+
+Run `./scripts/darwin-build.sh --target=all` from the repository root. It performs, in order: dependency installation and `install:electron` in `app/`, `pnpm run build`, dual-architecture kernel builds for amd64 and arm64 (producing `app/kernel-darwin/SiYuan-Kernel` and `app/kernel-darwin-arm64/SiYuan-Kernel`), then `pnpm run dist-darwin` and `dist-darwin-arm64`. The artifacts are `app/build/siyuan-<version>-mac.dmg` and `siyuan-<version>-mac-arm64.dmg`.
+
+**Route 2: GitHub Actions**
+
+The fork `light-ly/siyuan-ly` already contains two macOS jobs in `.github/workflows/cd.yml` (`macos-latest`, one amd64 and one arm64, with the kernel ldflags forcing `Mode=prod`). Trigger by pushing a tag matching `*-alpha*`, `*-beta*` or `*-rc*`, or run `workflow_dispatch` manually from the Actions page.
+
+**Custom-edition signing decision: skip code signing**
+
+`app/electron-builder-darwin.yml` and `app/electron-builder-darwin-arm64.yml` hardcode the official signing identity `identity: "Yunnan Liandi Technology Co., Ltd."` together with a provisioning profile and notarization entitlements; the custom edition does not have that certificate, so a direct build fails at the signing stage. Decision made on 2026-10-13: skip signing. Before the first macOS build, remove `identity`, `provisioningProfile` and the notarization entitlements from both configurations to produce unsigned DMGs. Unsigned apps need a right-click - Open on first launch to pass Gatekeeper; once a self-owned Apple Developer certificate is available, signing can be restored via `CSC_LINK`/`CSC_KEY_PASSWORD`.
 
 ## 7. Environment status, baseline verification and implementation gate
 

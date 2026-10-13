@@ -247,12 +247,36 @@ scripts\win-build.bat --target=amd64
 
 **注意事项**
 
-1. Electron 42 起 `pnpm install` 不再自动下载 Electron 二进制，必须执行 `pnpm run install:electron`；下载受限时可先设置 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`
+1. Electron 42 起 `pnpm install` 不再自动下载 Electron 二进制，必须执行 `pnpm run install:electron`；下载受限时可先设置 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`；electron-builder 下载 NSIS 等组件走 GitHub，国内连接超时（2026-10-12 实测）时需设置 `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/`
 2. 打包前确认 `kernel/util/working.go` 的 `Ver` 与 `app/package.json` 的 `version` 一致且 `Mode` 为 `prod`；发布正式版还需要 `app/changelogs/v<版本>/` 目录
 3. 不要把 `siyuan.exe` 放进 `app/kernel/` 后再运行 electron-builder，安装阶段由 NSIS 创建硬链接
 4. `pnpm run dist` 不强制代码签名；如需签名，设置 electron-builder 的 `CSC_LINK` 与 `CSC_KEY_PASSWORD` 环境变量
 5. 安装器拒绝 Windows 10 以下系统，并拒绝安装到包含 `data` 工作区的目录
 6. 与 AGENTS.md 约束一致：日常改动验证使用 `pnpm run lint`；`win-build.bat` 内部执行 `pnpm run build`，与开发者手动运行的 `pnpm dev` 冲突，需错开执行
+
+### macOS 打包 release 环境
+
+macOS 安装包**必须在 macOS 上构建**：内核 `GOOS=darwin CGO_ENABLED=1` 需要 Xcode 命令行工具的 clang，DMG 生成依赖 `hdiutil`，代码签名依赖 `codesign`，Windows 与 Linux 本机都无法完成。当前 Windows 机器只负责源码维护，实际构建有两条路。
+
+**路线一：本地 Mac 执行 `scripts/darwin-build.sh`**
+
+| 工具 | 要求 |
+|---|---|
+| Git | 任意近期版本 |
+| Node.js | 24.x |
+| pnpm | `12.6.0`，以 `app/package.json` 的 `packageManager` 字段为准 |
+| Go | `1.26.5`，`kernel/go.mod` 声明 |
+| Xcode 命令行工具 | 任意近期版本，提供 CGO 需要的 clang；无需完整 Xcode |
+
+在仓库根目录执行 `./scripts/darwin-build.sh --target=all`，依次完成：`app/` 依赖安装与 `install:electron`、`pnpm run build`、amd64 与 arm64 双架构内核编译（输出 `app/kernel-darwin/SiYuan-Kernel` 与 `app/kernel-darwin-arm64/SiYuan-Kernel`）、`pnpm run dist-darwin` 与 `dist-darwin-arm64`。产物为 `app/build/siyuan-<版本>-mac.dmg` 与 `siyuan-<版本>-mac-arm64.dmg`。
+
+**路线二：GitHub Actions**
+
+fork 仓库 `light-ly/siyuan-ly` 的 `.github/workflows/cd.yml` 已包含两个 macOS job（`macos-latest`，amd64 与 arm64 各一，内核 ldflags 强制 `Mode=prod`）。触发方式：推送匹配 `*-alpha*`、`*-beta*`、`*-rc*` 的标签，或在 Actions 页面手动 `workflow_dispatch`。
+
+**定制版签名决策：跳过代码签名**
+
+`app/electron-builder-darwin.yml` 与 `app/electron-builder-darwin-arm64.yml` 写死了官方签名身份 `identity: "Yunnan Liandi Technology Co., Ltd."`、描述文件与公证 entitlements；定制版没有该证书，直接构建会在签名阶段失败。2026-10-13 决策：跳过签名，首次 macOS 构建前移除两个配置中的 `identity`、`provisioningProfile` 与公证 entitlements，产出未签名 DMG。未签名应用首次打开需在访达中右键 - 打开以绕过 Gatekeeper 拦截；如后续取得自有 Apple Developer 证书，再配置 `CSC_LINK`/`CSC_KEY_PASSWORD` 恢复签名。
 
 ## 7. 当前环境状态、基线验证和实施闸门
 
