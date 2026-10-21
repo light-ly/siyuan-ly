@@ -33,13 +33,13 @@ func newWatermarkTestContext(t *testing.T) *model.Context {
 func TestExportWatermarkDefaultsAndGuards(t *testing.T) {
 	originalConf := Conf
 	Conf = NewAppConf()
-	Conf.Export = conf.NewExport()
+	Conf.Export.Store(conf.NewExport())
 	t.Cleanup(func() { Conf = originalConf })
 
 	// 默认导出配置不得携带任何强制水印
-	if "" != Conf.Export.PDFWatermarkStr || "" != Conf.Export.PDFWatermarkDesc ||
-		"" != Conf.Export.ImageWatermarkStr || "" != Conf.Export.ImageWatermarkDesc {
-		t.Fatalf("default export config should not contain watermarks: %+v", Conf.Export)
+	if "" != Conf.Export.Load().PDFWatermarkStr || "" != Conf.Export.Load().PDFWatermarkDesc ||
+		"" != Conf.Export.Load().ImageWatermarkStr || "" != Conf.Export.Load().ImageWatermarkDesc {
+		t.Fatalf("default export config should not contain watermarks: %+v", Conf.Export.Load())
 	}
 
 	ctx := newWatermarkTestContext(t)
@@ -52,14 +52,14 @@ func TestExportWatermarkDefaultsAndGuards(t *testing.T) {
 	}
 
 	// watermark=true 但水印文本为空时仍不处理 PDF
-	Conf.Export.PDFWatermarkStr = ""
+	Conf.Export.Load().PDFWatermarkStr = ""
 	processPDFWatermark(ctx, true)
 	if got := len(ctx.XRefTable.Table); got != before {
 		t.Fatalf("empty watermark string should not add PDF objects: before=%d after=%d", before, got)
 	}
 
 	// 显式配置水印后不再被拦截，处理会实际加入水印对象
-	Conf.Export.PDFWatermarkStr = "siyuan-export-watermark"
+	Conf.Export.Load().PDFWatermarkStr = "siyuan-export-watermark"
 	processPDFWatermark(ctx, true)
 	if got := len(ctx.XRefTable.Table); got <= before {
 		t.Fatalf("configured watermark should engage PDF watermark processing: before=%d after=%d", before, got)

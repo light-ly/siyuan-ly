@@ -170,6 +170,22 @@ ${canManage ? `<span data-type="removeCloud" class="b3-tooltips b3-tooltips__w b
     });
 };
 
+/** S3 直接展示配置的存储桶，其他提供者通过“配置”按钮展开目录列表 */
+export const refreshSyncCloudDirBlock = (root: Element) => {
+    const blockElement = root.querySelector("#syncCloudDirBlock");
+    const listElement = root.querySelector("#syncCloudList");
+    if (!blockElement || !listElement) {
+        return;
+    }
+    const isS3 = window.siyuan.config.sync.provider === 2;
+    blockElement.querySelector('[data-action="config"]')?.classList.toggle("fn__none", isS3);
+    listElement.innerHTML = "";
+    listElement.classList.toggle("fn__none", !isS3);
+    if (isS3) {
+        renderSyncCloudList(listElement, true);
+    }
+};
+
 export const syncGuide = (app?: App) => {
     if (window.siyuan.config.readonly) {
         return;

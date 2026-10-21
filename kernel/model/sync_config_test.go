@@ -25,9 +25,10 @@ import (
 func TestCheckSyncPreservesEnabledWithoutUser(t *testing.T) {
 	originalConf := Conf
 	Conf = NewAppConf()
-	Conf.Sync = conf.NewSync()
-	Conf.Sync.Provider = conf.ProviderS3
-	Conf.Sync.Enabled = true
+	Conf.Sync.Store(conf.NewSync())
+	confSync := Conf.Sync.Load()
+	confSync.Provider = conf.ProviderS3
+	confSync.Enabled = true
 	t.Cleanup(func() {
 		Conf = originalConf
 	})
@@ -36,7 +37,7 @@ func TestCheckSyncPreservesEnabledWithoutUser(t *testing.T) {
 	if !checkSync(false, false, true) {
 		t.Fatal("third-party sync must start without a user")
 	}
-	if !Conf.Sync.Enabled {
+	if !Conf.Sync.Load().Enabled {
 		t.Fatal("sync configuration must remain enabled without a user")
 	}
 }

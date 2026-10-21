@@ -84,11 +84,14 @@ func TestEncryptedAssetPathsSkipPlaintextContentIndex(t *testing.T) {
 	})
 
 	t.Run("full reindex", func(t *testing.T) {
+		// 3.8.8 起 FullIndex 按批写入并立即冲刷队列，使用内存库避免文件句柄占用临时目录
+		restoreAssetContentDB := sql.UseInMemoryAssetContentDatabaseForTest()
+		t.Cleanup(restoreAssetContentDB)
 		sql.DiscardAssetContentOperationsForTest()
 		before := sql.AssetContentOperationCountForTest()
 		assetContentSearcher.FullIndex()
-		if got := sql.AssetContentOperationCountForTest() - before; got != 1 {
-			t.Fatalf("全量重建应只为普通资源入队一个索引操作，实际新增 %d 个", got)
+		if got := sql.AssetContentOperationCountForTest() - before; got != 0 {
+			t.Fatalf("全量重建的索引操作应立即冲刷，队列实际残留 %d 个", got)
 		}
 		assertParsedAssetPaths(t, parsed, []string{normalAbs})
 	})

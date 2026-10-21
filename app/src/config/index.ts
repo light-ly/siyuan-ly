@@ -5,7 +5,7 @@ import {initSettingSearch, switchSettingTab} from "./search/dialog";
 import {bindSettingSaveDelegation} from "./setting/save";
 import {Dialog} from "../dialog";
 import {Constants} from "../constants";
-import {focusByRange} from "../protyle/util/selection";
+import {focusByRange} from "../protyle/util/selectionOffsets";
 import {initSettingDrag} from "./setting/drag";
 import {focusSettingGroup} from "./setting/focusGroup";
 /// #endif
@@ -25,7 +25,7 @@ import {getHostCapabilities} from "../util/hostCapabilities";
 import {unmountWorkspaceStorage} from "./tabs/workspaceStorage";
 
 /// #if !MOBILE
-const openSettingDialog = (app: App, initialTab: TSettingTab = "editor", group?: string) => {
+export const openSettingDialog = (app: App, initialTab: TSettingTab = "editor", group?: string) => {
     window.siyuan.dialogs.find((item) => item.element.querySelector(".config__tab-container"))?.destroy();
     let range: Range;
     if (getSelection().rangeCount > 0) {
@@ -123,17 +123,33 @@ export const reuseSettingDialog = (app: App, tab: TSettingTab, group?: string): 
 };
 /// #endif
 
-export const openSetting = (app: App, tab?: TSettingTab, group?: string) => {
+export const openPluginSetting = (app: App) => {
+    /// #if MOBILE
+    openMobileSetting(app);
+    /// #else
+    return openSettingDialog(app);
+    /// #endif
+};
+
+export const openSetting = (app: App, tab?: TSettingTab, group?: string, options?: { aiProvider?: "chatgpt" }) => {
     if (tab === "bazaar" && !isBazaarAvailable()) {
         return;
     }
     if (tab === "export" && !getHostCapabilities().importExport) {
         return;
     }
+    const openProvider = () => {
+        if (options?.aiProvider === "chatgpt") {
+            void import("./tabs/ai/aiProviderUi").then(({openChatGPTProvider}) => openChatGPTProvider());
+        }
+    };
     /// #if MOBILE
     openMobileSetting(app, tab);
+    openProvider();
     /// #else
-    return openSettingDialog(app, tab, group);
+    const dialog = openSettingDialog(app, tab, group);
+    openProvider();
+    return dialog;
     /// #endif
 };
 

@@ -19,3 +19,10 @@ export const mountMobileBarsSetting = (root: HTMLElement) => {
         showMobileBars();
     });
 };
+
+export const syncMobileBarsSetting = (root: ParentNode = document) => {
+    root.querySelectorAll<HTMLInputElement>("#mobileBarsAutoHide").forEach(input => {
+        input.checked = isMobileBarsAutoHide();
+        input.disabled = window.siyuan.config.readonly || window.siyuan.isPublish;
+    });
+};

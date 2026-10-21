@@ -11,3 +11,8 @@ export const applyCloudUserState = (user: TCloudUser | null, userName = "", acco
     }
     processSync();
 };
+
+// 官方账号已移除，同步页展示时无需刷新云端账号信息。
+export const refreshCloudUser = async (_force = false, _root?: Element) => {
+    return;
+};

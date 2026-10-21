@@ -157,3 +157,32 @@ func AssetContentOperationCountForTest() int {
 func DiscardAssetContentOperationsForTest() {
 	getAssetContentOperations()
 }
+
+// UseInMemoryAssetContentDatabaseForTest 将资源内容数据库切换为内存库并建好 FTS 表，返回恢复函数。
+func UseInMemoryAssetContentDatabaseForTest() (restore func()) {
+	assetContentDBQueueLock.Lock()
+	previousDB := assetContentDB
+	previousQueue := assetContentOperationQueue
+	assetContentOperationQueue = nil
+	assetContentDBQueueLock.Unlock()
+
+	testDB, err := sql.Open("sqlite3_extended", ":memory:")
+	if err != nil {
+		logging.LogErrorf("open in-memory asset content database failed: %s", err)
+		return func() {}
+	}
+	if _, err = testDB.Exec("CREATE VIRTUAL TABLE asset_contents_fts_case_insensitive USING fts5(id UNINDEXED, name, ext, path, size UNINDEXED, updated UNINDEXED, content, tokenize=\"siyuan case_insensitive\")"); err != nil {
+		logging.LogErrorf("create in-memory asset content fts table failed: %s", err)
+	}
+	assetContentDB = testDB
+
+	return func() {
+		assetContentDBQueueLock.Lock()
+		assetContentOperationQueue = previousQueue
+		assetContentDBQueueLock.Unlock()
+		assetContentDB = previousDB
+		if err := testDB.Close(); err != nil {
+			logging.LogErrorf("close in-memory asset content database failed: %s", err)
+		}
+	}
+}
