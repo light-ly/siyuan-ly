@@ -253,6 +253,7 @@ The artifact is `app\build\siyuan-<version>-win.exe`, unpacked at `app\build\win
 4. `pnpm run dist` does not enforce code signing; to sign, set the electron-builder `CSC_LINK` and `CSC_KEY_PASSWORD` environment variables.
 5. The installer refuses Windows versions below Windows 10 and refuses to install into a directory that already contains a `data` workspace.
 6. Consistent with AGENTS.md: use `pnpm run lint` for routine change verification; `win-build.bat` runs `pnpm run build` internally, which conflicts with a manually running `pnpm dev`, so run them at separate times.
+7. Since v3.8.8, electron-builder prepares OCR resources before packaging and requires the VC++ CRT: on a machine without Visual Studio, set `SIYUAN_OCR_VC_REDIST_DIR` to a directory containing `msvcp140.dll`, `msvcp140_1.dll`, `vcruntime140.dll` and `vcruntime140_1.dll` (this machine keeps one at `%LOCALAPPDATA%\Temp\siyuan-vccrt\Microsoft.VC143.CRT`, assembled from `C:\Windows\System32`); if the OCR onnxruntime and models cannot be downloaded from GitHub/HuggingFace, place them in the repository's `.cache/ocr` and `app/stage/ocr/models` first (the script verifies sha256 and skips re-downloading).
 
 ### macOS release packaging environment
 

@@ -253,6 +253,7 @@ scripts\win-build.bat --target=amd64
 4. `pnpm run dist` 不强制代码签名；如需签名，设置 electron-builder 的 `CSC_LINK` 与 `CSC_KEY_PASSWORD` 环境变量
 5. 安装器拒绝 Windows 10 以下系统，并拒绝安装到包含 `data` 工作区的目录
 6. 与 AGENTS.md 约束一致：日常改动验证使用 `pnpm run lint`；`win-build.bat` 内部执行 `pnpm run build`，与开发者手动运行的 `pnpm dev` 冲突，需错开执行
+7. v3.8.8 起 electron-builder 打包前会准备 OCR 资源并要求 VC++ CRT：本机无 Visual Studio 时需设置 `SIYUAN_OCR_VC_REDIST_DIR` 指向含 `msvcp140.dll`、`msvcp140_1.dll`、`vcruntime140.dll`、`vcruntime140_1.dll` 的目录（本机备好的目录为 `%LOCALAPPDATA%\Temp\siyuan-vccrt\Microsoft.VC143.CRT`，可从 `C:\Windows\System32` 复制组成）；OCR 的 onnxruntime 与模型如无法从 GitHub/HuggingFace 下载，可先放入仓库 `.cache/ocr` 与 `app/stage/ocr/models`（脚本校验 sha256 后会跳过重下）
 
 ### macOS 打包 release 环境
 
