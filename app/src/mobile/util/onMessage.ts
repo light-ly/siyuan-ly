@@ -1,5 +1,8 @@
 import {openMobileFileById} from "../editor";
 import {closeNotebookHistoryDialogs} from "../../history/notebookDialogs";
+import {closeNotebookLivePhotos} from "../../protyle/preview/livePhoto";
+import {refreshSettingConfig} from "../../config/setting/sync";
+import {downloadProgress} from "../../dialog/processSystem";
 import {MOBILE_BARS_CONFIG_KEY} from "./mobileBarsConfig";
 import {showMobileBars} from "./mobileBars";
 import {
@@ -71,6 +74,9 @@ export const onMessage = (app: App, data: IWebSocketData) => {
             case "setAppearance":
                 appearanceConfigApi.apply(data.data);
                 break;
+            case "settingChanged":
+                void refreshSettingConfig(data.data.namespace, data.data.revision);
+                break;
             case "refreshAppearance":
                 void refreshAppearance(data.data);
                 break;
@@ -122,6 +128,7 @@ export const onMessage = (app: App, data: IWebSocketData) => {
             case "closeBox":
             case "removeBox": {
                 closeNotebookHistoryDialogs(data.data.box);
+                closeNotebookLivePhotos(data.data.box);
                 removeMobileBacklinkContent({notebookId: data.data.box});
                 window.siyuan.mobile.tabs?.removeNotebook(data.data.box);
                 break;
@@ -188,6 +195,9 @@ export const onMessage = (app: App, data: IWebSocketData) => {
                 if (data.data.keys.includes(Constants.LOCAL_MOBILE_SIDE_PANEL)) {
                     dispatchMobileSidePanelConfigChange();
                 }
+                break;
+            case "downloadProgress":
+                downloadProgress(data.data);
                 break;
             case"progress":
                 progressLoading(data);

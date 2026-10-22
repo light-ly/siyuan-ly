@@ -1,5 +1,7 @@
 import {onWindowWorkspaceStorageChanged} from "./workspace";
 import {closeNotebookHistoryDialogs} from "../history/notebookDialogs";
+import {refreshSettingConfig} from "../config/setting/sync";
+import {closeNotebookLivePhotos} from "../protyle/preview/livePhoto";
 import {Constants} from "../constants";
 import {systemConfig} from "../config/systemConfig";
 import {Menus} from "../menus";
@@ -44,6 +46,8 @@ import {emitToPlugins} from "../plugin/EventBusCore";
 import {initializeEnglishCommandTranslations} from "../command/english";
 import {loadLanguages} from "../boot/loadLanguages";
 import {installPluginStorageFetchAppId} from "../util/fetchAppId";
+import {initWindowWithLoading} from "../boot/loading";
+import {setTabPosition} from "../layout/tabUtil";
 
 class App {
     public plugins: import("../plugin").Plugin[] = [];
@@ -57,6 +61,11 @@ class App {
         mainWs.connect({
             id: genUUID(),
             type: "main",
+            callback: () => {
+                if (window.siyuan.isReady) {
+                    void refreshSettingConfig().catch(error => console.error("Could not refresh settings", error));
+                }
+            },
             msgCallback: (data) => {
                     emitToPlugins("ws-main", data);
                     if (data) {
@@ -66,6 +75,9 @@ class App {
                                 break;
                             case "setAppearance":
                                 appearanceConfigApi.apply(data.data);
+                                break;
+                            case "settingChanged":
+                                void refreshSettingConfig(data.data.namespace, data.data.revision);
                                 break;
                             case "refreshAppearance":
                                 void refreshAppearance(data.data);
@@ -156,6 +168,7 @@ class App {
                             case "closeBox":
                             case "removeBox":
                                 closeNotebookHistoryDialogs(data.data.box);
+                                closeNotebookLivePhotos(data.data.box);
                                 removeBlockPanelEditors({notebookId: data.data.box});
                                 getAllTabs().forEach((tab) => {
                                     if (tab.headElement) {
@@ -241,7 +254,7 @@ class App {
                     );
                     window.siyuan.menus = new Menus(this);
                     void (async () => {
-                        await init(this);
+                        await initWindowWithLoading(() => init(this), setTabPosition);
                         setTitle("", true);
                         initMessage();
                         window.siyuan.isReady = true;
@@ -254,5 +267,5 @@ class App {
     }
 }
 
-installPluginStorageFetchAppId(window, Constants.SIYUAN_APPID, window.location.href);
+installPluginStorageFetchAppId(window, Constants.SIYUAN_APPID, document.baseURI, location.origin);
 new App();

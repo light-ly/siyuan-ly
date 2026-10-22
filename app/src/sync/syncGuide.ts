@@ -1,4 +1,5 @@
 import {showMessage} from "../dialog/message";
+import {config as configApi} from "../config/util/configApi";
 import {fetchPost} from "../util/fetch";
 import {Dialog} from "../dialog";
 import {openInputDialog} from "../dialog/inputDialog";
@@ -64,7 +65,7 @@ export const bindSyncCloudListEvent = (cloudListElement: Element, cb?: (ready: b
                         break;
                     case "selectCloud":
                         cloudListElement.innerHTML = '<img style="margin: 0 auto;display: block;width: 64px;height: 100%" src="/stage/loading-pure.svg">';
-                        fetchPost("/api/sync/setCloudSyncDir", {name: target.getAttribute("data-name")}, () => {
+                        configApi.set("sync.cloudName", target.getAttribute("data-name"), () => {
                             window.siyuan.config.sync.cloudName = target.getAttribute("data-name");
                             renderSyncCloudList(cloudListElement, true, cb);
                         });
@@ -286,7 +287,7 @@ const setSync = (key?: string, dialog?: Dialog) => {
         renderSyncCloudList(contentElement, false, updateOpenSyncBtn);
         btnElement.addEventListener("click", () => {
             dialog.destroy();
-            fetchPost("/api/sync/setSyncEnable", {enabled: true}, () => {
+            configApi.set("sync.enabled", true, () => {
                 window.siyuan.config.sync.enabled = true;
                 processSync();
                 confirmDialog("🔄 " + window.siyuan.languages.syncConfGuide4, window.siyuan.languages.syncConfGuide5, () => {

@@ -1,9 +1,12 @@
 import {Constants} from "./constants";
 import {closeNotebookHistoryDialogs} from "./history/notebookDialogs";
+import {refreshSettingConfig} from "./config/setting/sync";
+import {closeNotebookLivePhotos} from "./protyle/preview/livePhoto";
 import {systemConfig} from "./config/systemConfig";
 import {openStandaloneDatabaseItemByURI} from "./protyle/render/av/openStandaloneDatabaseItem";
 /// #if BROWSER
 import "./util/iosWindowControls";
+import {registerDesktopBackNavigation} from "./boot/globalEvent/nativeBack";
 /// #endif
 import {Menus} from "./menus";
 import {Model} from "./layout/Model";
@@ -49,10 +52,13 @@ import {reloadEmoji} from "./emoji";
 import {processIOSPurchaseResponse} from "./util/iOSPurchase";
 import {updateServerAddresses} from "./config/tabs/accessRuntime";
 import {emitToPlugins} from "./plugin/EventBusCore";
+import {initWindowWithLoading} from "./boot/loading";
+
 /// #if !BROWSER
 import {ipcRenderer} from "electron";
 /// #endif
-import {getDockByType} from "./layout/tabUtil";
+import {getDockByType, setTabPosition} from "./layout/tabUtil";
+import {exitAfterSettingsReset} from "./config/setting/reset";
 import {Files} from "./layout/dock/Files";
 import {Tag} from "./layout/dock/Tag";
 import {appearanceConfigApi, refreshAppearance} from "./config/tabs/appearanceRuntime";
@@ -84,6 +90,11 @@ export class App {
         mainWs.connect({
             id: genUUID(),
             type: "main",
+            callback: () => {
+                if (window.siyuan.isReady) {
+                    void refreshSettingConfig().catch(error => console.error("Could not refresh settings", error));
+                }
+            },
             msgCallback: (data) => {
                 emitToPlugins("ws-main", data);
                 if (data) {
@@ -93,6 +104,9 @@ export class App {
                             break;
                         case "setAppearance":
                             appearanceConfigApi.apply(data.data);
+                            break;
+                        case "settingChanged":
+                            void refreshSettingConfig(data.data.namespace, data.data.revision);
                             break;
                         case "refreshAppearance":
                             void refreshAppearance(data.data);
@@ -199,6 +213,7 @@ export class App {
                         case "closeBox":
                         case "removeBox":
                             closeNotebookHistoryDialogs(data.data.box);
+                            closeNotebookLivePhotos(data.data.box);
                             removeBlockPanelEditors({notebookId: data.data.box});
                             getAllTabs().forEach((tab) => {
                                 if (tab.headElement) {
@@ -338,7 +353,7 @@ export class App {
                     void (async () => {
                         await ensureOnboarding();
                         await setNoteBook();
-                        await onGetConfig(response.data.start, this);
+                        await initWindowWithLoading(() => onGetConfig(response.data.start, this), setTabPosition);
                         setTitle("", true);
                         initMessage();
                         /// #if BROWSER && !MOBILE
@@ -350,6 +365,7 @@ export class App {
                         /// #endif
                         window.siyuan.isReady = true;
                         mainWs.flushMainMessages();
+                        exitAfterSettingsReset();
                     })();
                 });
             });
@@ -358,7 +374,7 @@ export class App {
     }
 }
 
-installPluginStorageFetchAppId(window, Constants.SIYUAN_APPID, window.location.href);
+installPluginStorageFetchAppId(window, Constants.SIYUAN_APPID, document.baseURI, location.origin);
 const siyuanApp = new App();
 
 window.openFileByURL = (openURL) => {
@@ -393,6 +409,7 @@ window.openFileByURL = (openURL) => {
 };
 
 /// #if BROWSER
+registerDesktopBackNavigation();
 window.showKeyboardToolbar = () => {
     // 防止 Pad 端报错
 };

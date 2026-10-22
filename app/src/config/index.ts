@@ -10,10 +10,15 @@ import {initSettingDrag} from "./setting/drag";
 import {focusSettingGroup} from "./setting/focusGroup";
 /// #endif
 import {unmountBazaarTab, withMountedBazaar} from "./bazaarTab";
+import {unmountOCRTab} from "./ocr";
+import {openNativeSettings} from "./setting/nativeWindow";
+import {closeSettingDialog, prepareSettingDialog} from "./setting/interface";
+import {isSettingsWindow} from "./setting/windowContext";
+import {fitSettingsWindowDialog} from "./setting/windowDialog";
 import {fetchSyncPost} from "../util/fetch";
 import {getFrontend} from "../util/functions";
 import {showMessage} from "../dialog/message";
-import {escapeHtml} from "../util/escape";
+import {escapeHtml, escapeHtmlTextAndAttr} from "../util/escape";
 import {isBazaarAvailable} from "../util/bazaarAvailability";
 import {getSettingTabDefs} from "./setting/tabs";
 import {clearAccessTabElement} from "./tabs/accessRuntime";
@@ -26,7 +31,12 @@ import {unmountWorkspaceStorage} from "./tabs/workspaceStorage";
 
 /// #if !MOBILE
 export const openSettingDialog = (app: App, initialTab: TSettingTab = "editor", group?: string) => {
-    window.siyuan.dialogs.find((item) => item.element.querySelector(".config__tab-container"))?.destroy();
+    /// #if !BROWSER
+    if (!isSettingsWindow()) {
+        prepareSettingDialog();
+    }
+    /// #endif
+    closeSettingDialog();
     let range: Range;
     if (getSelection().rangeCount > 0) {
         range = getSelection().getRangeAt(0);
@@ -35,7 +45,7 @@ export const openSettingDialog = (app: App, initialTab: TSettingTab = "editor", 
     const tabPanels: string[] = [];
     for (const def of getSettingTabDefs()) {
         const isActive = def.id === initialTab;
-        tabListItems.push(`<li data-name="${def.id}" tabindex="0" role="button" class="b3-list-item${isActive ? " b3-list-item--focus" : ""}${def.hidden ? " fn__none" : ""}"><svg class="b3-list-item__graphic"><use xlink:href="#${def.icon}"></use></svg><span class="b3-list-item__text">${def.title}</span></li>`);
+        tabListItems.push(`<li data-name="${def.id}" title="${escapeHtmlTextAndAttr(def.title)}" tabindex="0 role="button" class="b3-list-item${isActive ? " b3-list-item--focus" : ""}${def.hidden ? " fn__none" : ""}"><svg class="b3-list-item__graphic"><use xlink:href="#${def.icon}"></use></svg><span class="b3-list-item__text">${def.title}</span></li>`);
         tabPanels.push(`<div class="config__tab-container${isActive ? "" : " fn__none"}" data-name="${def.id}"></div>`);
     }
     const settingDialogRef: {element?: HTMLElement} = {};
@@ -69,6 +79,8 @@ export const openSettingDialog = (app: App, initialTab: TSettingTab = "editor", 
             if (assetsRoot) {
                 unmountAssetsTab(assetsRoot);
             }
+            const ocrRoot = settingDialogRef.element?.querySelector<HTMLElement>('.config__tab-container[data-name="ocr"]');
+            if (ocrRoot) unmountOCRTab(ocrRoot);
             clearSyncTabElement();
             clearAccessTabElement();
             const appRoot = settingDialogRef.element?.querySelector<HTMLElement>('.config__tab-container[data-name="app"]');
@@ -78,10 +90,13 @@ export const openSettingDialog = (app: App, initialTab: TSettingTab = "editor", 
             if (range) {
                 focusByRange(range);
             }
+            if (isSettingsWindow()) {
+                window.close();
+            }
         },
     });
     settingDialogRef.element = dialog.element;
-    const disposeDrag = initSettingDrag(dialog.element);
+    const disposeDrag = isSettingsWindow() ? undefined : initSettingDrag(dialog.element);
     dialog.element.setAttribute("data-key", Constants.DIALOG_SETTING);
 
     const tabWrap = dialog.element.querySelector(".config__tab-wrap") as HTMLElement;
@@ -103,6 +118,9 @@ export const openSettingDialog = (app: App, initialTab: TSettingTab = "editor", 
         });
     });
     switchSettingTab(dialog.element, app, initialTab);
+    if (isSettingsWindow()) {
+        fitSettingsWindowDialog(dialog);
+    }
     if (group) {
         focusSettingGroup(dialog.element, group);
     }
@@ -135,7 +153,7 @@ export const openSetting = (app: App, tab?: TSettingTab, group?: string, options
     if (tab === "bazaar" && !isBazaarAvailable()) {
         return;
     }
-    if (tab === "export" && !getHostCapabilities().importExport) {
+    if (tab === "export" && !getHostCapabilities().documentImportExport) {
         return;
     }
     const openProvider = () => {
@@ -143,6 +161,13 @@ export const openSetting = (app: App, tab?: TSettingTab, group?: string, options
             void import("./tabs/ai/aiProviderUi").then(({openChatGPTProvider}) => openChatGPTProvider());
         }
     };
+    /// #if !BROWSER
+    if (!isSettingsWindow() && window.siyuan.config.system.settingsWindow) {
+        closeSettingDialog();
+        void openNativeSettings(app, {tab, ...options});
+        return;
+    }
+    /// #endif
     /// #if MOBILE
     openMobileSetting(app, tab);
     openProvider();
