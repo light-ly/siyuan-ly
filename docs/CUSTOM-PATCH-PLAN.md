@@ -4,7 +4,7 @@
 
 ## 1. Goal and baseline
 
-This plan is based on the `v3.8.6` tag and the `patch/v3.8.6-custom` branch. The target is a custom build that does not depend on SiYuan official accounts or official cloud services, supports user-owned synchronization backends, exposes local AI capabilities, disables update checks and unnecessary background network activity, and removes forced brand watermarks from exports.
+This plan is based on the `v3.8.6` tag (upstream `v3.8.8` merged on 2026-10-21; the current baseline is 3.8.8) and the `patch/custom` branch. The target is a custom build that does not depend on SiYuan official accounts or official cloud services, supports user-owned synchronization backends, exposes local AI capabilities, disables update checks and unnecessary background network activity, and removes forced brand watermarks from exports.
 
 The baseline commit is `158812497497c6fa8a6d1031bfa2f025a61ee5c2`. The workspace was clean when this plan was created. 2026-10-10 update: phases A, B, C and part of E have landed in commit `bcf8e5408a`, and this document now also covers the local Windows release-packaging environment; phases D and F are in progress and the phase G integration verification is pending.
 
@@ -310,7 +310,7 @@ There are three repository-local cache directories: `.pnpm-store-temp` (frontend
 2. `app/stage/build` has not been generated, no kernel binary has been compiled, and no running kernel has been restarted.
 3. The sibling `../petal` workspace is not prepared, so `api:check` does not verify external Petal declaration synchronization.
 
-When this plan was created, no functional source, lockfile or generated declaration had changed, and no commit or push had been performed. 2026-10-10 update: the implementation gate has passed — phases A, B, C and part of E landed in commit `bcf8e5408a`. 2026-10-12 update: phases D (editor AI unconfigured guidance) and F (full-text asset-search regressions) are implemented, the MSYS2 clang64 toolchain is installed on the Windows machine, and the kernel-side regression verification has passed (see the table above); Go tests on this machine require `CC`/`CGO_ENABLED` at the command level. The phase G integration verification is still pending.
+When this plan was created, no functional source, lockfile or generated declaration had changed, and no commit or push had been performed. 2026-10-10 update: the implementation gate has passed — phases A, B, C and part of E landed in commit `bcf8e5408a`. 2026-10-12 update: phases D (editor AI unconfigured guidance) and F (full-text asset-search regressions) are implemented, the MSYS2 clang64 toolchain is installed on the Windows machine, and the kernel-side regression verification has passed (see the table above); Go tests on this machine require `CC`/`CGO_ENABLED` at the command level. 2026-10-21 update: upstream v3.8.8 is merged (commit `4528754bba`); all merge defects have been fixed and both packages rebuilt — **from now on, every upstream merge must read and execute the checklist in section 4 of `docs/MERGE-LESSONS.zh-CN.md`** (see that document for the lessons and recurrence-prevention mechanism; AGENTS.md enforces the reference). The phase G integration verification is still pending.
 
 ## 8. Completion criteria
 
