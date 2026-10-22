@@ -278,6 +278,67 @@ fork 仓库 `light-ly/siyuan-ly` 的 `.github/workflows/cd.yml` 已包含两个 
 
 `app/electron-builder-darwin.yml` 与 `app/electron-builder-darwin-arm64.yml` 写死了官方签名身份 `identity: "Yunnan Liandi Technology Co., Ltd."`、描述文件与公证 entitlements；定制版没有该证书，直接构建会在签名阶段失败。2026-10-13 决策：跳过签名，首次 macOS 构建前移除两个配置中的 `identity`、`provisioningProfile` 与公证 entitlements，产出未签名 DMG。未签名应用首次打开需在访达中右键 - 打开以绕过 Gatekeeper 拦截；如后续取得自有 Apple Developer 证书，再配置 `CSC_LINK`/`CSC_KEY_PASSWORD` 恢复签名。
 
+### Android 打包 release 环境
+
+Android 打包在 Windows 本机完成，分四步：前端构建、资源 zip、gomobile 内核 AAR、Gradle 出包。`siyuan-android` 工程保持在 `v3.8.8` 标签的干净状态，容器侧仅需一个补丁（见下文），补丁记录在本仓库文档中而不提交进安卓仓库。
+
+**必需工具**
+
+| 工具 | 版本 |
+|---|---|
+| Go / gomobile | 1.26.5 / `kernel/go.mod` 锁定版（安装后执行 `gomobile init`） |
+| Node.js / pnpm | 24 / 12.6.0 |
+| JDK | Android Studio 自带 JBR（`C:\Program Files\Android\Android Studio\jbr`） |
+| Android SDK | `C:\Users\15055\AppData\Local\Android\Sdk`（platform-tools、build-tools 36、**platforms android-26 与 android-36**、cmdline-tools） |
+| Android NDK | **28.2.13676358**（CI 锁定版，不要用 30） |
+| siyuan-android | `v3.8.8` 标签检出，与本仓库同级 |
+
+环境变量：`ANDROID_HOME`、`JAVA_HOME`；`gomobile bind` 还需 `PATH` 包含 JBR 的 `bin`（javac）。
+
+**打包步骤**
+
+```bat
+cd app && pnpm run build
+python ../scripts/pack-app-zip.py
+cd ../kernel
+gomobile bind -tags "fts5 sqlcipher" -ldflags "-s -w" -o kernel.aar -target android/arm64 -androidapi 26 ./mobile/
+copy kernel.aar ..\siyuan-android\app\libs\kernel.aar
+cd ..\siyuan-android
+gradlew.bat assembleOfficialRelease
+```
+
+产物为 `app\build\outputs\apk\official\release\siyuan-3.8.8-official-release.apk`（调试诊断包用 `assembleOfficialDebug`，产物包名带 `.debug` 后缀）。
+
+**容器侧补丁（构建前手动应用到 siyuan-android，勿提交）**
+
+`app/src/main/java/org/b3log/siyuan/App.java` 的 `onCreate` 末尾追加：
+
+```java
+// 仅调试构建写入标志文件（内容为实际外部文件目录），让内核在最早初始化点接管标准错误以便崩溃取证；
+// 正式构建删除标志保持关闭
+final java.io.File flag = new java.io.File(getExternalFilesDir(null), ".stderr-redirect");
+if (BuildConfig.DEBUG) {
+    try (java.io.FileWriter writer = new java.io.FileWriter(flag)) {
+        writer.write(getExternalFilesDir(null).getAbsolutePath());
+    } catch (final Exception ignored) {
+    }
+} else {
+    //noinspection ResultOfMethodCallIgnored
+    flag.delete();
+}
+```
+
+内核侧对应 `kernel/mobilediag` 包（C 构造函数在库加载时检查标志并接管 fd 2），已在本仓库实现。
+
+**已踩过的坑（勿再犯）**
+
+1. **Git Bash 的 `tar -a -cf app.zip` 产出的是 tar 不是 zip**（GNU tar 无 zip 支持），内核解压时 panic `zip: not a valid zip file`——必须用 `scripts/pack-app-zip.py` 或 CI 的 zip 命令
+2. **debug 构建包名带 `.debug` 后缀**（`org.b3log.siyuan.debug`），外部存储路径、桌面图标、`am start` 都要对应
+3. **Android 11+ Scoped Storage**：应用无权列举 `Android/data/` 父目录（`filepath.Glob` 失效），只能直接读写自己的包目录
+4. **`os.TempDir()` 在安卓返回 `/tmp`（不存在）**，留痕不能依赖它
+5. **Go 包初始化顺序不受导入声明顺序控制**（gofmt/gc 会重排），需要最早执行时用 cgo `__attribute__((constructor))`
+6. x86 模拟器的 ARM 转译不实现 `MRS` 系统寄存器指令，官方与定制包都会在 `x/sys/cpu` 特性检测处 SIGILL——不是应用 bug，验证请用真机
+
 ## 7. 当前环境状态、基线验证和实施闸门
 
 用户已明确授权环境准备与基线测试，但尚未授权六项功能实施。Node.js `v24.21.0`、pnpm `12.6.0`、Go `1.26.5` 和 Conda Python `3.11.17` 已在本机 Linux 环境确认可用。

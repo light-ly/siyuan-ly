@@ -278,6 +278,67 @@ The fork `light-ly/siyuan-ly` already contains two macOS jobs in `.github/workfl
 
 `app/electron-builder-darwin.yml` and `app/electron-builder-darwin-arm64.yml` hardcode the official signing identity `identity: "Yunnan Liandi Technology Co., Ltd."` together with a provisioning profile and notarization entitlements; the custom edition does not have that certificate, so a direct build fails at the signing stage. Decision made on 2026-10-13: skip signing. Before the first macOS build, remove `identity`, `provisioningProfile` and the notarization entitlements from both configurations to produce unsigned DMGs. Unsigned apps need a right-click - Open on first launch to pass Gatekeeper; once a self-owned Apple Developer certificate is available, signing can be restored via `CSC_LINK`/`CSC_KEY_PASSWORD`.
 
+### Android release packaging environment
+
+Android packaging runs on the local Windows machine in four steps: frontend build, resource zip, gomobile kernel AAR and the Gradle package. The `siyuan-android` checkout stays clean at the `v3.8.8` tag; the container needs only one patch (below), which is recorded in this repository's documentation and is not committed to the Android repository.
+
+**Required tools**
+
+| Tool | Version |
+|---|---|
+| Go / gomobile | 1.26.5 / the version pinned in `kernel/go.mod` (run `gomobile init` after installing) |
+| Node.js / pnpm | 24 / 12.6.0 |
+| JDK | The Android Studio bundled JBR (`C:\Program Files\Android\Android Studio\jbr`) |
+| Android SDK | `C:\Users\15055\AppData\Local\Android\Sdk` (platform-tools, build-tools 36, **platforms android-26 and android-36**, cmdline-tools) |
+| Android NDK | **28.2.13676358** (the CI-pinned version; do not use 30) |
+| siyuan-android | Checked out at the `v3.8.8` tag, next to this repository |
+
+Environment variables: `ANDROID_HOME`, `JAVA_HOME`; `gomobile bind` also needs the JBR `bin` directory (javac) on `PATH`.
+
+**Packaging steps**
+
+```bat
+cd app && pnpm run build
+python ../scripts/pack-app-zip.py
+cd ../kernel
+gomobile bind -tags "fts5 sqlcipher" -ldflags "-s -w" -o kernel.aar -target android/arm64 -androidapi 26 ./mobile/
+copy kernel.aar ..\siyuan-android\app\libs\kernel.aar
+cd ..\siyuan-android
+gradlew.bat assembleOfficialRelease
+```
+
+The artifact is `app\build\outputs\apk\official\release\siyuan-3.8.8-official-release.apk` (use `assembleOfficialDebug` for the diagnostic build; its package name carries the `.debug` suffix).
+
+**Container-side patch (apply manually to siyuan-android before building; never commit it there)**
+
+Append to `onCreate` in `app/src/main/java/org/b3log/siyuan/App.java`:
+
+```java
+// Write the flag file (content is the actual external files directory) only in debug builds so the
+// kernel can take over stderr at the earliest initialization point for crash forensics; delete the flag in release builds
+final java.io.File flag = new java.io.File(getExternalFilesDir(null), ".stderr-redirect");
+if (BuildConfig.DEBUG) {
+    try (java.io.FileWriter writer = new java.io.FileWriter(flag)) {
+        writer.write(getExternalFilesDir(null).getAbsolutePath());
+    } catch (final Exception ignored) {
+    }
+} else {
+    //noinspection ResultOfMethodCallIgnored
+    flag.delete();
+}
+```
+
+The kernel side lives in this repository as the `kernel/mobilediag` package (a C constructor checks the flag at library load and takes over fd 2).
+
+**Pitfalls already hit (do not repeat)**
+
+1. **Git Bash's `tar -a -cf app.zip` produces a tar archive, not a zip** (GNU tar has no zip support); the kernel then panics with `zip: not a valid zip file` while unpacking — always use `scripts/pack-app-zip.py` or the CI `zip` command
+2. **Debug builds carry a `.debug` package suffix** (`org.b3log.siyuan.debug`) — external-storage paths, launcher icons and `am start` must all account for it
+3. **Android 11+ Scoped Storage**: an app cannot list the `Android/data/` parent directory (`filepath.Glob` fails); read and write only your own package directory directly
+4. **`os.TempDir()` returns `/tmp` on Android (which does not exist)** — never rely on it for traces
+5. **Go package initialization order is not controlled by import declaration order** (gofmt/gc re-sort); use a cgo `__attribute__((constructor))` when something must run first
+6. The x86 emulator's ARM translation does not implement the `MRS` system-register instruction, so both the official and the custom build SIGILL in `x/sys/cpu` feature detection — not an app bug; verify on a real device
+
 ## 7. Environment status, baseline verification and implementation gate
 
 The user authorized environment preparation and baseline testing, but not the six feature changes. Node.js `v24.21.0`, pnpm `12.6.0`, Go `1.26.5` and Conda Python `3.11.17` are confirmed available on this Linux machine.
