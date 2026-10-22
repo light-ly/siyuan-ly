@@ -32,6 +32,10 @@ import (
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/httpclient"
 	"github.com/siyuan-note/logging"
+
+	// mobilediag 以独立导入组放在第一位，确保其 init 先于其余内核包执行。
+	_ "github.com/siyuan-note/siyuan/kernel/mobilediag"
+
 	"github.com/siyuan-note/siyuan/kernel/cache"
 	"github.com/siyuan-note/siyuan/kernel/job"
 	"github.com/siyuan-note/siyuan/kernel/model"
