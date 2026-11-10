@@ -21,14 +21,13 @@ import (
 	"github.com/siyuan-note/httpclient"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/conf"
-	"github.com/siyuan-note/siyuan/kernel/util"
 	"golang.org/x/mod/semver"
 	"golang.org/x/sync/singleflight"
 )
 
 const (
-	githubReleasesURL            = "https://api.github.com/repos/siyuan-note/siyuan/releases?per_page=100"
-	githubReleaseURLPrefix       = "https://github.com/siyuan-note/siyuan/releases/tag/v"
+	githubReleasesURL            = "https://api.github.com/repos/light-ly/siyuan-ly/releases?per_page=100"
+	githubReleaseURLPrefix       = "https://github.com/light-ly/siyuan-ly/releases/tag/v"
 	githubAPIReleaseCacheSeconds = int64(6 * 60 * 60)
 	maxChecksumManifestSize      = int64(1024 * 1024)
 )
@@ -69,79 +68,16 @@ var (
 
 func getUpdateRelease(force bool) (*updateRelease, error) {
 	channel := Conf.System.Load().UpdateChannel
-	if conf.UpdateChannelStable == channel {
-		return getStableUpdateRelease(force)
-	}
 	if !isValidUpdateChannel(channel) {
 		return nil, errors.New("update channel is invalid")
 	}
+	// 定制版所有通道统一从自有仓库的 GitHub Releases 获取，stable 不再走官方云端接口。
 	return getGitHubUpdateRelease(channel, force)
 }
 
-func getStableUpdateRelease(force bool) (*updateRelease, error) {
-	result, err := util.GetRhyResult(context.TODO(), force)
-	if err != nil {
-		return nil, err
-	}
-	version, ok := result["ver"].(string)
-	normalizedVersion := normalizeReleaseVersion(version)
-	if !ok || !semver.IsValid(normalizedVersion) || "" != semver.Prerelease(normalizedVersion) {
-		return nil, errors.New("stable release version is invalid")
-	}
-	version = strings.TrimPrefix(normalizedVersion, "v")
-
-	release := &updateRelease{
-		Version:    version,
-		Channel:    conf.UpdateChannelStable,
-		ReleaseURL: getStableReleaseURL(result, version),
-		Packages:   map[string]*updatePackage{},
-	}
-	pkgName := currentInstallPackageName(release.Version)
-	if "" == pkgName {
-		return release, nil
-	}
-	checksum := getStablePackageChecksum(result, pkgName)
-	if "" == checksum {
-		return release, nil
-	}
-	githubURL := "https://github.com/siyuan-note/siyuan/releases/download/v" + version + "/" + pkgName
-	release.Packages[pkgName] = &updatePackage{
-		URLs:     getUpdatePackageURLs(pkgName, githubURL),
-		Checksum: checksum,
-	}
-	return release, nil
-}
-
-func getStableReleaseURL(result map[string]any, version string) string {
-	releaseURL, _ := result["release"].(string)
-	if localized, ok := result["release_"+Conf.Lang].(string); ok && "" != localized {
-		releaseURL = localized
-	} else if localized, ok = result["release_"+util.LangToLegacy(Conf.Lang)].(string); ok && "" != localized {
-		// 兼容云端 JSON 数据中历史下划线 key（release_zh_CN 等）。
-		releaseURL = localized
-	}
-	if "" == releaseURL {
-		releaseURL = githubReleaseURLPrefix + strings.TrimPrefix(version, "v")
-	}
-	return releaseURL
-}
-
-func getStablePackageChecksum(result map[string]any, pkgName string) string {
-	checksums, ok := result["checksums"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	checksum, ok := checksums[pkgName].(string)
-	if !ok {
-		return ""
-	}
-	return normalizeSHA256(checksum)
-}
-
-func getUpdatePackageURLs(pkgName, githubURL string) []string {
-	b3logURL := "https://release.b3log.org/siyuan/" + pkgName
-	liuyunURL := "https://release.liuyun.io/siyuan/" + pkgName
-	return []string{b3logURL, liuyunURL, githubURL}
+func getUpdatePackageURLs(_ string, githubURL string) []string {
+	// 定制版只使用自有仓库的 GitHub 下载地址。
+	return []string{githubURL}
 }
 
 func getGitHubUpdateRelease(channel string, force bool) (*updateRelease, error) {

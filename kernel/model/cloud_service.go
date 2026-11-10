@@ -267,6 +267,16 @@ func RefreshSubscriptionExpirationRemindJob() {
 	refreshSubscriptionExpirationRemind()
 }
 
+// RefreshUpdateCheckJob 周期性检查自有仓库的更新包自动下载，不涉及官方账号与公告刷新。
+func RefreshUpdateCheckJob() {
+	go func() {
+		defer logging.Recover()
+
+		time.Sleep(3 * time.Minute)
+		checkDownloadInstallPkg(true)
+	}()
+}
+
 func refreshSubscriptionExpirationRemind() {
 	if subscriptionExpirationReminded {
 		return

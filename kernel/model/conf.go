@@ -667,14 +667,12 @@ var pendingWorkspaceExit *util.WorkspaceExitState // 由 exitLock 保护，绑�
 //
 // setCurrentWorkspace：是否将当前工作空间放到工作空间列表的最后一个
 //
-// execInstallPkg：桌面宿主传入的安装包执行参数，本构建已停用更新，不再返回安装包
+// execInstallPkg：桌面宿主传入的安装包执行参数；退出时携带已就绪的新版本安装包路径供宿主执行安装
 //
 // 返回值 exitCode：
 //
 //	0：正常退出
 //	1：同步执行失败
-//
-// installPkgPath 始终为空字符串。
 func Close(force, setCurrentWorkspace bool, execInstallPkg int) (exitCode int, installPkgPath string) {
 	return CloseWithContext(context.Background(), force, setCurrentWorkspace, execInstallPkg)
 }
@@ -769,6 +767,9 @@ func closeKernel(ctx context.Context, force, setCurrentWorkspace bool, execInsta
 			if checkSync(false, true, false) {
 				if err := syncDataLockedContext(ctx, true, false); err != nil {
 					exitCode = 1
+					if 1 != execInstallPkg && !skipNewVerInstallPkg() {
+						installPkgPath = getNewVerInstallPkgPath(false)
+					}
 					return
 				}
 			}
