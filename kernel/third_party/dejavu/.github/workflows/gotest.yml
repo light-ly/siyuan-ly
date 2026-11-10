@@ -1,0 +1,19 @@
+name: Go Test
+on: [ push, pull_request ]
+jobs:
+  test:
+    name: Test with Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+      - name: Install dependencies
+        run: |
+          go mod download
+      - name: Run Unit tests
+        run: |
+          go test -coverprofile=covprofile -coverpkg="github.com/siyuan-note/dejavu" ./...
