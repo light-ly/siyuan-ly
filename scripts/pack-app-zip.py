@@ -13,8 +13,7 @@ import os
 import sys
 import zipfile
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__)) and os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "app")
+APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app")
 TOP_ENTRIES = ["appearance", "guide", "stage", "changelogs"]
 ROOT_FILES = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
