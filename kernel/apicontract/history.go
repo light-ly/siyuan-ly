@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package apicontract
 
 type HistoryPathRequest struct {
@@ -26,6 +30,7 @@ type DocHistoryContentData struct {
 }
 
 type HistoryItemsRequest struct {
+	Page     *float64 `json:"page" api:"optional"`
 	Created  string   `json:"created" api:"trim"`
 	Notebook string   `json:"notebook" api:"optional,nullable"`
 	Query    string   `json:"query" api:"optional,nullable"`
@@ -47,7 +52,9 @@ type History struct {
 }
 
 type HistoryItemsData struct {
-	Items []*HistoryItem `json:"items"`
+	PageCount  int            `json:"pageCount"`
+	TotalCount int            `json:"totalCount"`
+	Items      []*HistoryItem `json:"items"`
 }
 
 type NotebookHistoryData struct {

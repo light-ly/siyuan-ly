@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package api
 
 import (
@@ -40,7 +44,7 @@ func oauthTestRouter(t *testing.T) *gin.Engine {
 	r.Use(ginSessions.Sessions("oauth-test-session", cookie.NewStore([]byte("oauth-test-session-key"))))
 	r.GET("/test-login", func(c *gin.Context) {
 		s := util.GetSession(c)
-		util.GetWorkspaceSession(s).AccessAuthCode = model.Conf.AccessAuthCode
+		model.SetAccessCodeSession(util.GetWorkspaceSession(s), model.Conf.AccessAuthCode)
 		if err := s.Save(c); err != nil {
 			t.Error(err)
 		}

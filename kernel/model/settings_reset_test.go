@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
@@ -107,7 +111,8 @@ func TestSettingsResetPreservesDataAndProtectedConfiguration(t *testing.T) {
 		}
 		if Conf.NotebookCrypto != protected.NotebookCrypto || Conf.Api.Load() != protected.Api.Load() || Conf.AccessAuthCode != protected.AccessAuthCode ||
 			Conf.CookieKey != protected.CookieKey || Conf.MCPOAuth != protected.MCPOAuth || Conf.UserData != protected.UserData ||
-			Conf.Snippet.Load() != protected.Snippet.Load() || Conf.Bazaar.Load() != protected.Bazaar.Load() || Conf.AI.Load() != protected.AI.Load() ||
+			Conf.Snippet.Load() != protected.Snippet.Load() || Conf.AI.Load() != protected.AI.Load() ||
+			Conf.Bazaar.Load().Trust != protected.Bazaar.Load().Trust || Conf.Bazaar.Load().PetalDisabled != protected.Bazaar.Load().PetalDisabled ||
 			Conf.OIDC != protected.OIDC || Conf.Secrets.Load() != protected.Secrets.Load() || Conf.Sync.Load() != protected.Sync.Load() || Conf.Repo.Load() != protected.Repo.Load() {
 			t.Fatal("protected configuration changed")
 		}

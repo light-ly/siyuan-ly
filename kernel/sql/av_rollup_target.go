@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package sql
 
 import (
@@ -15,6 +19,11 @@ type rollupTargetID struct {
 // renderRollupTarget 按目标字段计算完整条目集合，不受目标视图的布局、分组和分页影响。
 func renderRollupTarget(target *av.AttributeView, key *av.Key, depth *int,
 	cachedAttrViews map[string]*av.AttributeView, context *AttributeViewRenderContext) av.Collection {
+	return renderRollupTargetForItems(target, key, depth, cachedAttrViews, context, nil)
+}
+
+func renderRollupTargetForItems(target *av.AttributeView, key *av.Key, depth *int,
+	cachedAttrViews map[string]*av.AttributeView, context *AttributeViewRenderContext, itemIDs []string) av.Collection {
 	// 循环依赖或深度受限时返回空集合，禁止读取持久化的过期汇总内容。
 	empty := &av.Table{}
 	if nil == target || nil == key || nil == key.Rollup || 7 < *depth {
@@ -35,6 +44,7 @@ func renderRollupTarget(target *av.AttributeView, key *av.Key, depth *int,
 	cloned.KeyValues = nil
 	cloned.RenderedViewables = nil
 	view := &av.View{ID: ast.NewNodeID(), LayoutType: av.LayoutTypeTable, Table: av.NewLayoutTable()}
+	view.GroupItemIDs = itemIDs
 	for _, keyValues := range target.KeyValues {
 		if nil == keyValues || nil == keyValues.Key {
 			continue

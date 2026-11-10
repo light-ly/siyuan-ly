@@ -6,7 +6,7 @@
 		"id": "20260612191214-ymtlxn2",
 		"title": "命令列",
 		"type": "doc",
-		"updated": "20261016112115"
+		"updated": "20261101194733"
 	},
 	"Children": [
 		{
@@ -1316,7 +1316,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260618123823-n8l9nsl",
-				"updated": "20261016112115"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -1542,7 +1542,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20260618123823-fe82ndy",
-				"updated": "20261016112115"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -1556,7 +1556,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20260618123823-18qolcy",
-				"updated": "20261016112115"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -1570,7 +1570,7 @@
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "code",
-					"TextMarkTextContent": "repo create --memo"
+					"TextMarkTextContent": "repo create --memo \"checkpoint\""
 				},
 				{
 					"Type": "NodeText",
@@ -1817,7 +1817,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260618123823-higd400",
-				"updated": "20261016112115"
+				"updated": "20261101194733"
 			},
 			"Children": [
 				{
@@ -4597,7 +4597,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20260618123823-5n9vh1d",
-				"updated": "20261016112115"
+				"updated": "20261024160716"
 			},
 			"Children": [
 				{
@@ -5178,7 +5178,7 @@
 			"IsFencedCodeBlock": true,
 			"Properties": {
 				"id": "20260618123823-1depvwg",
-				"updated": "20260913020024"
+				"updated": "20261024160716"
 			},
 			"Children": [
 				{
@@ -5191,7 +5191,7 @@
 				},
 				{
 					"Type": "NodeCodeBlockCode",
-					"Data": "siyuan search \"關鍵字\"\nsiyuan search \"關鍵字\" --notebook box1 --notebook box2\nsiyuan search \"關鍵字\" --path \"/目錄\"\nsiyuan search \"關鍵字\" --type document --type heading\nsiyuan search \"關鍵字\" --type listItem --subtype listItem:o --subtype listItem:u\nsiyuan search \"關鍵字\" --method 2\nsiyuan search \"關鍵字\" --order-by 4 --page 1 --page-size 20\nsiyuan search \"關鍵字\" --group-by 1\n"
+					"Data": "siyuan search \"關鍵字\"\nsiyuan search \"關鍵字\" --notebook box1 --notebook box2\nsiyuan search \"關鍵字\" --path \"/目錄\"\nsiyuan search \"關鍵字\" --type document --type heading\nsiyuan search \"關鍵字\" --type listItem --subtype listItem:o --subtype listItem:u\nsiyuan search \"SELECT * FROM blocks WHERE type='h' LIMIT 20\" --method 2\nsiyuan search \"關鍵字\" --order-by 4 --page 1 --page-size 20\nsiyuan search \"關鍵字\" --group-by 1\n"
 				},
 				{
 					"Type": "NodeCodeBlockFenceCloseMarker",
@@ -9992,7 +9992,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20260618123823-68rq10j",
-				"updated": "20260809232000"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -11170,7 +11170,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20260618123823-w37cz3v",
-				"updated": "20260809232000"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -11257,6 +11257,15 @@
 				{
 					"Type": "NodeText",
 					"Data": "​ / "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "location"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " / "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -12864,7 +12873,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20260809180000-e92835b",
-				"updated": "20261016112115"
+				"updated": "20261101194733"
 			},
 			"Children": [
 				{
@@ -13005,12 +13014,67 @@
 			]
 		},
 		{
+			"ID": "20261101194733-dzxrxry",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261101194733-dzxrxry",
+				"updated": "20261101194733"
+			},
+			"Children": [
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "--fixed-port"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 預設為 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "true"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "，設定 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "--fixed-port=false"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 可關閉供瀏覽器擴充功能使用的額外 6806 連接埠反向代理。該參數不改變 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "--port"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 或發布服務；主服務設定為 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "--port 6806"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 時仍監聽 6806。原先透過該反向代理連線的用戶端需要改用主服務的實際連接埠。移除該參數或將其設為 true 並重新啟動核心即可恢復反向代理。"
+				}
+			]
+		},
+		{
 			"ID": "20260809180000-5b0b082",
 			"Type": "NodeCodeBlock",
 			"IsFencedCodeBlock": true,
 			"Properties": {
 				"id": "20260809180000-5b0b082",
-				"updated": "20261016112115"
+				"updated": "20261101194733"
 			},
 			"Children": [
 				{
@@ -13023,7 +13087,7 @@
 				},
 				{
 					"Type": "NodeCodeBlockCode",
-					"Data": "siyuan serve --workspace /path/to/workspace --port 6806\nsiyuan serve --workspace /path/to/workspace --port 6806 --readonly true\nsiyuan serve --workspace /path/to/workspace --port 6806 --wd /path/to/resources --lang zh-TW --ssl\n"
+					"Data": "siyuan serve --workspace /path/to/workspace --port 6806\nsiyuan serve --workspace /path/to/workspace --port 6806 --readonly true\nsiyuan serve --workspace /path/to/workspace --port 6806 --wd /path/to/resources --lang zh-TW --ssl\nsiyuan serve --workspace /path/to/workspace --port 6807 --fixed-port=false\n"
 				},
 				{
 					"Type": "NodeCodeBlockFenceCloseMarker",

@@ -1,12 +1,9 @@
 import * as assert from "node:assert/strict";
-import {readFileSync} from "node:fs";
 import {test} from "node:test";
-import {runInNewContext} from "node:vm";
-import {ModuleKind, ScriptTarget, transpileModule} from "typescript";
-
-const compiled = transpileModule(readFileSync("src/protyle/wysiwyg/transaction.ts", "utf8"), {
-    compilerOptions: {module: ModuleKind.CommonJS, target: ScriptTarget.ES2021},
-}).outputText;
+import {ScriptTarget} from "typescript";
+import {loadModule} from "../../testSupport/loadModule";
+import {isUndoViewportPreserved} from "../undo/viewport";
+import {shouldReloadForEmbedConversion} from "./transactionUpdate";
 
 type ElementSpec = {attrs?: Record<string, string>; children?: ElementSpec[]; tag?: string};
 type InsertAnchor = "previousID" | "nextID" | "parentID";
@@ -172,11 +169,16 @@ const fixture = (containerType: ContainerType = "editor") => {
     const identity = (value: string) => value;
     const record = (kind: keyof typeof rendered, element: TestElement) => rendered[kind].push(element.getAttribute("data-node-id"));
     const dependencies = {
+        prepareAVHostTransaction: (_protyle: unknown, operations?: IOperation[]) => operations,
+        getTagRemovalChanges: (): [] => [],
+        hasReferenceRemoval: () => false,
+        isUndoViewportPreserved,
         Constants: {CUSTOM_SY_AV_STATIC_TEXT: "custom-sy-av-s-text-"},
         normalizeHTMLAssetIFrameBlockDOM: identity,
         invalidateTrackedRangesByOperations: noop, invalidateViewFoldRequests: noop,
         handleViewFoldSourceOperation: () => false, syncTrackedRanges: noop, applyViewFoldStates: noop,
         queueHeadingNumberRefresh: noop, refreshHeadingFoldIndicators: noop, shouldReloadForHeadingBatch: () => false,
+        shouldReloadForEmbedConversion,
         isInEmbedBlock: () => false, refreshSbResize: noop,
         processRender: (element: TestElement) => record("process", element),
         highlightRender: (element: TestElement) => record("highlight", element),
@@ -197,11 +199,11 @@ const fixture = (containerType: ContainerType = "editor") => {
             commit = () => callback({data: data.transactions});
         },
     };
-    const api = {} as typeof import("./transaction");
-    runInNewContext(compiled, {exports: api, require: () => dependencies,
+    const api = loadModule<typeof import("./transaction")>("src/protyle/wysiwyg/transaction.ts", {
+        require: () => ({...dependencies, queueDatabaseRowRefreshForOperations() {}}),
         window: {siyuan: {config: {fileTree: {}, sync: {provider: 0}}}},
         getSelection: () => ({rangeCount: 0}),
-    });
+    }, ScriptTarget.ES2021);
     const protyle = {wysiwyg: {element: root}, element: root, options: {},
         block: {rootID: "doc", id: "doc", parentID: "doc"}} as unknown as IProtyle;
     const operation = (anchor: InsertAnchor, ...specs: ElementSpec[]): IOperation => ({

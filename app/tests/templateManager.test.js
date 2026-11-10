@@ -6,6 +6,13 @@ const path = require("node:path");
 const runCases = async (sources, css, mobile, legacyMobile) => {
     const assert = require("node:assert/strict");
     const tick = () => new Promise(resolve => setTimeout(resolve, 30));
+    const waitFor = async (predicate, message) => {
+        const deadline = performance.now() + 5000;
+        while (!predicate()) {
+            assert.ok(performance.now() < deadline, message);
+            await tick();
+        }
+    };
     document.body.innerHTML = '<div id="model"><button class="toolbar__icon">Back</button><div id="modelMain"></div></div>';
     new Function(sources.icons)();
     const style = document.createElement("style");
@@ -35,20 +42,31 @@ const runCases = async (sources, css, mobile, legacyMobile) => {
         append(element) {menuElement.append(element);},
         popup() {menuElement.classList.remove("fn__none");},
     };
-    class Dialog {
+    let dialogID = 0;
+    const dialogDependencies = {
+        "../util/genID": {genUUID: () => String(++dialogID)},
+        "../util/zIndex": {isAbove: () => false, getZIndex: () => 0},
+        "./moveResize": {moveResize() {}},
+        "../util/functions": {isMobile: () => mobile},
+        "../protyle/util/compatibility": {isNotCtrl: () => true},
+        "../constants": {Constants: {TIMEOUT_OPENDIALOG: 0, TIMEOUT_DBLCLICK: 0}},
+        "../block/panelOwnership": {getDialogBlockPanel() {}, destroyDialogBlockPanels() {}},
+    };
+    const dialogExports = {};
+    new Function("require", "exports", sources.dialog)(name => {
+        assert.ok(dialogDependencies[name], name);
+        return dialogDependencies[name];
+    }, dialogExports);
+    class Dialog extends dialogExports.Dialog {
         constructor(options) {
+            super(options);
             this.options = options;
-            this.element = document.createElement("div");
-            this.element.style.width = options.width || "400px";
-            this.element.style.height = options.height || "auto";
-            this.element.innerHTML = options.content;
-            document.body.append(this.element);
             dialogs.push(this);
         }
-        destroy() {this.element.remove(); this.options.destroyCallback?.();}
     }
     const languages = JSON.parse(sources.languages);
-    window.siyuan = {languages, dialogs: [], storage: {}, mobile: {}, ws: {app: {}}, config: {system: {dataDir: "/workspace/data"}}, menus: {menu}};
+    window.siyuan = {languages, dialogs: [], zIndex: 0, storage: {}, mobile: {}, ws: {app: {}}, config: {system: {dataDir: "/workspace/data"}}, menus: {menu}};
+    const mobileRuntime = new Function("Dialog", "mobile", "return " + sources.mobileRuntime)(Dialog, mobile);
     if (!legacyMobile) {
         window.siyuan.mobile.tabs = {open: async id => {
             opened.push(id);
@@ -57,7 +75,8 @@ const runCases = async (sources, css, mobile, legacyMobile) => {
     }
     const stubs = {
         "dialog": {Dialog},
-        "dialog/inputDialog": {openInputDialog(options) {
+        "dialog/mobileDialog": mobileRuntime,
+        "dialog/mobileInputDialog": {mobileInputDialog(options) {
             const prompt = new Dialog({content: "<input>"});
             prompt.element.querySelector("input").value = options.value;
             confirmInput = value => {
@@ -66,7 +85,7 @@ const runCases = async (sources, css, mobile, legacyMobile) => {
             };
             return prompt;
         }},
-        "dialog/confirmDialog": {confirmDialog: (title, text, callback) => confirmations.push({title, text, callback})},
+        "dialog/mobileConfirmDialog": {mobileConfirmDialog: (title, text, callback) => confirmations.push({title, text, callback})},
         "dialog/message": {showMessage() {}},
         "util/hostCapabilities": {getHostCapabilities: () => ({localFileSystem: true})},
         "util/functions": {isMobile: () => mobile, isBrowser: () => false},
@@ -113,6 +132,7 @@ const runCases = async (sources, css, mobile, legacyMobile) => {
             if (url === "/api/block/getBlockInfo") {
                 return sourceUnavailable ? {code: -1} : {code: 0, data: {rootID: data.id, box: "notebook"}};
             }
+            if (url === "/api/template/httpPermission") {return {code: 0, data: {allowed: false}};}
             assert.equal(url, "/api/template/manage");
             if (data.action === "list") {
                 return {code: 0, data: Array.from(files, ([path, file]) => ({path, isDir: !!file.isDir, isPackage: file.isPackage}))};
@@ -263,8 +283,10 @@ const runCases = async (sources, css, mobile, legacyMobile) => {
 
     for (const width of mobile ? [360, 740] : [1440, 850]) {
         await require("electron").ipcRenderer.invoke("template-manager-size", width, 800);
-        await tick();
         const wide = !mobile && width === 1440;
+        await waitFor(() => window.innerWidth === width && root.classList.contains("template-manager--wide") === wide &&
+            getComputedStyle(root.querySelector(".template-manager__editor")).flexDirection === (wide ? "row" : "column"),
+        `${mobile}/${width}: resized manager layout did not settle`);
         assert.equal(root.classList.contains("template-manager--wide"), wide);
         assert.equal(getComputedStyle(root.querySelector(".template-manager__editor")).flexDirection, wide ? "row" : "column");
         assert.ok(root.scrollWidth <= root.clientWidth + 1, `${mobile}/${width}: manager overflows`);
@@ -286,7 +308,7 @@ const runCases = async (sources, css, mobile, legacyMobile) => {
         source.value = original;
         if (mobile && width === 360) {
             await require("electron").ipcRenderer.invoke("template-manager-size", width, 360);
-            await tick();
+            await waitFor(() => Math.abs(window.innerHeight - 360) <= 1, "mobile keyboard viewport did not resize");
             button("source").scrollIntoView({block: "nearest"});
             assert.ok(button("source").getBoundingClientRect().bottom <= 360, "actions remain reachable above the keyboard");
         }
@@ -321,10 +343,15 @@ if (process.versions.electron && process.type === "browser") {
             for (const [mobile, legacyMobile] of [[false, false], [true, false], [true, true]]) {
                 await win.loadURL("data:text/html,<html><body></body></html>");
                 const sources = {
+                    mobileRuntime: require("./fixtures/mobileDialogRuntime.cjs").mobileDialogRuntimeSource(),
+                    dialog: require("./fixtures/anchoredInputRuntime.cjs").withAnchoredInputRuntime(ts.transpileModule(
+                        fs.readFileSync(path.join(__dirname, "../src/dialog/index.ts"), "utf8"), {
+                            compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020},
+                        }).outputText),
                     icons: fs.readFileSync(path.join(__dirname, "../appearance/icons/litheness/icon.js"), "utf8"),
                     languages: fs.readFileSync(path.join(__dirname, "../appearance/langs/zh-CN.json"), "utf8"),
                 };
-                for (const name of ["menus/menuToggle", "template/manager", "template/actionState", "util/fileTree", "util/escape"]) {
+                for (const name of ["menus/menuToggle", "template/manager", "template/actionState", "template/httpPermission", "template/httpConfirmHandoff", "util/fileTree", "util/escape"]) {
                     sources[name] = ts.transpileModule(preprocess(fs.readFileSync(path.join(__dirname, "../src", name + ".ts"), "utf8"),
                         {MOBILE: mobile, BROWSER: false}, false, true), {
                         compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020},

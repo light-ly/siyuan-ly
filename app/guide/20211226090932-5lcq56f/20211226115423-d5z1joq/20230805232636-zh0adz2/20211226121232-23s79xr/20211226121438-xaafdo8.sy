@@ -6,7 +6,7 @@
 		"id": "20211226121438-xaafdo8",
 		"title": "資料同步",
 		"type": "doc",
-		"updated": "20261016111950"
+		"updated": "20261105042900"
 	},
 	"Children": [
 		{
@@ -48,157 +48,16 @@
 			]
 		},
 		{
-			"ID": "20260905184908-43b5is5",
-			"Type": "NodeHeading",
-			"HeadingLevel": 2,
-			"Properties": {
-				"id": "20260905184908-43b5is5",
-				"updated": "20260905191024"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "資源檔案下載"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-r2oumjv",
+			"ID": "20261102100000-zbxluob",
 			"Type": "NodeParagraph",
 			"Properties": {
-				"id": "20260905184908-r2oumjv",
-				"updated": "20260905184908"
+				"id": "20261102100000-zbxluob",
+				"updated": "20261102100000"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "可在 "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "設定"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " - "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "帳號與同步"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " - "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "資源檔案下載"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " 中選擇全部下載或按需下載，設定僅套用於目前裝置。"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-ydno2ri",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-ydno2ri",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "全部下載是預設模式。按需下載仍會完整同步文件、資料庫定義和資源檔案清單，在顯示圖片、音訊、影片、PDF 等內容或開啟資源連結時下載所需資源檔案。加密筆記本資源仍需解鎖後存取。"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-u69286b",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-u69286b",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "已下載的資源檔案會保留於本機，並在後續同步時繼續更新。啟用按需下載不會清理現有檔案，也不會立即釋放已佔用的空間。"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-nspliig",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-nspliig",
-				"updated": "20260905191024"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "尚未下載的資源檔案無法離線使用，無法取得時會回報錯誤。切換為全部下載會先補齊目前資源檔案及所有保留的本機快照所需內容，因此也可能下載歷史版本；下載失敗時保留原模式，可以恢復連線後重試。"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-ihj48vx",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-ihj48vx",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "按需模式的本機快照可能依賴雲端，不能視為完整離線備份。完整快照下載，以及需要資源檔案內容的匯出和復原操作，會先補齊對應資源檔案，無法取得時明確回報錯誤。"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-qskt7h0",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-qskt7h0",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "更換同步目標、重設資料倉庫或使用舊版本開啟此工作空間前，請先切換為全部下載並完成下載，避免失去取得尚未下載資源檔案的途徑。"
-				}
-			]
-		},
-		{
-			"ID": "20261012014537-nwm5grr",
-			"Type": "NodeHeading",
-			"Properties": {
-				"id": "20261012014537-nwm5grr",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "主題和圖示"
-				}
-			],
-			"HeadingLevel": 2
-		},
-		{
-			"ID": "20260917190844-m610sh8",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260917190844-m610sh8",
-				"updated": "20260918195936"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "主題和圖示套件的檔案、更新和解除安裝會在裝置間同步，各裝置獨立選擇使用的主題和圖示。套件內圖片、字型等資源一律完整下載。同步、刪除及衝突與外掛程式、掛件、範本共用檔案層級規則。還原的快照中沒有某個套件時，該套件會被刪除。"
+					"Data": "同步會按原始格式傳輸文檔，即使目前版本無法讀取該格式。不支援的文檔無法開啟或編輯，也不進入本機內容索引；請升級至支援該格式的版本後讀取。其他相容文檔仍可正常同步。這不代表新舊用戶端可以安全混用：舊版本的編輯快取仍可能覆蓋新版內容。"
 				}
 			]
 		},
@@ -208,7 +67,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20211226121454-g3niy0i",
-				"updated": "20261016111950"
+				"updated": "20261103163507"
 			},
 			"Children": [
 				{
@@ -222,19 +81,46 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20220703231425-knmdjxb",
-				"updated": "20261016111431"
+				"updated": "20261024161816"
 			},
 			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "先 "
+				},
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "block-ref",
 					"TextMarkBlockRefID": "20220615120134-y8wnvbq",
 					"TextMarkBlockRefSubtype": "s",
-					"TextMarkTextContent": "初始化資料倉庫密鑰"
+					"TextMarkTextContent": "初始化資料倉庫金鑰"
 				},
 				{
 					"Type": "NodeText",
-					"Data": "後如果一切正常就已經設定好同步了。如果你不太熟悉同步配置，建議通過點擊同步按鈕打開同步配置嚮導，通過嚮導進行配置會更簡便一些。"
+					"Data": "，再選擇雲端儲存、設定同步目標並啟用同步。不熟悉設定時，可點擊同步按鈕開啟精靈，依提示完成設定。"
+				}
+			]
+		},
+		{
+			"ID": "20261103104841-3c6934e",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261103104841-3c6934e",
+				"updated": "20261103110957"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "新增、切換或刪除雲端同步目錄失敗時，會保留目錄清單，可重新執行該操作。目錄清單讀取失敗時，可點擊 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "重試"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 重新載入。同步精靈中啟用同步或提交同步方向失敗時，會保留目前頁面和選擇，可重新提交。"
 				}
 			]
 		},
@@ -360,7 +246,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20230220103637-v3wy8lv",
-				"updated": "20261016111950"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -400,7 +286,7 @@
 					},
 					"Properties": {
 						"id": "20230220103640-opmw3uo",
-						"updated": "20261016111950"
+						"updated": "20261024163013"
 					},
 					"Children": [
 						{
@@ -408,7 +294,7 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20230220103640-gpbn39m",
-								"updated": "20261016111950"
+								"updated": "20261024163013"
 							},
 							"Children": [
 								{
@@ -449,7 +335,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 匯出資料包，傳輸到新裝置後，在該裝置的同一設定頁面使用 "
+									"Data": " 匯出資料包，傳輸到新裝置後，在該裝置的同一設定頁面使用 "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -472,7 +358,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20261011151543-1587etm",
-				"updated": "20261016111431"
+				"updated": "20261103163507"
 			},
 			"Children": [
 				{
@@ -523,6 +409,57 @@
 			]
 		},
 		{
+			"ID": "20261020224352-a5ax2ei",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261020224352-a5ax2ei",
+				"updated": "20261020224352"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "儲存前可點選 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "測試連線"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 檢查目前 S3、WebDAV 或本機檔案系統設定草稿，測試不會儲存設定。WebDAV 會檢查建立目錄和探針讀寫權限，本機檔案系統會檢查目錄讀寫權限，結束後盡力清理探針。測試失敗時可依提示修改後重試，已儲存的設定會保留。"
+				}
+			]
+		},
+		{
+			"ID": "20261102160000-274c563",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102160000-274c563",
+				"updated": "20261102160000"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "S3 和 WebDAV 的端點位址省略協定時，含點的主機名稱預設使用 HTTPS；IP 位址、localhost 和單一標籤主機名稱預設使用 HTTP。含點的主機名稱對應的服務若僅支援 HTTP，請明確填寫 http://。明確填寫的 http:// 和 https:// 位址維持原樣，已儲存的設定也不會自動變更協定。"
+				}
+			]
+		},
+		{
+			"ID": "20261102113000-ebead70",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102113000-ebead70",
+				"updated": "20261103163507"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "變更同步服務商、端點或目錄前，思源會儲存已開啟的編輯器並為目前資料建立完整快照。新來源非空時，自動合併會停止。點擊同步可預覽兩邊檔案數、來源時間與裝置，以及上傳、覆寫或刪除的檔案數量，然後選擇以上傳本機資料或以來源還原，兩種方向均不預先選取。上傳會將目前本機快照發佈至來源，但不刪除來源中多餘的儲存物件；還原會依來源取代本機資料。空來源直接接收本機資料。首輪同步在儲存可復原進度或完成資料提交前失敗時，仍需重新預覽並確認來源。已有可復原進度時會繼續依已選方向處理；資料提交後的資源下載失敗可直接重試。切換前的快照可在資料歷史中還原。"
+				}
+			]
+		},
+		{
 			"ID": "20261011151543-tvc378w",
 			"Type": "NodeParagraph",
 			"Properties": {
@@ -560,12 +497,226 @@
 			]
 		},
 		{
+			"ID": "20261020231029-8zr82uz",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261020231029-8zr82uz",
+				"updated": "20261101195843"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "自動同步通常在背景執行，不會彈出面板或中斷編輯。點選同步圖示可查看目前檔案、已寫入位元組數、速度和預計剩餘時間。檔案寫入完成後的索引復原期間，展開和收起檢視都會顯示目前索引狀態，進度條持續執行，直到索引復原完成。"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "收起詳細資訊"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 可收起進度詳細資訊，點選 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "同步"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 可重新展開。僅在套用本機變更、復原索引及重新整理相關文件期間暫停編輯；取消後也需等待復原完成才能繼續編輯。點選 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "取消"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 可請求取消準備、網路傳輸或檔案復原。"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "同步圖示會保留最近一次完成的結果：勾號表示成功，錯誤標記表示失敗或自動同步暫停，一般雲朵表示結果未知。重新啟動後仍保留該結果，下一次同步完成後更新。同步進行中圖示保持旋轉，停用同步時顯示停用圖示。"
+				}
+			]
+		},
+		{
+			"ID": "20261020231029-6xu32w1",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261020231029-6xu32w1",
+				"updated": "20261020231029"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "取消後會保留已完成的檔案並清理目前暫存檔，可以再次同步以完成剩餘內容。空間不足時，請釋放空間後重試。啟動或還原檔案前會清理可確認歸屬的中斷同步暫存檔，並提示釋放的容量。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-43b5is5",
+			"Type": "NodeHeading",
+			"HeadingLevel": 2,
+			"Properties": {
+				"id": "20260905184908-43b5is5",
+				"updated": "20261105042900"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "資源檔案下載"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-r2oumjv",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-r2oumjv",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "可在 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "設定"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "帳號與同步"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "資源檔案下載"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 中選擇全部下載或按需下載，設定僅套用於目前裝置。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-ydno2ri",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-ydno2ri",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "全部下載是預設模式。按需下載仍會完整同步文件、資料庫定義和資源檔案清單，在顯示圖片、音訊、影片、PDF 等內容或開啟資源連結時下載所需資源檔案。加密筆記本資源仍需解鎖後存取。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-u69286b",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-u69286b",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "已下載的資源檔案會保留於本機，並在後續同步時繼續更新。啟用按需下載不會清理現有檔案，也不會立即釋放已佔用的空間。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-nspliig",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-nspliig",
+				"updated": "20260905191024"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "尚未下載的資源檔案無法離線使用，無法取得時會回報錯誤。切換為全部下載會先補齊目前資源檔案及所有保留的本機快照所需內容，因此也可能下載歷史版本；下載失敗時保留原模式，可以恢復連線後重試。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-ihj48vx",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-ihj48vx",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "按需模式的本機快照可能依賴雲端，不能視為完整離線備份。完整快照下載，以及需要資源檔案內容的匯出和復原操作，會先補齊對應資源檔案，無法取得時明確回報錯誤。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-qskt7h0",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-qskt7h0",
+				"updated": "20261105042900"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "更換同步目標、重設資料倉庫或使用舊版本開啟此工作空間前，請先切換為全部下載並完成下載，避免失去取得尚未下載資源檔案的途徑。登出後，如果僅選錯帳號或雲端區域且其他同步設定未變，請在原雲端區域重新登入原帳號，再切換為全部下載。下載狀態有效，且目前資源和保留快照所需分塊已全部在本機時，也可在未登入或停用同步時完成切換。如果雲端目錄、倉庫金鑰已變動，或資源下載狀態遺失、損壞，請保留工作空間和原備份，不要刪除狀態檔案或倉庫標記來繞過檢查；重新登入本身無法修復這些狀態。"
+				}
+			]
+		},
+		{
+			"ID": "20261012014537-nwm5grr",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261012014537-nwm5grr",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "主題和圖示"
+				}
+			],
+			"HeadingLevel": 2
+		},
+		{
+			"ID": "20260917190844-m610sh8",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260917190844-m610sh8",
+				"updated": "20260918195936"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "主題和圖示套件的檔案、更新和解除安裝會在裝置間同步，各裝置獨立選擇使用的主題和圖示。套件內圖片、字型等資源一律完整下載。同步、刪除及衝突與外掛程式、掛件、範本共用檔案層級規則。還原的快照中沒有某個套件時，該套件會被刪除。"
+				}
+			]
+		},
+		{
 			"ID": "20230219121211-f7pvncg",
 			"Type": "NodeHeading",
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20230219121211-f7pvncg",
-				"updated": "20261016111431"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -579,7 +730,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20230219121211-z22snch",
-				"updated": "20261016111431"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -593,7 +744,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -602,7 +753,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -611,7 +762,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ 中支持三種同步模式："
+					"Data": " 中支持三種同步模式："
 				}
 			]
 		},
@@ -841,6 +992,20 @@
 							]
 						}
 					]
+				}
+			]
+		},
+		{
+			"ID": "20261026111206-3c8pqj7",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261026111206-3c8pqj7",
+				"updated": "20261026115057"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "等待結束期間，結束對話框會顯示收到的狀態列訊息，方便查看目前的同步狀態。結束等待超過 12 秒時，可以選擇「略過同步並結束」，確認後取消同步並完成結束。未同步的變更會保留在本機；取消確認則繼續等待同步完成。"
 				}
 			]
 		},
@@ -1200,7 +1365,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 優先從區域網路內可連線、使用相同倉庫密鑰和雲端同步目標的裝置下載加密資料物件。雲端儲存仍是同步權威來源，區域網路傳輸無法使用時會回退到雲端，因此不能當作完全離線的點對點同步。Docker 核心不提供區域網路加速；區域網路通知僅在自動模式下觸發同步。"
+					"Data": " 優先從區域網路內可連線、使用相同倉庫密鑰和雲端同步目標的裝置下載加密資料物件。使用 S3 時，兩端的 Endpoint、Bucket 和 Region 設定必須一致；即使 auto 和明確指定的 Region 都能存取同一雲端倉庫，區域網路探索也不會匹配，請將兩端 Region 設為相同的值。雲端儲存仍是同步權威來源，區域網路傳輸無法使用時會回退到雲端，因此不能當作完全離線的點對點同步。Docker 核心不提供區域網路加速；區域網路通知僅在自動模式下觸發同步。"
 				}
 			]
 		},

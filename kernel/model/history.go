@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -37,14 +25,12 @@ import (
 	"github.com/88250/lute/ast"
 	"github.com/88250/lute/parse"
 	"github.com/88250/lute/render"
-	"github.com/siyuan-note/dataparser"
 	"github.com/siyuan-note/eventbus"
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/av"
 	"github.com/siyuan-note/siyuan/kernel/cache"
 	"github.com/siyuan-note/siyuan/kernel/conf"
-	"github.com/siyuan-note/siyuan/kernel/filesys"
 	"github.com/siyuan-note/siyuan/kernel/search"
 	"github.com/siyuan-note/siyuan/kernel/sql"
 	"github.com/siyuan-note/siyuan/kernel/task"
@@ -213,7 +199,7 @@ func GetDocHistoryContent(historyPath, keyword string, highlight bool) (id, root
 	if err = treenode.CheckSpecJSON(data); nil != err {
 		return
 	}
-	historyTree, err := dataparser.ParseJSONWithoutFix(data, luteEngine.ParseOptions)
+	historyTree, err := treenode.ParseJSONWithoutFix(data, luteEngine.ParseOptions)
 	if err != nil {
 		logging.LogErrorf("parse tree from file [%s] failed: %s", historyPath, err)
 		return
@@ -225,6 +211,15 @@ func GetDocHistoryContent(historyPath, keyword string, highlight bool) (id, root
 	rootID = historyTree.Root.ID
 	if ciphertext && rootID+".sy" != filepath.Base(historyPath) {
 		return "", "", "", false, errors.New("encrypted document history root ID does not match its filename")
+	}
+	if historyTree.Root.DocumentTitle != nil {
+		title, titleErr := treenode.DocumentTitleParagraph(historyTree.Root)
+		if titleErr != nil {
+			return "", "", "", false, titleErr
+		}
+		title.Parent = nil
+		title.Type, title.HeadingLevel, title.ID = ast.NodeHeading, 1, rootID
+		historyTree.Root.PrependChild(title)
 	}
 
 	if !isLargeDoc {
@@ -278,6 +273,10 @@ func GetDocHistoryContent(historyPath, keyword string, highlight bool) (id, root
 }
 
 func RollbackDocHistory(historyPath string) (err error) {
+	return rollbackDocHistory(historyPath, removeIndexRepairSourceIfUnchanged)
+}
+
+func rollbackDocHistory(historyPath string, removeOldDoc func(string, []byte) error) (err error) {
 	historyPath, err = validateHistoryPath(historyPath)
 	if err != nil {
 		return
@@ -320,12 +319,17 @@ func RollbackDocHistory(historyPath string) (err error) {
 		return
 	}
 	boxID = box.ID
+	// Serialize replacement and history invalidation with edit commits and undo/redo selection.
+	// Rollback notebook creation/mounting above may itself wait for transactions.
+	FlushTxQueue()
+	flushLock.Lock()
+	defer flushLock.Unlock()
 
 	srcPath := historyPath
 	var destPath, parentHPath string
 	rootID := util.GetTreeID(historyPath)
-	workingDoc := treenode.GetBlockTree(rootID)
-	if needResetTree {
+	workingDoc := treenode.GetBlockTreeInExactBox(rootID, boxID)
+	if needResetTree || workingDoc != nil && workingDoc.Type != "d" {
 		workingDoc = nil
 	}
 
@@ -375,12 +379,34 @@ func RollbackDocHistory(historyPath string) (err error) {
 	if encrypted && tree.Root.ID+".sy" != filepath.Base(historyPath) {
 		return errors.New("encrypted document history root ID does not match its filename")
 	}
-	boundRecovery := &Transaction{trees: map[string]*parse.Tree{}}
-	defer func() { boundRecovery.finishAttributeViewMutation(err != nil) }()
+	var unlockBoxTitle func()
+	if !needResetTree && IsBoxDoc(boxID, tree.ID) {
+		boxDocTitleNameLock.Lock()
+		unlockBoxTitle = boxDocTitleNameLock.Unlock
+		defer func() {
+			if unlockBoxTitle != nil {
+				unlockBoxTitle()
+			}
+		}()
+		// 恢复的标题源优先于配置投影，纯文本历史同样需要在重开时保留。
+		tree.Root.SetIALAttr(boxDocTitleSourceAttr, "document")
+	}
+	boundRecovery := &Transaction{trees: map[string]*parse.Tree{}, historyRecovery: newAttributeViewHistoryRecovery()}
+	defer boundRecovery.finishHistoryRecovery(&err)
 	if nil != tree {
 		historyDir := filepath.Join(util.HistoryDir, parts[0])
 
 		avNodes := tree.Root.ChildrenByType(ast.NodeAttributeView)
+		for _, avNode := range avNodes {
+			avBoxID := ""
+			if encrypted {
+				avBoxID = boxID
+			}
+			if err = boundRecovery.preflightEmbeddedAttributeViewHistory(
+				boundAttributeViewHistoryPath(historyDir, avBoxID, avNode.AttributeViewID), avBoxID, avNode.AttributeViewID); err != nil {
+				return
+			}
+		}
 		for _, avNode := range avNodes {
 			srcAvPath := filepath.Join(historyDir, "storage", "av", avNode.AttributeViewID+".json")
 			// 加密笔记本的 AV 定义在笔记本级目录
@@ -411,10 +437,12 @@ func RollbackDocHistory(historyPath string) (err error) {
 
 	tree.Box = boxID
 	tree.Path = filepath.ToSlash(strings.TrimPrefix(destPath, util.DataDir+string(os.PathSeparator)+boxID))
-	tree.HPath = parentHPath + "/" + tree.Root.IALAttr("title")
+	tree.HPath = parentHPath + "/" + treenode.ReadDocumentTitle(tree.Root).Text
 
 	if needResetTree {
-		resetTree(tree, "", true)
+		if err = resetTree(tree, "", true); err != nil {
+			return
+		}
 	}
 
 	// 重置重复的块 ID https://github.com/siyuan-note/siyuan/issues/14358
@@ -431,13 +459,13 @@ func RollbackDocHistory(historyPath string) (err error) {
 	for nodeID := range nodes {
 		ids = append(ids, nodeID)
 	}
-	idMap := treenode.ExistBlockTrees(ids)
+	idMap := treenode.ExistBlockTreesInBox(ids, boxID)
 	var duplicatedIDs []string
 	for nodeID, exist := range idMap {
 		if exist {
 			// 被替换文档自身的块保留 ID，其他文档中的重复块才需要重新分配 ID。
 			if workingDoc != nil && workingDoc.Type == "d" {
-				bt := treenode.GetBlockTree(nodeID)
+				bt := treenode.GetBlockTreeInBox(nodeID, boxID)
 				if bt != nil && bt.BoxID == boxID && bt.RootID == workingDoc.RootID {
 					continue
 				}
@@ -445,14 +473,17 @@ func RollbackDocHistory(historyPath string) (err error) {
 			duplicatedIDs = append(duplicatedIDs, nodeID)
 		}
 	}
+	remappedIDs := map[string]string{}
 	for _, nodeID := range duplicatedIDs {
 		node := nodes[nodeID]
 		treenode.ResetNodeID(node)
+		remappedIDs[nodeID] = node.ID
 		if ast.NodeDocument == node.Type {
 			tree.ID = node.ID
 			tree.Path = tree.Path[:strings.LastIndex(tree.Path, "/")] + "/" + node.ID + ".sy"
 		}
 	}
+	remapDuplicateDocTreeReferences(tree.Root, remappedIDs)
 
 	// 仅重新索引该文档，不进行全量索引
 	// Reindex only the current document after rolling back the document https://github.com/siyuan-note/siyuan/issues/12320
@@ -462,24 +493,39 @@ func RollbackDocHistory(historyPath string) (err error) {
 			return
 		}
 	}
-	if _, err = filesys.WriteTree(tree); err != nil {
+	var boxName string
+	if IsBoxDoc(tree.Box, tree.ID) {
+		if boxName, err = boundRecovery.historyRecovery.writeBoxDocTitleName(tree, writeHistoryNotebookConf); err != nil {
+			return
+		}
+	}
+	if err = writeHistoryDocument(tree, workingDoc, removeOldDoc, boundRecovery.historyRecovery); err != nil {
 		return
 	}
+	if err = boundRecovery.historyRecovery.commit(); err != nil {
+		return
+	}
+	if IsBoxDoc(tree.Box, tree.ID) {
+		box.Name = boxName
+	}
+	if unlockBoxTitle != nil {
+		unlockBoxTitle()
+		unlockBoxTitle = nil
+	}
+	invalidateDocumentHistory(tree.ID)
+	if workingDoc != nil && workingDoc.Type == "d" && workingDoc.BoxID == boxID && workingDoc.RootID != tree.ID {
+		invalidateDocumentHistory(workingDoc.RootID)
+	}
 	if workingDoc != nil {
-		if workingDoc.Type == "d" && workingDoc.Path != tree.Path {
-			if err = filelock.Remove(filepath.Join(util.DataDir, boxID, workingDoc.Path)); err != nil {
-				return
-			}
-		}
 		treenode.RemoveBlockTreesByRootID(boxID, rootID)
 	}
 	sql.RemoveTreeQueue(boxID, rootID)
 	treenode.IndexBlockTree(tree)
 	sql.IndexTreeQueue(tree)
 	ReloadFiletree()
-	ReloadProtyle(rootID)
+	ReloadProtyle(tree.ID)
 
-	msg := fmt.Sprintf(Conf.Language(286), path.Join(box.Name, tree.HPath))
+	msg := fmt.Sprintf(Conf.Language(286), box.Name+tree.HPath)
 	util.PushMsg(msg, 7000)
 	IncSync()
 
@@ -488,15 +534,18 @@ func RollbackDocHistory(historyPath string) (err error) {
 		ReloadAttrView(avID)
 	}
 
+	restoredID := tree.ID
+	backgroundRefreshWaitGroup.Add(1)
 	go func() {
+		defer backgroundRefreshWaitGroup.Done()
 		sql.FlushQueue()
 
-		tree, _ = LoadTreeByBlockID(rootID)
+		tree, _ = LoadTreeByBlockID(restoredID)
 		if nil == tree {
 			return
 		}
 
-		ReloadProtyle(rootID)
+		ReloadProtyle(restoredID)
 
 		// 刷新页签名
 		refText := getNodeRefText(tree.Root)
@@ -505,8 +554,8 @@ func RollbackDocHistory(historyPath string) (err error) {
 			"box":     boxID,
 			"id":      tree.Root.ID,
 			"path":    tree.Path,
-			"title":   tree.Root.IALAttr("title"),
-			"empty":   "" != tree.Root.IALAttr(NodeAttrTitleEmpty),
+			"title":   treenode.ReadDocumentTitle(tree.Root).Text,
+			"empty":   "true" == tree.Root.IALAttr(NodeAttrTitleEmpty),
 			"refText": refText,
 		}
 		util.PushEvent(evt)
@@ -526,7 +575,7 @@ func loadTreeByData0(data []byte) (ret *parse.Tree, err error) {
 	if err = treenode.CheckSpecJSON(data); nil != err {
 		return
 	}
-	ret, err = dataparser.ParseJSONWithoutFix(data, util.NewLute().ParseOptions)
+	ret, err = treenode.ParseJSONWithoutFix(data, util.NewLute().ParseOptions)
 	if nil == err {
 		err = treenode.RefreshTableCellRichProjection(ret.Root)
 	}
@@ -582,7 +631,7 @@ func RollbackAssetsHistory(historyPath string) (err error) {
 	if encrypted && (len(pathParts) < 3 || !ast.IsNodeIDPattern(pathParts[1]) || !IsEncryptedBox(pathParts[1])) {
 		return errors.New("encrypted asset history is missing valid notebook context")
 	}
-	to := filepath.Join(util.DataDir, "assets", filepath.Base(historyPath))
+	var to string
 	if len(pathParts) >= 2 && IsEncryptedBox(pathParts[1]) {
 		if !encrypted {
 			return fmt.Errorf("encrypted notebook asset history is plaintext [%s]", pathParts[1])
@@ -610,6 +659,14 @@ func RollbackAssetsHistory(historyPath string) (err error) {
 		if err = os.MkdirAll(filepath.Dir(to), 0755); err != nil {
 			return
 		}
+	} else {
+		to, err = ordinaryAssetHistoryDestination(pathParts)
+		if err != nil {
+			return
+		}
+		if err = os.MkdirAll(filepath.Dir(to), 0755); err != nil {
+			return
+		}
 	}
 
 	if encrypted {
@@ -624,6 +681,31 @@ func RollbackAssetsHistory(historyPath string) (err error) {
 	IncSync()
 	util.PushMsg(Conf.Language(102), 3000)
 	return nil
+}
+
+// Ordinary history stores the original data-relative path after the snapshot
+// directory, both for global assets and notebook/document-local cleanup history.
+func ordinaryAssetHistoryDestination(parts []string) (string, error) {
+	if len(parts) != 3 {
+		return "", errors.New("invalid asset history path")
+	}
+	rel := parts[1] + "/" + parts[2]
+	if path.Clean(rel) != rel || strings.Contains(rel, "\\") || path.IsAbs(rel) {
+		return "", errors.New("invalid asset history path")
+	}
+	if parts[1] != "assets" {
+		if !ast.IsNodeIDPattern(parts[1]) || !strings.Contains("/"+parts[2], "/assets/") {
+			return "", errors.New("history path does not identify an asset")
+		}
+		if !filelock.IsExist(filepath.Join(util.DataDir, parts[1], ".siyuan", "conf.json")) {
+			return "", errors.New("asset history notebook is unavailable")
+		}
+	}
+	to := filepath.Join(util.DataDir, filepath.FromSlash(rel))
+	if err := validateEncryptedCleanupPath(util.DataDir, to); err != nil {
+		return "", err
+	}
+	return to, nil
 }
 
 // validateHistoryPath 校验历史路径是否位于工作区内且属于历史目录。
@@ -669,6 +751,10 @@ func IsEncryptedHistoryPath(absPath string) bool {
 }
 
 func RollbackNotebookHistory(historyPath string) (err error) {
+	return rollbackNotebookHistory(historyPath, filelock.CopyNewtimes)
+}
+
+func rollbackNotebookHistory(historyPath string, copyHistory func(string, string) error) (err error) {
 	historyPath, err = validateHistoryPath(historyPath)
 	if err != nil {
 		return
@@ -687,14 +773,37 @@ func RollbackNotebookHistory(historyPath string) (err error) {
 	if filelock.IsExist(to) {
 		return errors.New(Conf.Language(371))
 	}
+	if err = checkDocumentAddressingCopy(from, boxID); err != nil {
+		return
+	}
+	if err = os.MkdirAll(util.DataDir, 0755); err != nil {
+		return
+	}
+	staging, err := os.MkdirTemp(util.DataDir, ".notebook-history-"+boxID+"-")
+	if err != nil {
+		return
+	}
+	defer func() { err = errors.Join(err, os.RemoveAll(staging)) }()
+	if err = copyHistory(from, staging); err != nil {
+		return
+	}
+
+	FlushTxQueue()
+	flushLock.Lock()
+	defer flushLock.Unlock()
 	boundRecovery := &Transaction{trees: map[string]*parse.Tree{}}
 	defer func() { boundRecovery.finishAttributeViewMutation(err != nil) }()
 	if err = boundRecovery.restoreNotebookAttributeViewHistory(from, boxID); err != nil {
 		return err
 	}
 
-	if err = filelock.CopyNewtimes(from, to); err != nil {
-		logging.LogErrorf("copy file [%s] to [%s] failed: %s", from, to, err)
+	if _, statErr := os.Lstat(to); !os.IsNotExist(statErr) {
+		if statErr != nil {
+			return statErr
+		}
+		return errors.New(Conf.Language(371))
+	}
+	if err = os.Rename(staging, to); err != nil {
 		return
 	}
 
@@ -726,7 +835,6 @@ func RollbackAttributeViewHistory(historyPath string) (err error) {
 	if !strings.HasSuffix(historyPath, ".json") || !strings.Contains(filepath.ToSlash(historyPath), "/storage/av/") {
 		return fmt.Errorf("invalid AV history path [%s]", historyPath)
 	}
-
 	from := historyPath
 	// 从路径提取 boxID 判断是否加密笔记本的 AV
 	relPath := strings.TrimPrefix(filepath.ToSlash(historyPath), filepath.ToSlash(util.HistoryDir))
@@ -740,29 +848,35 @@ func RollbackAttributeViewHistory(historyPath string) (err error) {
 	if ciphertext && (len(pathParts) < 3 || !ast.IsNodeIDPattern(pathParts[1]) || !IsEncryptedBox(pathParts[1])) {
 		return errors.New("encrypted attribute view history is missing valid notebook context")
 	}
-	to := filepath.Join(util.DataDir, "storage", "av", filepath.Base(historyPath))
+	avID := strings.TrimSuffix(filepath.Base(historyPath), ".json")
+	avBoxID := ""
 	if len(pathParts) >= 2 && IsEncryptedBox(pathParts[1]) {
 		if !ciphertext {
 			return fmt.Errorf("encrypted notebook attribute view history is plaintext [%s]", pathParts[1])
 		}
-		// 加密笔记本的 AV 定义回滚到笔记本级目录
-		to = filepath.Join(util.DataDir, pathParts[1], "storage", "av", filepath.Base(historyPath))
-		if err = os.MkdirAll(filepath.Dir(to), 0755); err != nil {
+		avBoxID = pathParts[1]
+		if err = AcquireEncryptedBoxOperation(avBoxID); err != nil {
 			return
 		}
+		defer ReleaseEncryptedBoxOperation(avBoxID)
 	}
 
-	if err = filelock.CopyNewtimes(from, to); err != nil {
-		logging.LogErrorf("copy file [%s] to [%s] failed: %s", from, to, err)
+	FlushTxQueue()
+	flushLock.Lock()
+	defer flushLock.Unlock()
+	recovery := &Transaction{trees: map[string]*parse.Tree{}, historyRecovery: newAttributeViewHistoryRecovery()}
+	defer recovery.finishHistoryRecovery(&err)
+	if err = recovery.preflightEmbeddedAttributeViewHistory(from, avBoxID, avID); err != nil {
 		return
 	}
-	avID := strings.TrimSuffix(filepath.Base(historyPath), ".json")
-	cache.RemoveAVData(avID)
-	avBoxID := ""
-	if len(pathParts) >= 2 && IsEncryptedBox(pathParts[1]) {
-		avBoxID = pathParts[1]
+	if err = recovery.restoreEmbeddedAttributeViewHistory(from, avBoxID, avID); err != nil {
+		return
+	}
+	if err = recovery.historyRecovery.commit(); err != nil {
+		return
 	}
 	queueExternalAttributeViewRefIndex(avID, avBoxID)
+	ReloadAttrView(avID)
 	IncSync()
 	util.PushMsg(Conf.Language(102), 3000)
 	return nil
@@ -782,35 +896,38 @@ type HistoryItem struct {
 }
 
 const fileHistoryPageSize = 32
+const fileHistoryItemsPageSize = 32
 
 func FullTextSearchHistory(query, box, op string, typ, page int) (ret []string, pageCount, totalCount int) {
+	ret, _, pageCount, totalCount = FullTextSearchHistoryGroups(query, box, op, typ, page)
+	return
+}
+
+func FullTextSearchHistoryGroups(query, box, op string, typ, page int) (ret []string, itemCounts map[string]int, pageCount, totalCount int) {
+	ret = []string{}
+	itemCounts = map[string]int{}
 	query = util.RemoveInvalid(query)
 	if "" != query && HistoryTypeDocID != typ {
 		query = stringQuery(query)
 	}
-
-	offset := (page - 1) * fileHistoryPageSize
-
+	if page < 1 {
+		page = 1
+	}
 	table := "histories_fts_case_insensitive"
-	stmt := "SELECT DISTINCT created FROM " + table + " WHERE "
-	stmt += buildSearchHistoryQueryFilter(query, op, box, table, typ)
-	countStmt := strings.ReplaceAll(stmt, "SELECT DISTINCT created", "SELECT COUNT(DISTINCT created) AS total")
-	stmt += " ORDER BY created DESC LIMIT " + strconv.Itoa(fileHistoryPageSize) + " OFFSET " + strconv.Itoa(offset)
+	filter := buildSearchHistoryQueryFilter(query, op, box, table, typ)
+	stmt := "SELECT created, COUNT(*) AS total FROM " + table + " WHERE " + filter +
+		" GROUP BY created ORDER BY created DESC LIMIT " + strconv.Itoa(fileHistoryPageSize) + " OFFSET " + strconv.Itoa((page-1)*fileHistoryPageSize)
 	result, err := sql.QueryHistory(stmt)
 	if err != nil {
 		return
 	}
 	for _, row := range result {
-		ret = append(ret, row["created"].(string))
+		created := row["created"].(string)
+		ret = append(ret, created)
+		itemCounts[created] = int(row["total"].(int64))
 	}
-	result, err = sql.QueryHistory(countStmt)
-	if err != nil {
-		return
-	}
-	if 1 > len(ret) {
-		ret = []string{}
-	}
-	if 1 > len(result) {
+	result, err = sql.QueryHistory("SELECT COUNT(DISTINCT created) AS total FROM " + table + " WHERE " + filter)
+	if err != nil || len(result) == 0 {
 		return
 	}
 	totalCount = int(result[0]["total"].(int64))
@@ -819,24 +936,36 @@ func FullTextSearchHistory(query, box, op string, typ, page int) (ret []string, 
 }
 
 func FullTextSearchHistoryItems(created, query, box, op string, typ int) (ret []*HistoryItem) {
+	ret, _, _ = FullTextSearchHistoryItemsPage(created, query, box, op, typ, 1)
+	return
+}
+
+func FullTextSearchHistoryItemsPage(created, query, box, op string, typ, page int) (ret []*HistoryItem, pageCount, totalCount int) {
+	ret = []*HistoryItem{}
+	if _, err := strconv.Atoi(created); err != nil {
+		return
+	}
 	query = util.RemoveInvalid(query)
 	if "" != query && HistoryTypeDocID != typ {
 		query = stringQuery(query)
 	}
-
+	if page < 1 {
+		page = 1
+	}
 	table := "histories_fts_case_insensitive"
-	stmt := "SELECT * FROM " + table + " WHERE "
-	stmt += buildSearchHistoryQueryFilter(query, op, box, table, typ)
-
-	_, parseErr := strconv.Atoi(created)
-	if nil != parseErr {
-		ret = []*HistoryItem{}
+	filter := buildSearchHistoryQueryFilter(query, op, box, table, typ) + " AND created = '" + created + "'"
+	counts, err := sql.QueryHistory("SELECT COUNT(*) AS total FROM " + table + " WHERE " + filter)
+	if err != nil || len(counts) == 0 {
 		return
 	}
-
-	stmt += " AND created = '" + created + "' ORDER BY created DESC LIMIT " + fmt.Sprintf("%d", fileHistoryPageSize)
-	sqlHistories := sql.SelectHistoriesRawStmt(stmt)
-	ret = fromSQLHistories(sqlHistories)
+	totalCount = int(counts[0]["total"].(int64))
+	pageCount = int(math.Ceil(float64(totalCount) / float64(fileHistoryItemsPageSize)))
+	if page > pageCount {
+		return
+	}
+	stmt := "SELECT * FROM " + table + " WHERE " + filter +
+		" ORDER BY path ASC, id ASC, op ASC, rowid ASC LIMIT " + strconv.Itoa(fileHistoryItemsPageSize) + " OFFSET " + strconv.Itoa((page-1)*fileHistoryItemsPageSize)
+	ret = fromSQLHistories(sql.SelectHistoriesRawStmt(stmt))
 	return
 }
 
@@ -1375,7 +1504,7 @@ func indexHistoryDir(name string, luteEngine *lute.Lute) {
 			continue
 		}
 
-		title := tree.Root.IALAttr("title")
+		title := treenode.ReadDocumentTitle(tree.Root).Text
 		if "" == title {
 			title = Conf.language(16)
 		}

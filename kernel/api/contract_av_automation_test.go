@@ -1,7 +1,12 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package api
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -272,6 +277,84 @@ func TestAVContractAutomationWrites(t *testing.T) {
 		readBack.Data.AV.Automations.Rules[0].BlockSource.TagTarget != "container" {
 		t.Fatalf("tag target contract round trip: %s %v", response.Body.String(), err)
 	}
+	for _, depth := range []*int{new(0), new(1), nil} {
+		collection.BlockSource.DocumentDepth = depth
+		if err = model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID,
+			Data: &av.AutomationConfig{Spec: 5, Rules: []*av.AutomationRule{collection}}}}); err != nil {
+			t.Fatal(err)
+		}
+		response = callAttributeViewContextFilterAPI(t, "/api/av/getAttributeView", map[string]any{"id": database.ID}, getAttributeView)
+		requireAPIContract(t, http.MethodPost, "/api/av/getAttributeView", response)
+		readBack.Data.AV.Automations = av.AutomationConfig{}
+		if err = json.Unmarshal(response.Body.Bytes(), &readBack); err != nil {
+			t.Fatal(err)
+		}
+		got := readBack.Data.AV.Automations.Rules[0].BlockSource.DocumentDepth
+		if readBack.Data.AV.Automations.Spec != 5 || (got == nil) != (depth == nil) || got != nil && *got != *depth {
+			t.Fatalf("document depth contract round trip: %s", response.Body.String())
+		}
+	}
+	previousAttributes := collection.BlockSource.Attributes
+	for _, include := range []*bool{nil, new(true), new(false)} {
+		collection.BlockSource.IncludeSelectedDocuments = include
+		if err = model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID,
+			Data: &av.AutomationConfig{Spec: 7, Rules: []*av.AutomationRule{collection}}}}); err != nil {
+			t.Fatal(err)
+		}
+		response = callAttributeViewContextFilterAPI(t, "/api/av/getAttributeView", map[string]any{"id": database.ID}, getAttributeView)
+		requireAPIContract(t, http.MethodPost, "/api/av/getAttributeView", response)
+		readBack.Data.AV.Automations = av.AutomationConfig{}
+		if err = json.Unmarshal(response.Body.Bytes(), &readBack); err != nil {
+			t.Fatal(err)
+		}
+		got := readBack.Data.AV.Automations.Rules[0].BlockSource.IncludeSelectedDocuments
+		if readBack.Data.AV.Automations.Spec != 7 || (got == nil) != (include == nil) || got != nil && *got != *include {
+			t.Fatalf("selected document inclusion contract round trip: %s", response.Body.String())
+		}
+	}
+	if err = model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID,
+		Data: &av.AutomationConfig{Spec: 6, Rules: []*av.AutomationRule{collection}}}}); err == nil {
+		t.Fatal("scope exclusion saved without its required format")
+	}
+	collection.BlockSource.IncludeSelectedDocuments = nil
+	for _, mode := range []string{"equals", "contains", "regex"} {
+		attr := &av.AutomationBlockAttribute{Name: "custom-state", NameOperator: mode, Operator: "exists"}
+		if mode == "contains" {
+			attr.Name = "state"
+		}
+		if mode == "regex" {
+			attr.Name = "^custom-state$"
+		}
+		collection.BlockSource.Attributes = []*av.AutomationBlockAttribute{attr}
+		if err = model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID,
+			Data: &av.AutomationConfig{Spec: 6, Rules: []*av.AutomationRule{collection}}}}); err != nil {
+			t.Fatal(err)
+		}
+		response = callAttributeViewContextFilterAPI(t, "/api/av/getAttributeView", map[string]any{"id": database.ID}, getAttributeView)
+		requireAPIContract(t, http.MethodPost, "/api/av/getAttributeView", response)
+		readBack.Data.AV.Automations = av.AutomationConfig{}
+		if err = json.Unmarshal(response.Body.Bytes(), &readBack); err != nil {
+			t.Fatal(err)
+		}
+		got := readBack.Data.AV.Automations.Rules[0].BlockSource.Attributes[0]
+		if got.NameOperator != mode || got.Name != attr.Name || got.Operator != "exists" {
+			t.Fatalf("attribute name contract round trip: %s", response.Body.String())
+		}
+	}
+	collection.BlockSource.Attributes[0].Name = "["
+	if err = model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID,
+		Data: &av.AutomationConfig{Spec: 6, Rules: []*av.AutomationRule{collection}}}}); err == nil {
+		t.Fatal("invalid attribute name expression was saved")
+	}
+	persisted, err := av.ParseAttributeView(database.ID)
+	if err != nil || persisted.Automations.Rules[0].BlockSource.Attributes[0].Name != "^custom-state$" {
+		t.Fatal("invalid expression changed the previous saved rule", err)
+	}
+	collection.BlockSource.Attributes = previousAttributes
+	if err = model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID,
+		Data: &av.AutomationConfig{Spec: 5, Rules: []*av.AutomationRule{collection}}}}); err != nil {
+		t.Fatal(err)
+	}
 	call("/api/block/appendBlock", map[string]any{"parentID": tree.ID, "dataType": "markdown", "data": "> First #collect#\n>\n> Second #collect#"}, appendBlock)
 	stored, _ = av.ParseAttributeView(database.ID)
 	preview, err = model.PreviewAttributeViewCollection(database.ID, collection.ID, 1)
@@ -387,4 +470,179 @@ func TestAVContractAutomationWrites(t *testing.T) {
 	if _, err = model.LoadTreeByBlockID(quoteID); err != nil {
 		t.Fatal("cleanup removed original quote", err)
 	}
+	t.Run("reference collection contract", func(t *testing.T) {
+		collection.BlockSource.ReferenceID = tree.ID
+		collection.BlockSource.Tags = nil
+		collection.BlockSource.TagTarget = "block"
+		config := &av.AutomationConfig{Spec: 7, Rules: []*av.AutomationRule{collection}}
+		if err := model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID, Data: config}}); err == nil {
+			t.Fatal("reference matching accepted an old automation format")
+		}
+		config.Spec = 8
+		if err := model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID, Data: config}}); err != nil {
+			t.Fatal(err)
+		}
+		response := callAttributeViewContextFilterAPI(t, "/api/av/getAttributeView", map[string]any{"id": database.ID}, getAttributeView)
+		requireAPIContract(t, http.MethodPost, "/api/av/getAttributeView", response)
+		if err := json.Unmarshal(response.Body.Bytes(), &readBack); err != nil {
+			t.Fatal(err)
+		}
+		if readBack.Data.AV.Automations.Spec != 8 || readBack.Data.AV.Automations.Rules[0].BlockSource.ReferenceID != tree.ID {
+			t.Fatal("reference target did not survive the API contract round trip")
+		}
+		call("/api/block/updateBlock", map[string]any{"id": paragraphs[0], "dataType": "markdown", "data": "Source ((" + tree.ID + " 'Target'))"}, updateBlock)
+		call("/api/av/previewAttributeViewCollection", map[string]any{"avID": database.ID, "ruleID": collection.ID}, previewAttributeViewCollection)
+		stored, err := av.ParseAttributeView(database.ID)
+		if err != nil || stored.GetBlockValueByBoundID(quoteID) == nil {
+			t.Fatal("API reference edit did not collect the backlink parent", err)
+		}
+	})
+	t.Run("manual automation contract", func(t *testing.T) {
+		manual := rule("manual", "", fixture.textKeyID, &av.Value{Type: av.KeyTypeText, Text: &av.ValueText{Content: "stored manual result"}})
+		if err := model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID,
+			BlockID: fixture.databaseID, Data: &av.AutomationConfig{Spec: 9, Rules: []*av.AutomationRule{manual}}}}); err != nil {
+			t.Fatal(err)
+		}
+		call("/api/av/runAttributeViewAutomation", map[string]any{"avID": database.ID, "blockID": fixture.databaseID, "ruleID": manual.ID}, runAttributeViewAutomation)
+		legacy := callAttributeViewContextFilterAPI(t, "/api/av/runAttributeViewAutomation", map[string]any{"avID": database.ID, "blockID": fixture.databaseID, "ruleID": manual.ID}, runAttributeViewAutomation)
+		var legacyResult struct {
+			Code int
+			Data json.RawMessage
+		}
+		decodeAttributeViewContextFilterAPIResponse(t, legacy, &legacyResult)
+		if legacyResult.Code != 0 || string(legacyResult.Data) != "null" {
+			t.Fatal("legacy manual response changed", legacy.Body.String())
+		}
+		stored, err := av.ParseAttributeView(database.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range stored.GetBlockKeyValues().Values {
+			if value := stored.GetValue(fixture.textKeyID, row.BlockID); value == nil || value.Text.Content != "stored manual result" {
+				t.Fatal("manual API did not store ordinary field results")
+			}
+		}
+		response := callAttributeViewContextFilterAPI(t, "/api/av/runAttributeViewAutomation",
+			map[string]any{"avID": database.ID, "blockID": fixture.databaseID, "ruleID": "missing"}, runAttributeViewAutomation)
+		requireAPIContract(t, http.MethodPost, "/api/av/runAttributeViewAutomation", response)
+		var failed struct{ Code int }
+		decodeAttributeViewContextFilterAPIResponse(t, response, &failed)
+		if failed.Code == 0 {
+			t.Fatal("missing manual rule succeeded")
+		}
+	})
+	t.Run("manual row progress contract", func(t *testing.T) {
+		util.IncBootProgress(100-util.GetBootProgress(), "")
+		connectSettingNotifications(t, gin.New())
+		stored, err := av.ParseAttributeView(database.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		failedID := stored.GetBlockKeyValues().Values[0].BlockID
+		manual := rule("manual", "", fixture.textKeyID, &av.Value{Type: av.KeyTypeText})
+		manual.TimeZone = "UTC"
+		manual.Actions[0].Fields[fixture.textKeyID] = &av.AutomationValue{Mode: "template", Template: `.action{if eq .ItemID "` + failedID + `"}.action{fromJson "invalid"}.action{else}rows saved.action{end}`}
+		if err = model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID, BlockID: fixture.databaseID,
+			Data: &av.AutomationConfig{Spec: 10, Rules: []*av.AutomationRule{manual}}}}); err != nil {
+			t.Fatal(err)
+		}
+		payload := map[string]any{"avID": database.ID, "blockID": fixture.databaseID, "ruleID": manual.ID, "rows": true, "action": "start"}
+		rowCall := func() (int, *apicontract.AVAutomationRunResult) {
+			response := callAttributeViewContextFilterAPI(t, "/api/av/runAttributeViewAutomation", payload, func(c *gin.Context) {
+				c.Request.Header.Set("X-Siyuan-Template-App", t.Name())
+				c.Request.Header.Set("X-Siyuan-Template-Session", "settings-notifications")
+				c.Request.Header.Set("X-Siyuan-Template-Execution", rand.Text())
+				runAttributeViewAutomation(c)
+			})
+			requireAPIContract(t, http.MethodPost, "/api/av/runAttributeViewAutomation", response)
+			var result struct {
+				Code int
+				Data *apicontract.AVAutomationRunResult
+			}
+			decodeAttributeViewContextFilterAPIResponse(t, response, &result)
+			return result.Code, result.Data
+		}
+		code, initial := rowCall()
+		if code != 0 || initial == nil || initial.Step != 0 || len(initial.Pending) != len(stored.GetBlockKeyValues().Values) {
+			t.Fatal("progress start failed", code, initial)
+		}
+		payload["runID"], payload["step"], payload["action"] = initial.RunID, 0, "run"
+		code, partial := rowCall()
+		if code != 1 || partial == nil || len(partial.Failed) != 1 || partial.Failed[0].ItemID != failedID || len(partial.Succeeded) != initial.Total-1 {
+			t.Fatal("partial success was reported as complete success or failure", code, partial)
+		}
+		code, replayed := rowCall()
+		if code != 1 || replayed.Step != partial.Step {
+			t.Fatal("repeated step ran again", code, replayed)
+		}
+		payload["action"] = "status"
+		code, progress := rowCall()
+		if code != 1 || len(progress.Succeeded) != len(partial.Succeeded) {
+			t.Fatal("status discarded saved results")
+		}
+	})
+	t.Run("automatic HTTP editing contract", func(t *testing.T) {
+		util.IncBootProgress(100-util.GetBootProgress(), "")
+		connectSettingNotifications(t, gin.New())
+		automatic := rule("changed", fixture.textKeyID, fixture.textKeyID, &av.Value{Type: av.KeyTypeText})
+		automatic.TimeZone = "UTC"
+		automatic.Actions[0].Fields[fixture.textKeyID] = &av.AutomationValue{Mode: "template", Template: `.action{if false}.action{httpGet "https://example.com"}.action{end}deferred value`}
+		if err := model.PerformAttributeViewOperations([]*model.Operation{{Action: "setAttrViewAutomations", AvID: database.ID, BlockID: fixture.databaseID,
+			Data: &av.AutomationConfig{Spec: 10, Rules: []*av.AutomationRule{automatic}}}}); err != nil {
+			t.Fatal(err)
+		}
+		stored, err := av.ParseAttributeView(database.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		item := stored.GetBlockKeyValues().Values[0].BlockID
+		edit := map[string]any{"reqId": time.Now().UnixMilli(), "transactions": []any{map[string]any{
+			"doOperations":   []any{map[string]any{"action": "updateAttrViewCell", "avID": database.ID, "blockID": fixture.databaseID, "keyID": fixture.textKeyID, "rowID": item, "data": map[string]any{"text": map[string]any{"content": "saved input"}}}},
+			"undoOperations": []any{}, "httpAutomationJobs": []any{map[string]any{"id": "forged", "avID": database.ID, "blockID": fixture.databaseID, "sequence": 0}},
+		}}}
+		headers := func(handler gin.HandlerFunc, execution bool) gin.HandlerFunc {
+			return func(c *gin.Context) {
+				c.Request.Header.Set("X-Siyuan-Template-App", t.Name())
+				c.Request.Header.Set("X-Siyuan-Template-Session", "settings-notifications")
+				if execution {
+					c.Request.Header.Set("X-Siyuan-Template-Execution", rand.Text())
+				}
+				handler(c)
+			}
+		}
+		response := callAttributeViewContextFilterAPI(t, "/api/transactions", edit, headers(performTransactions, false))
+		requireAPIContract(t, http.MethodPost, "/api/transactions", response)
+		var result struct {
+			Code int
+			Data []*apicontract.Transaction
+		}
+		decodeAttributeViewContextFilterAPIResponse(t, response, &result)
+		if result.Code != 0 || len(result.Data) != 1 || len(result.Data[0].HTTPAutomationJobs) != 1 {
+			t.Fatal("saved edit did not return a deferred task", response.Body.String())
+		}
+		if value, _ := av.ParseAttributeView(database.ID); value.GetValue(fixture.textKeyID, item).Text.Content != "saved input" {
+			t.Fatal("HTTP ran before acknowledging the edit")
+		}
+		job := result.Data[0].HTTPAutomationJobs[0]
+		if job.ID == "forged" {
+			t.Fatal("request injected an automatic task")
+		}
+		request := map[string]any{"avID": database.ID, "blockID": fixture.databaseID, "ruleID": "", "jobID": job.ID}
+		response = callAttributeViewContextFilterAPI(t, "/api/av/runAttributeViewAutomation", request, headers(runAttributeViewAutomation, true))
+		requireAPIContract(t, http.MethodPost, "/api/av/runAttributeViewAutomation", response)
+		var finished struct{ Code int }
+		decodeAttributeViewContextFilterAPIResponse(t, response, &finished)
+		if finished.Code != 0 {
+			t.Fatal("deferred execution failed", response.Body.String())
+		}
+		if value, _ := av.ParseAttributeView(database.ID); value.GetValue(fixture.textKeyID, item).Text.Content != "deferred value" {
+			t.Fatal("deferred result was not stored")
+		}
+		response = callAttributeViewContextFilterAPI(t, "/api/av/runAttributeViewAutomation", request, headers(runAttributeViewAutomation, true))
+		requireAPIContract(t, http.MethodPost, "/api/av/runAttributeViewAutomation", response)
+		decodeAttributeViewContextFilterAPIResponse(t, response, &finished)
+		if finished.Code != -409 {
+			t.Fatal("consumed task was replayed", response.Body.String())
+		}
+	})
 }

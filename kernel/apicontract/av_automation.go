@@ -1,12 +1,41 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package apicontract
 
+// AVAutomationRunResult 仅包含条目标识和固定错误码，不缓存取数正文或字段明文。
+// 每批最多处理 32 条记录，网络和写入预算在同一轮批次间累计；retry 显式开始新一轮，仅处理失败及未完成项。
+// step 是下一批序号；重复或过期序号只返回当前进度，不重复执行已提交的动作。
+type AVAutomationRunResult struct {
+	RunID     string                    `json:"runID"`
+	Step      int                       `json:"step"`
+	Total     int                       `json:"total"`
+	Succeeded []string                  `json:"succeeded"`
+	Failed    []*AVAutomationRunFailure `json:"failed"`
+	Pending   []string                  `json:"pending"`
+	Skipped   []string                  `json:"skipped"`
+	Paused    string                    `json:"paused"`
+	Running   bool                      `json:"running"`
+}
+
+type AVAutomationRunFailure struct {
+	ItemID string `json:"itemID"`
+	Code   string `json:"code"`
+}
+
 // AVAutomationConfig 通过 setAttrViewAutomations 事务操作整体保存，所有镜像和视图共享。
-// spec 为 1 至 4；模板赋值至少使用 2，块子类型至少使用 3，标签收集对象至少使用 4。
+// spec 为 1 至 10；模板赋值至少使用 2，块子类型至少使用 3，标签收集对象至少使用 4，有限文档深度至少使用 5。
+// manual 触发至少使用 9，仅显式执行时取数并写入普通字段；存量版本 1–8 保持兼容。
+// printf、urlquery、dict、toString 及事件模板中的 httpGet/fromJson 至少使用 10；存量停用模板原样读取。
+// 属性名包含或正则匹配至少使用 6；缺省或 equals 保持既有的精确匹配。
 // 旧读取器拒绝新版本，防止配置静默丢失。
 // 缺省配置不会触发自动化，既有版本的主类型匹配含义不变。
 // 普通条目新增、字段编辑及对应 API 会触发启用的规则，
 // 导入、同步、历史恢复和撤销重放不会再次触发，自动化之间不串联。
 // 自动操作与源修改一同提交、失败回滚及撤销；单笔事务最多产生 1000 个自动操作。
+// 含 httpGet 的新增或修改规则在源编辑提交后执行整条规则，结果单独提交及撤销，失败保留编辑和原值。
+// 仅发起编辑的有效主窗口能继续联网任务，无窗口的 API 写入不联网；连续编辑合并，过期快照丢弃。
 // 字段失效或目标数据库被删除时，后续条目写入会停用规则并保留配置，源修改仍可提交。
 // 停用提示在提交后发送，包含规则名及失效引用；修复后需手动启用，撤销源修改不会重新启用规则。
 // 跨库操作仅限同一加密边界，锁定、认证失败、损坏或实际写入失败仍使触发事务回滚。
@@ -19,7 +48,7 @@ type AVAutomationRule struct {
 	ID          string                   `json:"id"`
 	Name        string                   `json:"name"`
 	Enabled     bool                     `json:"enabled"`
-	Trigger     string                   `json:"trigger" api:"enum=added|changed|block"`
+	Trigger     string                   `json:"trigger" api:"enum=added|changed|block|manual"`
 	KeyID       string                   `json:"keyID,omitempty" api:"optional"`
 	Conditions  []*AVViewFilter          `json:"conditions,omitempty" api:"optional"`
 	Actions     []*AVAutomationAction    `json:"actions"`
@@ -30,6 +59,14 @@ type AVAutomationRule struct {
 }
 
 // AVAutomationBlockSource 监听范围取笔记本与文档的并集，文档包含子文档；范围至少选择一项。
+// 保存新增范围时，笔记本与文档 ID 分别去重后合计最多 32 项；既有超限规则可保留或删减，不能新增范围。
+// 既有规则的读取、匹配、预览及撤销重做保持兼容，不自动截断范围或删除条目。
+// documentDepth 缺省或 null 表示不限；非负整数限制每个所选文档的最大子文档深度，0 仅自身，1 包含自身及一级子文档。
+// 深度按文档 ID 路径相对计算，不限制文档内部块层级；不影响笔记本范围，重叠范围仍取并集；有限深度要求 spec 5。
+// 修改深度保留已有条目及字段，不自动补收存量；预览、显式收集和清理检查使用相同范围判断。
+// includeSelectedDocuments 缺省、null 或 true 保持包含每个所选文档自身；false（至少 spec 7）排除其自身及内部块，子文档仍按深度匹配。
+// 此选项不影响笔记本范围或其他重叠文档范围；各范围仍取并集。false 与 documentDepth 0 组合时，对应文档范围为空。
+// 修改此选项保留已有条目和字段，不自动补收或清理；实时收集、预览、显式收集和清理检查使用相同判断。
 // 类型组取或关系；标签和属性组各自通过 tagMatch、attributeMatch 选择 and（缺省）或 or（至少 spec 3）。
 // 各条件组之间取与关系，空组不限制；标签精确匹配，全部标签必须出现在同一个来源块中。
 // types 为空不限制类型；主类型匹配其全部子类型，类型之间取或关系。
@@ -44,21 +81,35 @@ type AVAutomationRule struct {
 // 仅从不匹配变为匹配时收集，原条目不会重置；原文失配、修改条件、停用或删除规则均保留已有条目和字段。
 // 既有条目再次匹配时仍保留其字段；主动移出条目后再次匹配才新建并初始化，撤销重做恢复原事务快照。
 // 配置变更、启用规则、导入、同步和历史恢复不补收存量内容，也不串联触发其他自动化。
+// referenceID 非空时要求 spec 8，匹配正文中指向该块的块引用；目标为文档时也匹配其内部块，不含子文档。
+// 不包含嵌入块、普通超链接和数据库富文本字段引用；标签条件约束同一引用来源块。
+// 引用来源按反链的父块归并规则选择并去重，再用类型和属性约束最终对象；此时 tagTarget 不参与选择。
+// 引用目标须位于数据库的同一加密边界；移除引用或更改目标保留已有条目和字段，存量内容通过预览显式补收。
+// 引用目标失效时，后续来源修改会停用规则并保留条目和字段，不阻止原文编辑；修复后须手动启用。
 type AVAutomationBlockSource struct {
-	NotebookIDs    []string                      `json:"notebookIDs,omitempty" api:"optional"`
-	DocumentIDs    []string                      `json:"documentIDs,omitempty" api:"optional"`
-	Types          []string                      `json:"types,omitempty" api:"optional"`
-	Tags           []string                      `json:"tags,omitempty" api:"optional"`
-	Attributes     []*AVAutomationBlockAttribute `json:"attributes,omitempty" api:"optional"`
-	TagMatch       string                        `json:"tagMatch,omitempty" api:"optional,enum=|and|or"`
-	TagTarget      string                        `json:"tagTarget,omitempty" api:"optional,enum=|block|container"`
-	AttributeMatch string                        `json:"attributeMatch,omitempty" api:"optional,enum=|and|or"`
+	NotebookIDs              []string                      `json:"notebookIDs,omitempty" api:"optional"`
+	DocumentIDs              []string                      `json:"documentIDs,omitempty" api:"optional"`
+	DocumentDepth            *int                          `json:"documentDepth,omitempty" api:"optional"`
+	IncludeSelectedDocuments *bool                         `json:"includeSelectedDocuments,omitempty" api:"optional"`
+	Types                    []string                      `json:"types,omitempty" api:"optional"`
+	Tags                     []string                      `json:"tags,omitempty" api:"optional"`
+	ReferenceID              string                        `json:"referenceID,omitempty" api:"optional"`
+	Attributes               []*AVAutomationBlockAttribute `json:"attributes,omitempty" api:"optional"`
+	TagMatch                 string                        `json:"tagMatch,omitempty" api:"optional,enum=|and|or"`
+	TagTarget                string                        `json:"tagTarget,omitempty" api:"optional,enum=|block|container"`
+	AttributeMatch           string                        `json:"attributeMatch,omitempty" api:"optional,enum=|and|or"`
 }
 
+// AVAutomationBlockAttribute 仅匹配 custom- 前缀的自定义属性，名称与值必须在同一条属性上满足条件。
+// nameOperator 缺省、空值或 equals 精确匹配完整名称；contains 匹配名称中的字面子串，无需输入 custom- 前缀。
+// regex 使用 Go 正则语法匹配含 custom- 前缀的完整名称，可用 ^、$ 限定边界；表达式最长 256 字节，非法表达式拒绝保存。
+// exists 要求至少一个名称匹配，notExists 要求没有名称匹配；两者忽略 value。
+// 名称与值均区分大小写；包含和正则名称匹配要求自动化 spec 6，等于匹配兼容 spec 1 至 5。
 type AVAutomationBlockAttribute struct {
-	Name     string `json:"name"`
-	Operator string `json:"operator" api:"enum=equals|contains|exists|notExists"`
-	Value    string `json:"value,omitempty" api:"optional"`
+	Name         string `json:"name"`
+	NameOperator string `json:"nameOperator,omitempty" api:"optional,enum=|equals|contains|regex"`
+	Operator     string `json:"operator" api:"enum=equals|contains|exists|notExists"`
+	Value        string `json:"value,omitempty" api:"optional"`
 }
 
 // AVAutomationAction 的 current 指触发条目所在数据库，related 通过源关联字段选择条目，
@@ -175,4 +226,9 @@ type AVCollectionCleanupItem struct {
 type AVCollectionCleanup struct {
 	RuleVersion string                     `json:"ruleVersion"`
 	Items       []*AVCollectionCleanupItem `json:"items"`
+	// automaticOnly 为 true 时仅处理仍带收集来源标记的条目，供删除来源确认使用。
+	AutomaticOnly bool `json:"automaticOnly,omitempty" api:"optional"`
+	// sourceVersions 将文档 ID 映射到预览时已认证源字节的 SHA-256 摘要；不匹配时拒绝整笔编辑。
+	// 省略时保持独立收集管理的兼容行为，撤销重做不重复校验旧摘要。
+	SourceVersions map[string]string `json:"sourceVersions,omitempty" api:"optional"`
 }

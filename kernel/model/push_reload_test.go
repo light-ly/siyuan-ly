@@ -1,27 +1,65 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/gorilla/websocket"
+	"github.com/olahol/melody"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
+
+func TestNotebookIconChangedReachesFileTreeAndDetachedEditor(t *testing.T) {
+	hub := melody.New()
+	connected := make(chan struct{}, 3)
+	hub.HandleConnect(func(session *melody.Session) {
+		util.AddPushChan(session)
+		connected <- struct{}{}
+	})
+	hub.HandleDisconnect(util.RemovePushChan)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = hub.HandleRequest(w, r)
+	}))
+	defer server.Close()
+	defer hub.Close()
+	var clients []*websocket.Conn
+	for _, typ := range []string{"filetree", "protyle", "main"} {
+		url := "ws" + strings.TrimPrefix(server.URL, "http") + "?app=notebook-icon-" + typ + "&id=" + typ + "&type=" + typ
+		client, _, err := websocket.DefaultDialer.Dial(url, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer client.Close()
+		clients = append(clients, client)
+		select {
+		case <-connected:
+		case <-time.After(3 * time.Second):
+			t.Fatal("websocket did not connect")
+		}
+	}
+	pushNotebookIconChanged("notebook", "1f4d2")
+	for _, client := range clients {
+		_ = client.SetReadDeadline(time.Now().Add(3 * time.Second))
+		var result struct {
+			Cmd  string
+			Data map[string]string
+		}
+		if err := client.ReadJSON(&result); err != nil {
+			t.Fatal(err)
+		}
+		if result.Cmd != "notebookIconChanged" || result.Data["boxID"] != "notebook" || result.Data["icon"] != "1f4d2" {
+			t.Fatalf("unexpected icon event: %+v", result)
+		}
+	}
+}
 
 func TestPluginStorageName(t *testing.T) {
 	originalDataDir := util.DataDir

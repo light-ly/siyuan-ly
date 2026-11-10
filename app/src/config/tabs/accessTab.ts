@@ -1,12 +1,12 @@
+import {mobileInputDialog} from "../../dialog/mobileInputDialog";
+import {MobileDialog} from "../../dialog/mobileDialog";
+import {mobileConfirmDialog} from "../../dialog/mobileConfirmDialog";
 import {config as configApi} from "../util/configApi";
 import {fetchWithAppId} from "../../util/fetchWithAppId";
 import {escapeHtmlTextAndAttr} from "../../util/escape";
 import type {SettingTabBuilder} from "../setting/builder";
 import {fetchPost, fetchSyncPost} from "../../util/fetch";
 import {ContractFormData} from "../../util/contractFormData";
-import {Dialog} from "../../dialog";
-import {openInputDialog} from "../../dialog/inputDialog";
-import {confirmDialog} from "../../dialog/confirmDialog";
 import {Constants} from "../../constants";
 import {isBrowser, isMobile} from "../../util/functions";
 import {showMessage} from "../../dialog/message";
@@ -27,6 +27,8 @@ import {sendAppSetting} from "./appRuntime";
 import zxcvbn = require("zxcvbn");
 import {canOpenExternalURL, getHostCapabilities} from "../../util/hostCapabilities";
 import {openNotebookArchiveDialog, openNotebookArchiveImportDialog} from "../notebookArchive";
+import {genLockScreenWallpaperHtml, mountLockScreenWallpaper} from "./lockScreenWallpaper";
+import {remountOpenSettingTab} from "../setting/mount";
 
 const getPasswordStrength = (password: string) => {
     const score = zxcvbn(password).score;
@@ -55,7 +57,7 @@ const confirmWeakPassword = (password: string, confirm: () => void) => {
         confirm();
         return;
     }
-    confirmDialog("⚠️ " + window.siyuan.languages.weakPasswordConfirmTitle, window.siyuan.languages.weakPasswordConfirmTip, confirm);
+    mobileConfirmDialog("⚠️ " + window.siyuan.languages.weakPasswordConfirmTitle, window.siyuan.languages.weakPasswordConfirmTip, confirm);
 };
 
 const registerAccessAuthGroup = (tab: SettingTabBuilder) => {
@@ -79,6 +81,14 @@ const registerAccessAuthGroup = (tab: SettingTabBuilder) => {
             save: (value) => sendAppSetting("system.lockScreenMode", value),
         });
     }
+    if (!window.siyuan.config.readonly && (window.siyuan.config.accessAuthCode || window.siyuan.config.oidc.enabled)) {
+        group.slot({
+            key: "lockScreenWallpaper",
+            keywords: [window.siyuan.languages.lockScreenWallpaper, window.siyuan.languages.lockScreenWallpaperTip],
+            html: genLockScreenWallpaperHtml,
+            afterMount: mountLockScreenWallpaper,
+        });
+    }
     if (!window.siyuan.config.readonly && getHostCapabilities().oidcAuthentication) {
         group.button({
             id: "oidcConfig",
@@ -98,6 +108,11 @@ const registerAccessAuthGroup = (tab: SettingTabBuilder) => {
     });
 };
 
+const applyActivatedOIDC = (config: Config.IOIDC) => {
+    window.siyuan.config.oidc = config;
+    void remountOpenSettingTab("access");
+};
+
 const mountOIDCButton = (root: HTMLElement) => {
     if (!getHostCapabilities().oidcAuthentication) {
         return;
@@ -106,7 +121,8 @@ const mountOIDCButton = (root: HTMLElement) => {
         const config = window.siyuan.config.oidc;
         const escape = (value: string) => escapeHtmlTextAndAttr(value);
         let destroyOIDCDialog: () => void = (): undefined => undefined;
-        const dialog = new Dialog({
+        const dialog = new MobileDialog({
+            mobileSheet: {beforeClose: () => !validationActivating},
             title: window.siyuan.languages.oidcLogin,
             content: `<div class="b3-dialog__content" id="oidcConfigForm">
     <label class="b3-label b3-label--inner fn__flex">
@@ -342,8 +358,9 @@ const mountOIDCButton = (root: HTMLElement) => {
                 }
                 validationPollToken = "";
                 restoreMobileCallback();
-                window.siyuan.config.oidc = activation.data.config;
+                applyActivatedOIDC(activation.data.config);
                 showMessage(window.siyuan.languages.oidcVerificationSuccess);
+                validationActivating = false;
                 dialog.destroy();
             } catch (error) {
                 validationFailed(error instanceof Error ? error.message : String(error), attempt);
@@ -428,9 +445,14 @@ const mountOIDCButton = (root: HTMLElement) => {
                     }).catch((error) => validationFailed(error instanceof Error ? error.message : String(error), attempt));
                     return;
                 }
-                configApi.set("oidc", nextConfig, () => {
-                    dialog.destroy();
-                });
+                if (isMobile()) {
+                    void dialog.runPending(async () => {
+                        await configApi.set("oidc", nextConfig);
+                        return true;
+                    });
+                } else {
+                    configApi.set("oidc", nextConfig, () => dialog.destroy());
+                }
             } catch (error) {
                 showMessage(window.siyuan.languages.oidcConfigInvalid, 6000, "error");
             }
@@ -440,12 +462,19 @@ const mountOIDCButton = (root: HTMLElement) => {
 
 const mountAuthCodeButton = (root: HTMLElement) => {
     root.querySelector("#authCode")?.addEventListener("click", () => {
-        const dialog = openInputDialog({
+        const dialog = mobileInputDialog({
             title: window.siyuan.languages.about5,
             value: window.siyuan.config.accessAuthCode,
             placeholder: window.siyuan.languages.about5,
             description: window.siyuan.languages.about6,
-            onConfirm: (value) => {
+            onConfirm: (value, currentDialog) => {
+                if (isMobile()) {
+                    void currentDialog.runPending(async () => {
+                        await configApi.set("accessAuthCode", value);
+                        return true;
+                    }, {close: false});
+                    return;
+                }
                 configApi.set("accessAuthCode", value);
             },
         });
@@ -504,7 +533,7 @@ const registerAccessServerGroup = (tab: SettingTabBuilder) => {
             title: window.siyuan.languages.exportCACert,
             desc: window.siyuan.languages.exportCACertTip,
             label: window.siyuan.languages.export,
-            icon: "iconUpload",
+            icon: "iconDownload",
             afterMount: (root) => {
                 root.querySelector("#exportCACert")?.addEventListener("click", () => {
                     fetchPost("/api/system/exportTLSCACert", {}, (response) => {
@@ -518,7 +547,7 @@ const registerAccessServerGroup = (tab: SettingTabBuilder) => {
             title: window.siyuan.languages.exportCABundle,
             desc: window.siyuan.languages.exportCABundleTip,
             label: window.siyuan.languages.export,
-            icon: "iconUpload",
+            icon: "iconDownload",
             afterMount: (root) => {
                 root.querySelector("#exportCABundle")?.addEventListener("click", () => {
                     fetchPost("/api/system/exportTLSCABundle", {}, (response) => {
@@ -532,7 +561,7 @@ const registerAccessServerGroup = (tab: SettingTabBuilder) => {
             title: window.siyuan.languages.importCABundle,
             desc: window.siyuan.languages.importCABundleTip,
             label: window.siyuan.languages.import,
-            icon: "iconDownload",
+            icon: "iconUpload",
             afterMount: (root) => {
                 root.querySelector("#importCABundle")?.addEventListener("click", () => {
                     const input = document.createElement("input");
@@ -738,13 +767,13 @@ const registerEncryptedNotebookGroup = (tab: SettingTabBuilder) => {
             </button>
             <span class="fn__space"></span>
             <button class="b3-button b3-button--outline fn__flex-center fn__size200${disableImportExport ? " fn__none" : ""}" id="exportCryptoBackupBtn">
-                <svg class="svg"><use xlink:href="#iconUpload"></use></svg>
+                <svg class="svg"><use xlink:href="#iconDownload"></use></svg>
                 ${window.siyuan.languages.exportNotebookCryptoBackup}
             </button>
             <span class="fn__space"></span>
         </div>
         <button class="b3-button b3-button--outline fn__flex-center fn__size200${disableImportExport ? " fn__none" : ""}" id="importCryptoBackupBtn">
-            <svg class="svg"><use xlink:href="#iconDownload"></use></svg>
+            <svg class="svg"><use xlink:href="#iconUpload"></use></svg>
             ${window.siyuan.languages.importNotebookCryptoBackup}
         </button>
     </div>
@@ -757,7 +786,7 @@ const registerEncryptedNotebookGroup = (tab: SettingTabBuilder) => {
             title: window.siyuan.languages.archiveEncryptedNotebooks,
             desc: window.siyuan.languages.archiveEncryptedNotebooksTip,
             label: window.siyuan.languages.archiveEncryptedNotebooks,
-            icon: "iconUpload",
+            icon: "iconDownload",
             afterMount: (root) => root.querySelector("#archiveEncryptedNotebooks")?.addEventListener("click", () => {
                 openNotebookArchiveDialog(() => refreshEncryptedNotebookStatus(root));
             }),
@@ -767,7 +796,7 @@ const registerEncryptedNotebookGroup = (tab: SettingTabBuilder) => {
             title: window.siyuan.languages.restoreEncryptedNotebooks,
             desc: window.siyuan.languages.restoreEncryptedNotebooksTip,
             label: window.siyuan.languages.import,
-            icon: "iconDownload",
+            icon: "iconUpload",
             afterMount: (root) => root.querySelector("#restoreEncryptedNotebooks")?.addEventListener("click", () => {
                 openNotebookArchiveImportDialog(() => {});
             }),
@@ -858,28 +887,28 @@ const mountEncryptedNotebook = (root: HTMLElement) => {
                 return;
             }
             // 导入前需输入主密码校验（备份文件不含密码，校验用导入备份对应的主密码）
-            openInputDialog({
+            mobileInputDialog({
+                awaitConfirm: true,
                 title: window.siyuan.languages.masterPassword,
                 value: "",
                 type: "password",
                 placeholder: window.siyuan.languages.masterPassword,
                 width: "520px",
-                onConfirm: (value, passwordDialog) => {
+                onConfirm: async (value) => {
                     const password = value.trim();
                     if (!password) {
                         showMessage(window.siyuan.languages.enterMasterPassword);
-                        return;
+                        return false;
                     }
                     const formData = new ContractFormData({file, password});
-                    fetchSyncPost("/api/notebook/importNotebookCryptoBackup", formData, undefined, false).then((response) => {
-                        if (response.code !== 0) {
-                            showMessage(response.msg, 6000, "error");
-                            return;
-                        }
-                        showMessage(window.siyuan.languages.importNotebookCryptoBackupTip);
-                        passwordDialog.destroy();
-                        refresh();
-                    });
+                    const response = await fetchSyncPost("/api/notebook/importNotebookCryptoBackup", formData, undefined, false);
+                    if (response.code !== 0) {
+                        showMessage(response.msg, 6000, "error");
+                        return false;
+                    }
+                    showMessage(window.siyuan.languages.importNotebookCryptoBackupTip);
+                    refresh();
+                    return true;
                 },
             });
         };
@@ -919,7 +948,7 @@ const mountEncryptedNotebook = (root: HTMLElement) => {
 };
 
 const openEnableEncryptedDialog = (onSuccess: () => void, onCancel: () => void) => {
-    const dialog = new Dialog({
+    const dialog = new MobileDialog({
         title: "🔐 " + window.siyuan.languages.setMasterPassword,
         content: `<div class="b3-dialog__content">
     <input type="password" placeholder="${window.siyuan.languages.masterPassword}" class="b3-text-field fn__block">
@@ -941,7 +970,7 @@ const openEnableEncryptedDialog = (onSuccess: () => void, onCancel: () => void) 
     const confirmBtn = btnsElement[1] as HTMLButtonElement;
     const riskCheckbox = dialog.element.querySelector("#encRiskConfirm") as HTMLInputElement;
     const passwordStrength = dialog.element.querySelector(".password-strength") as HTMLElement;
-    (inputs[0] as HTMLInputElement).focus();
+    dialog.focusWhenReady(() => inputs[0] as HTMLInputElement);
     inputs[0].addEventListener("input", () => updatePasswordStrength(passwordStrength, inputs[0].value));
     riskCheckbox.addEventListener("change", () => {
         confirmBtn.disabled = !riskCheckbox.checked;
@@ -961,18 +990,22 @@ const openEnableEncryptedDialog = (onSuccess: () => void, onCancel: () => void) 
             return;
         }
         confirmWeakPassword(pwd1, async () => {
-            const response = await fetchSyncPost("/api/notebook/enableEncryptedNotebooks", {password: pwd1});
-            if (response.code === 0) {
+            const submit = async () => {
+                const response = await fetchSyncPost("/api/notebook/enableEncryptedNotebooks", {password: pwd1});
+                if (response.code !== 0) return false;
                 showMessage(window.siyuan.languages.encryptedNotebookEnabled);
-                dialog.destroy();
+                if (!isMobile()) dialog.destroy();
                 onSuccess();
-            }
+                return true;
+            };
+            if (isMobile()) await dialog.runPending(submit);
+            else await submit();
         });
     });
 };
 
 const openChangeMasterPasswordDialog = (onChanged?: () => void) => {
-    const dialog = new Dialog({
+    const dialog = new MobileDialog({
         title: "🔐 " + window.siyuan.languages.changeMasterPassword,
         content: `<div class="b3-dialog__content">
     <input type="password" placeholder="${window.siyuan.languages.oldMasterPassword}" class="b3-text-field fn__block">
@@ -1007,17 +1040,22 @@ const openChangeMasterPasswordDialog = (onChanged?: () => void) => {
             return;
         }
         confirmWeakPassword(newPwd, async () => {
-            const response = await fetchSyncPost("/api/notebook/changeMasterPassword", {
-                oldPassword: oldPwd,
-                newPassword: newPwd
-            });
-            if (response.code === 0) {
+            const submit = async () => {
+                const response = await fetchSyncPost("/api/notebook/changeMasterPassword", {
+                    oldPassword: oldPwd,
+                    newPassword: newPwd
+                });
+                if (response.code !== 0) {
+                    showMessage(response.msg, 6000, "error");
+                    return false;
+                }
                 showMessage(window.siyuan.languages.changeMasterPasswordSuccessTip);
-                dialog.destroy();
+                if (!isMobile()) dialog.destroy();
                 onChanged?.();
-            } else {
-                showMessage(response.msg, 6000, "error");
-            }
+                return true;
+            };
+            if (isMobile()) await dialog.runPending(submit);
+            else await submit();
         });
     });
 };

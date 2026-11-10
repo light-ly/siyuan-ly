@@ -4,26 +4,96 @@ interface EditorSaveRecord {
     version: number;
     failedStructure: boolean;
     disposed: boolean;
+    owners: number;
 }
 
 const editors = new Map<IProtyle, EditorSaveRecord>();
+const pendingEditorSaves = new Set<Promise<boolean>>();
+let editorSaveFailureVersion = 0;
+let saveVersion = 0;
+interface SyncSaveScope {
+    results: Map<string, {version: number, failed: boolean}>;
+    failedStructure: boolean;
+    disposed: boolean;
+    pending: number;
+    editors?: Set<IProtyle>;
+}
+const syncSessions = new Map<string, SyncSaveScope>();
+const syncTitles = new Map<string, SyncSaveScope>();
+const syncEditors = new Set<IProtyle>();
+
+// 仅在用户明确保留副本并重新加载标题源后，解除该标题的失败保存保护。
+export const acknowledgeDocumentTitleReload = (protyle: IProtyle) => {
+    const key = `title:${protyle.block.rootID}`;
+    editors.get(protyle)?.results.delete(key);
+    syncSessions.get(protyle.id)?.results.delete(key);
+};
+
+export const registerSyncEditorSave = (protyle: IProtyle) => syncEditors.add(protyle);
+
+export const disposeSyncEditorSave = (protyle: IProtyle) => {
+    syncEditors.delete(protyle);
+    const dispose = (scopes: Map<string, SyncSaveScope>, key: string) => {
+        const scope = scopes.get(key);
+        if (scope) {
+            scope.disposed = true;
+            scopes.delete(key);
+        }
+    };
+    dispose(syncSessions, protyle.id);
+    syncTitles.forEach((scope, key) => {
+        if (scope.editors?.delete(protyle) && !scope.editors.size) {
+            dispose(syncTitles, key);
+        }
+    });
+    // 同一文档的其他编辑器仍可能有未确认的标题，最后一个编辑器销毁后再清理。
+    if (protyle.notebookId && protyle.path && ![...syncEditors].some(editor =>
+        editor.notebookId === protyle.notebookId && editor.path === protyle.path)) {
+        dispose(syncTitles, `${protyle.notebookId}:${protyle.path}`);
+    }
+};
+
+export const getEditorSaveFailureVersion = () => editorSaveFailureVersion;
+
+export const flushPendingEditorSaves = async (failureVersion: number) => {
+    while (pendingEditorSaves.size) await Promise.all([...pendingEditorSaves]);
+    if (failureVersion !== editorSaveFailureVersion || [...syncSessions.values(), ...syncTitles.values()]
+        .some(scope => scope.failedStructure || [...scope.results.values()].some(result => result.failed))) {
+        throw new Error(window.siyuan.languages.settingsPendingSaveError);
+    }
+};
 
 // 仅由需要确认保存结果后才能销毁的编辑器启用，不改变普通请求的错误处理。
 export const registerEditorSave = (protyle: IProtyle) => {
-    const record: EditorSaveRecord = {
-        pending: new Set(), results: new Map(), version: 0, failedStructure: false, disposed: false,
+    const record: EditorSaveRecord = editors.get(protyle) || {
+        pending: new Set(), results: new Map(), version: 0, failedStructure: false, disposed: false, owners: 0,
     };
+    record.owners++;
     editors.set(protyle, record);
+    let disposed = false;
     return {
-        flush: async () => {
-            while (!record.disposed && record.pending.size) {
+        flush: async (retryBlocks?: (ids: string[]) => Promise<void>) => {
+            while (!disposed && !record.disposed && record.pending.size) {
                 await Promise.all([...record.pending]);
             }
-            if (!record.disposed && (record.failedStructure || [...record.results.values()].some(result => result.failed))) {
+            if (!disposed && !record.disposed && !record.failedStructure && retryBlocks) {
+                const ids = [...record.results].filter(([key, result]) => result.failed && key.startsWith("block:"))
+                    .map(([key]) => key.substring("block:".length));
+                if (ids.length) {
+                    await retryBlocks(ids);
+                    while (!disposed && !record.disposed && record.pending.size) {
+                        await Promise.all([...record.pending]);
+                    }
+                }
+            }
+            if (!disposed && !record.disposed && (record.failedStructure || [...record.results.values()].some(result => result.failed))) {
                 throw new Error(window.siyuan.languages.settingsPendingSaveError);
             }
         },
         dispose: () => {
+            if (disposed) return;
+            disposed = true;
+            if (--record.owners) return;
             record.disposed = true;
             record.pending.clear();
             record.results.clear();
@@ -36,7 +106,7 @@ export const registerEditorSave = (protyle: IProtyle) => {
 };
 
 export const trackEditorSaveRequest = <T>(url: string, data: any, promise: Promise<T>): Promise<T> => {
-    if (!editors.size || (url !== "/api/transactions" && url !== "/api/filetree/renameDoc")) {
+    if (url !== "/api/transactions" && url !== "/api/filetree/renameDoc") {
         return promise;
     }
     const transactions = url === "/api/transactions";
@@ -45,9 +115,48 @@ export const trackEditorSaveRequest = <T>(url: string, data: any, promise: Promi
     const operations = transactionList.flatMap((item: {doOperations?: IOperation[]}) =>
         Array.isArray(item?.doOperations) ? item.doOperations : []);
     const keys: string[] = transactions ? operations.length && operations.every((item: IOperation) =>
-        item?.action === "update" && item.id && typeof item.data === "string") ?
-        [...new Set<string>(operations.map((item: IOperation) => `block:${item.id}`))] : [] : ["title"];
+        item.id && (item.action === "update" && typeof item.data === "string" || item.action === "setDocTitle")) ?
+        [...new Set<string>(operations.map((item: IOperation) =>
+            `${item.action === "setDocTitle" ? "title" : "block"}:${item.id}`))] : [] : ["title"];
     const transactionCount = transactionList.length;
+    const saveScope = transactions ? data?.session : `${data?.notebook}:${data?.path}`;
+    const scopes = transactions ? syncSessions : syncTitles;
+    let scope = scopes.get(saveScope);
+    if (!scope) {
+        scope = {results: new Map(), failedStructure: false, disposed: false, pending: 0};
+        scopes.set(saveScope, scope);
+    }
+    if (!transactions) {
+        scope.editors ||= new Set();
+        syncEditors.forEach(editor => {
+            if (editor.notebookId === data?.notebook && editor.path === data?.path) scope.editors.add(editor);
+        });
+    }
+    scope.pending++;
+    const currentVersion = ++saveVersion;
+    keys.forEach(key => scope.results.set(key, {version: currentVersion, failed: false}));
+    // 同步准备覆盖所有编辑器，包括尚未启用关闭保存保护的普通页签。
+    const pendingSave = promise.then((response: any) => response?.code === 0 && (!transactions ||
+        transactionCount > 0 && Array.isArray(response.data) && response.data.length === transactionCount &&
+        response.data.every((item: {doOperations?: IOperation[]}) => Array.isArray(item?.doOperations))), () => false);
+    pendingEditorSaves.add(pendingSave);
+    void pendingSave.then(saved => {
+        scope.pending--;
+        if (!scope.disposed) {
+            if (!saved) editorSaveFailureVersion++;
+            if (!keys.length && !saved) scope.failedStructure = true;
+            keys.forEach(key => {
+                if (scope.results.get(key)?.version === currentVersion) {
+                    if (saved) scope.results.delete(key);
+                    else scope.results.set(key, {version: currentVersion, failed: true});
+                }
+            });
+        }
+        if (!scope.pending && !scope.failedStructure && !scope.results.size && scopes.get(saveScope) === scope) {
+            scopes.delete(saveScope);
+        }
+        pendingEditorSaves.delete(pendingSave);
+    });
     editors.forEach((record, protyle) => {
         if (transactions ? data?.session !== protyle.id :
             !protyle.path || !protyle.notebookId || data?.path !== protyle.path || data?.notebook !== protyle.notebookId) {

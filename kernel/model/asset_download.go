@@ -1,10 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -253,13 +249,21 @@ func ensureAllSyncAssets() error {
 	return nil
 }
 
+type incompleteAssetDownloadsError struct {
+	message string
+}
+
+func (err *incompleteAssetDownloadsError) Error() string {
+	return err.message
+}
+
 func requireCompleteAssetDownloads() error {
 	files, err := deferredSyncAssets()
 	if err != nil {
 		return err
 	}
 	if len(files) != 0 {
-		return errors.New(Conf.Language(377))
+		return &incompleteAssetDownloadsError{message: Conf.Language(377)}
 	}
 	exists, err := assetDownloadStateExists()
 	if err != nil || !exists {
@@ -274,7 +278,7 @@ func requireCompleteAssetDownloads() error {
 		return err
 	}
 	if incomplete {
-		return errors.New(Conf.Language(377))
+		return &incompleteAssetDownloadsError{message: Conf.Language(377)}
 	}
 	return nil
 }

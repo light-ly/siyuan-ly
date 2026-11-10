@@ -1,16 +1,18 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
 	"errors"
-	"path"
 	"slices"
-	"strings"
 	"time"
 
+	"github.com/88250/lute/ast"
 	"github.com/88250/lute/parse"
 	"github.com/siyuan-note/siyuan/kernel/sql"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
-	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
 type DailyNoteInfo struct {
@@ -20,29 +22,53 @@ type DailyNoteInfo struct {
 	Existed bool
 }
 
-// resolveDailyNote 定位日期对应的文档；已有日记以认证后的源文档为准。
-func resolveDailyNote(box *Box, now time.Time, findByDate bool) (hPath string, tree *parse.Tree, err error) {
+func resolveDailyNotePlan(box *Box, now time.Time, findByDate bool, selections ...*DocumentSelection) (plan *DocumentCreatePlan, tree *parse.Tree, err error) {
 	boxConf := box.GetConf()
-	if boxConf.DailyNoteSavePath == "" || boxConf.DailyNoteSavePath == "/" {
-		return "", nil, errors.New(Conf.Language(49))
+	if boxConf.DailyNoteTarget == nil && (boxConf.DailyNoteSavePath == "" || boxConf.DailyNoteSavePath == "/") {
+		return nil, nil, errors.New(Conf.Language(49))
 	}
-	hPath, err = RenderGoTemplateAtInBox(boxConf.DailyNoteSavePath, now, box.ID)
+	FlushTxQueue()
+	if treenode.DocumentMetadataState(box.ID) != "ready" {
+		if err = recoverDocumentMetadata(box.ID); err != nil {
+			return
+		}
+	}
+	request := DocumentPlanRequest{Notebook: box.ID, Purpose: "dailyNote", ID: ast.NewNodeID(),
+		Now: now, Reuse: true, SkipContentTemplateCheck: true}
+	if len(selections) > 0 {
+		selections[0].apply(&request)
+	}
+	plan, err = PlanDocumentCreation(request)
 	if err != nil {
+		var ambiguity *DocumentAncestorAmbiguity
+		if findByDate && errors.As(err, &ambiguity) {
+			sql.FlushQueue()
+			date := now.Format("20060102")
+			ids, queryErr := sql.QueryDailyNoteRootIDsInBox(ambiguity.Notebook, DailyNoteAttrPrefix+date, date)
+			if queryErr != nil {
+				return nil, nil, queryErr
+			}
+			if len(ids) > 0 {
+				tree, err = LoadTreeByBlockID(ids[0])
+				if err != nil {
+					return nil, nil, err
+				}
+				if tree.Box != ambiguity.Notebook || tree.Root.IALAttr(DailyNoteAttrPrefix+date) != date {
+					return nil, nil, ErrBlockNotFound
+				}
+				plan = &DocumentCreatePlan{Notebook: ambiguity.Notebook, ExistingID: tree.ID, Title: treenode.ReadDocumentTitle(tree.Root).Text, DisplayPath: tree.HPath}
+				return plan, tree, nil
+			}
+		}
 		return
 	}
-	hPath = util.TrimSpaceInPath(strings.TrimSuffix(hPath, ".sy"))
-	FlushTxQueue()
-	root := treenode.GetBlockTreeRootByHPath(box.ID, hPath)
-	rootID := ""
-	if root != nil {
-		rootID = root.RootID
-	}
+	rootID := plan.ExistingID
 	fromDate := false
 	date := now.Format("20060102")
 	if findByDate {
 		sql.FlushQueue()
 		var ids []string
-		ids, err = sql.QueryDailyNoteRootIDsInBox(box.ID, DailyNoteAttrPrefix+date, date)
+		ids, err = sql.QueryDailyNoteRootIDsInBox(plan.Notebook, DailyNoteAttrPrefix+date, date)
 		if err != nil {
 			return
 		}
@@ -61,9 +87,10 @@ func resolveDailyNote(box *Box, now time.Time, findByDate bool) (hPath string, t
 	if err != nil {
 		return
 	}
-	if tree.Box != box.ID || (fromDate && tree.Root.IALAttr(DailyNoteAttrPrefix+date) != date) {
-		return "", nil, ErrBlockNotFound
+	if tree.Box != plan.Notebook || (fromDate && tree.Root.IALAttr(DailyNoteAttrPrefix+date) != date) {
+		return nil, nil, ErrBlockNotFound
 	}
+	plan.ExistingID, plan.Steps = tree.ID, nil
 	return
 }
 
@@ -73,13 +100,17 @@ func GetDailyNoteInfo(boxID string, date time.Time) (info *DailyNoteInfo, err er
 	if box == nil {
 		return nil, ErrBoxNotFound
 	}
-	hPath, tree, err := resolveDailyNote(box, date, true)
+	plan, tree, err := resolveDailyNotePlan(box, date, true)
 	if err != nil {
+		var ambiguity *DocumentAncestorAmbiguity
+		if errors.As(err, &ambiguity) {
+			return &DailyNoteInfo{HPath: ambiguity.DisplayPath, Title: ambiguity.DocumentTitle}, nil
+		}
 		return nil, err
 	}
-	info = &DailyNoteInfo{HPath: hPath, Title: path.Base(hPath)}
+	info = &DailyNoteInfo{HPath: plan.DisplayPath, Title: plan.Title}
 	if tree != nil {
-		info.ID, info.HPath, info.Title, info.Existed = tree.Root.ID, tree.HPath, tree.Root.IALAttr("title"), true
+		info.ID, info.HPath, info.Title, info.Existed = tree.Root.ID, tree.HPath, treenode.ReadDocumentTitle(tree.Root).Text, true
 	}
 	return
 }

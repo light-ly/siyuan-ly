@@ -1,7 +1,8 @@
+import {MobileDialog} from "../dialog/mobileDialog";
 import {toggleMenu} from "../menus/menuToggle";
-import {fetchPost} from "../util/fetch";
+import {markMenuInnerScroll} from "../menus/Menu";
+import {fetchPost, fetchSyncPost} from "../util/fetch";
 import {focusByRange} from "../protyle/util/selectionOffsets";
-import {Dialog} from "../dialog";
 import {isMobile} from "../util/functions";
 import {Constants} from "../constants";
 import {escapeAriaLabel, escapeAttr, escapeHtml} from "../util/escape";
@@ -18,7 +19,7 @@ interface IAIEditorAction {
 }
 
 const editDialog = (item: IAIEditorAction) => {
-    const dialog = new Dialog({
+    const dialog = new MobileDialog({
         title: window.siyuan.languages.update,
         content: `<div class="b3-dialog__content">
     <input class="b3-text-field fn__block" placeholder="${window.siyuan.languages.memo}">
@@ -49,24 +50,26 @@ const editDialog = (item: IAIEditorAction) => {
             showMessage(window.siyuan.languages["_kernel"][142]);
             return;
         }
-        fetchPost("/api/ai/editor/saveAction", {
-            id: item.id,
-            name: nameElement.value,
-            action: customElement.value,
-        }, () => {
-            dialog.destroy();
+        void dialog.runPending(async () => {
+            const response = await fetchSyncPost("/api/ai/editor/saveAction", {
+                id: item.id,
+                name: nameElement.value,
+                action: customElement.value,
+            });
+            return response.code === 0;
         });
     });
     btnsElement[0].addEventListener("click", () => {
-        fetchPost("/api/ai/editor/removeAction", {id: item.id}, () => {
-            dialog.destroy();
+        void dialog.runPending(async () => {
+            const response = await fetchSyncPost("/api/ai/editor/removeAction", {id: item.id});
+            return response.code === 0;
         });
     });
-    nameElement.focus();
+    dialog.focusWhenReady(() => nameElement);
 };
 
 const customDialog = (protyle: IProtyle, elements: HTMLElement[], range?: Range) => {
-    const dialog = new Dialog({
+    const dialog = new MobileDialog({
         title: window.siyuan.languages.aiCustomAction,
         content: `<div class="b3-dialog__content">
     <input class="b3-text-field fn__block" value="" placeholder="${window.siyuan.languages.memo}">
@@ -103,14 +106,15 @@ const customDialog = (protyle: IProtyle, elements: HTMLElement[], range?: Range)
             showMessage(window.siyuan.languages["_kernel"][142]);
             return;
         }
-        fetchPost("/api/ai/editor/saveAction", {
-            name: nameElement.value,
-            action: customElement.value,
-        }, () => {
-            dialog.destroy();
+        void dialog.runPending(async () => {
+            const response = await fetchSyncPost("/api/ai/editor/saveAction", {
+                name: nameElement.value,
+                action: customElement.value,
+            });
+            return response.code === 0;
         });
     });
-    nameElement.focus();
+    dialog.focusWhenReady(() => nameElement);
 };
 
 const filterAI = (element: HTMLElement, inputElement: HTMLInputElement) => {
@@ -267,7 +271,7 @@ const openAIActions = (actions: IAIEditorAction[], elements: HTMLElement[], prot
             });
         }
     });
-    menu.element.querySelector(".b3-menu__items").setAttribute("style", "overflow: initial");
+    markMenuInnerScroll(menu.element);
     /// #if MOBILE
     menu.fullscreen();
     /// #else

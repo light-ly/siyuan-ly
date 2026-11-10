@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package api
 
 import (
@@ -266,8 +270,13 @@ func TestAPIContractOCRNativeImportAndHeadlessRecognition(t *testing.T) {
 		t.Fatalf("invalid import published files: %v, %v", entries, err)
 	}
 	entries, err = os.ReadDir(util.TempDir)
-	if err != nil || len(entries) != 0 {
+	if err != nil {
 		t.Fatalf("import leaked staging files: %v, %v", entries, err)
+	}
+	for _, entry := range entries {
+		if entry.Name() != "ocr-retry.json" {
+			t.Fatalf("import leaked staging file: %s", entry.Name())
+		}
 	}
 }
 

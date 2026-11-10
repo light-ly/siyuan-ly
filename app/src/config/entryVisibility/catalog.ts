@@ -20,6 +20,7 @@ import {
     isPluginTopBarEntryKey,
 } from "../../plugin/topBarKey";
 import {MOBILE_TOOLBAR_CONTEXT_KEYS} from "./mobileToolbarContext";
+import type {IBreadcrumbButtonCatalogEntry} from "../../plugin/breadcrumbButtonRegistry";
 
 export {getPluginDockEntryKey} from "../../plugin/dockKey";
 export {getLegacyPluginTopBarEntryKey, getPluginTopBarEntryKey} from "../../plugin/topBarKey";
@@ -331,6 +332,7 @@ const gutterTable = () => node("table", lang("tableBlock"), true, [
         node("useDefaultVerticalAlign", lang("useDefaultVerticalAlign")),
     ]),
     separator("separator_insert"),
+    node("insertTableHeaderRow", lang("insertTableHeaderRow")),
     node("insertRowAbove", lang("insertRowAbove")),
     node("insertRowBelow", lang("insertRowBelow")),
     node("insertColumnLeft", lang("insertColumnLeft")),
@@ -424,6 +426,7 @@ const gutterSingle = () => [
     separator("separator_VideoOrAudio"),
     node("assetVideo", location(lang("video"), lang("assets")), true, [
         node("asset", lang("assets")),
+        node("loop", lang("videoLoop")),
         separator("separator_rename"),
         node("rename", lang("rename")),
         node("openBy", lang("openBy")),
@@ -450,8 +453,13 @@ const gutterSingle = () => [
     node("blockEmbed", lang("blockEmbed"), true, [
         node("refresh", lang("refresh")),
         node("update", lang("update")),
+        node("refPopover", lang("refPopover")),
         separator("separator_breadcrumb"),
-        node("embedBlockBreadcrumb", lang("embedBlockBreadcrumb")),
+        ...["embedBlockBreadcrumb", "embedBlockBreadcrumbParentPath"].map(key => node(key, lang(key), true, [
+            node("enable", lang("enable")),
+            node("disable", lang("disable")),
+            node("default", lang("default")),
+        ])),
         node("headingEmbedMode", lang("headingEmbedMode"), true, [
             node("showHeadingWithBlocks", lang("showHeadingWithBlocks")),
             node("showHeadingOnlyTitle", lang("showHeadingOnlyTitle")),
@@ -462,6 +470,9 @@ const gutterSingle = () => [
             node("auto", lang("embedHeadingLevelPreserve")),
             ...[1, 2, 3, 4, 5, 6].map(level => node(`heading${level}`, lang(`heading${level}`))),
         ]),
+        separator("separator_conversion"),
+        node("convertToBlocks", lang("embedToBlocks")),
+        node("convertToReferences", lang("embedToReferences")),
     ]),
     separator("separator_1"),
     gutterHeadingTransform(),
@@ -630,6 +641,24 @@ const toolbarCatalogSection: IEntryCatalogSection = {
 export const TOP_BAR_ROOT_PATH = "topBar";
 export const STATUS_BAR_ROOT_PATH = "statusBar";
 export const WINDOW_TOP_BAR_ROOT_PATH = "windowTopBar";
+export const BREADCRUMB_ROOT_PATH = "editor.breadcrumb";
+
+const breadcrumbBuiltinChildren = [
+    node("undo", lang("undo")),
+    node("redo", lang("redo")),
+    node("outdent", lang("outdent")),
+    node("indent", lang("indent")),
+    node("command-panel", lang("commandPanel")),
+    node("readonly", lang("lockEdit")),
+    node("doc", lang("entryDocumentMenu")),
+    node("more", lang("more")),
+];
+
+const breadcrumbCatalogSection: IEntryCatalogSection = {
+    key: BREADCRUMB_ROOT_PATH,
+    label: location(lang("editor"), lang("breadcrumb")),
+    children: breadcrumbBuiltinChildren,
+};
 
 const statusBarCatalogSection: IEntryCatalogSection = {
     key: STATUS_BAR_ROOT_PATH,
@@ -819,6 +848,7 @@ export const entryCatalog: IEntryCatalogSection[] = [
             node("pin", lang("pin")),
             node("unpin", lang("unpin")),
             node("tabToWindow", lang("tabToWindow")),
+            node("tabToMainWindow", lang("tabToMainWindow")),
         ],
     },
     {
@@ -895,6 +925,23 @@ export const entryCatalog: IEntryCatalogSection[] = [
         ],
     },
     toolbarCatalogSection,
+    breadcrumbCatalogSection,
+    {
+        key: "editor.ref",
+        label: location(lang("editor"), lang("ref")),
+        sortable: false,
+        children: [
+            node("newFile", lang("newFile"), true, undefined, false),
+            node("newSubDoc", lang("newSubDoc"), true, undefined, false),
+            node("newFileAtPath", lang("newFileAtPath"), true, undefined, false),
+        ],
+    },
+    {
+        key: "editor.blockEmbed",
+        label: location(lang("editor"), lang("blockEmbed")),
+        sortable: false,
+        children: [node("toolbar", lang("entryToolbar"), true, undefined, false)],
+    },
     {
         key: "editor.image",
         label: location(lang("editor"), lang("image")),
@@ -936,6 +983,7 @@ export const entryCatalog: IEntryCatalogSection[] = [
             node("pasteEscaped", lang("pasteEscaped"), false),
             node("selectAll", lang("selectAll")),
             separator("separator_1"),
+            node("insertTableHeaderRow", lang("insertTableHeaderRow")),
             node("insertRowAbove", lang("insertRowAbove")),
             node("insertRowBelow", lang("insertRowBelow")),
             node("insertColumnLeft", lang("insertColumnLeft")),
@@ -1066,7 +1114,9 @@ export const entryCatalog: IEntryCatalogSection[] = [
             node("turnIntoRef", lang("ref")),
             node("turnIntoText", lang("text")),
             separator("separator_2"),
-            node("openBy", lang("openBy")),
+            node("openBy", lang("openBy"), true, [
+                node("openMarkdownEditor", lang("openMarkdownEditor")),
+            ]),
             node("export", lang("export")),
             node("copyFile", lang("copyFile")),
         ],
@@ -1148,6 +1198,24 @@ export const getEntryPaths = () => Array.from(entryMap.entries())
     .map(([path]) => path);
 export const getEntryCatalogSection = (key: string) => sectionMap.get(key);
 export const getEntryCatalogChildren = (path: string) => childrenMap.get(path);
+
+let breadcrumbCatalogSignature = "[]";
+
+export const refreshBreadcrumbCatalog = (entries: IBreadcrumbButtonCatalogEntry[]) => {
+    const signature = JSON.stringify(entries);
+    if (signature === breadcrumbCatalogSignature) return;
+    const seen = new Set<string>();
+    breadcrumbCatalogSection.children = [
+        ...entries.filter(entry => {
+            if (!entry.key.startsWith("plugin:") || seen.has(entry.key)) return false;
+            seen.add(entry.key);
+            return true;
+        }).map(entry => node(entry.key, literal(entry.label))),
+        ...breadcrumbBuiltinChildren,
+    ];
+    breadcrumbCatalogSignature = signature;
+    rebuildCatalogIndexes();
+};
 export const isEntryOrderSortable = (parentPath: string) => {
     const section = getEntryCatalogSection(parentPath);
     if (section) {

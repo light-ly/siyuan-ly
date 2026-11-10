@@ -61,6 +61,7 @@ test("mobile normal exit waits for save and remains open on failure", async () =
             const pending = deferred();
             const events: string[] = [];
             const exit = loadFunction("dialog/processSystem.ts", "exitSiYuan", {
+                clearReloadSnapshot: () => {},
                 getSettingsWindowHost: (): undefined => undefined,
                 hideAllElements: () => {},
                 saveMobileLayout: () => pending.promise,
@@ -149,6 +150,7 @@ test("mobile loader distinguishes early failures from a partially changed editor
             window: {siyuan: {mobile: {editor: {protyle: {wysiwyg: {element: {childElementCount: 1}}}}}}},
             setEditor: () => { shown++; },
             onFailure: (...args: unknown[]) => failures.push(args),
+            updateMobileBottomBacklinkPanel: () => Promise.resolve(),
         });
         assert.deepEqual(failures, [[true, !titleHidden]]);
         assert.equal(shown, titleHidden ? 1 : 0);

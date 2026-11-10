@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package treenode
 
 import (
@@ -21,6 +25,7 @@ func checkDocumentSpecJSON(data []byte, spec string) error {
 	version, _ := strconv.Atoi(spec)
 	type rawNode struct {
 		Type          string
+		DocumentTitle documentTitleSourceJSON
 		TableCellRich json.RawMessage
 		Children      []json.RawMessage
 	}
@@ -29,6 +34,9 @@ func checkDocumentSpecJSON(data []byte, spec string) error {
 		var node rawNode
 		if err := json.Unmarshal(raw, &node); nil != err {
 			return err
+		}
+		if node.DocumentTitle.seen && (version < 7 || node.Type != "NodeDocument" || context != "document-root") {
+			return fmt.Errorf("invalid rich document title spec or owner")
 		}
 		if version < 5 && (node.Type == "NodeMindmap" || node.Type == "NodeMindmapItem") {
 			return fmt.Errorf("mind map document requires spec 5")
@@ -77,7 +85,7 @@ func checkDocumentSpecJSON(data []byte, spec string) error {
 		}
 		return nil
 	}
-	return check(data, "")
+	return check(data, "document-root")
 }
 
 // HasTableCellRich 判断子树是否包含富文本单元格。

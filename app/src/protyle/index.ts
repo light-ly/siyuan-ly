@@ -9,6 +9,7 @@ import {LocalUndo, Undo} from "./undo";
 import {Upload} from "./upload";
 import {Options} from "./util/Options";
 import {destroy} from "./util/destroy";
+import {registerSyncEditorSave} from "./util/editorSave";
 import {Scroll} from "./scroll";
 import {Model} from "../layout/Model";
 import {genUUID} from "../util/genID";
@@ -17,6 +18,7 @@ import {Toolbar} from "./toolbar";
 import {Gutter} from "./gutter";
 import {setAutoDirection} from "./render/autoDirection";
 import {Breadcrumb} from "./breadcrumb";
+import {updateNotebookBreadcrumbIcon} from "./breadcrumb/iconRefresh";
 import {
     onTransaction,
     transaction,
@@ -41,12 +43,14 @@ import {renderBacklink} from "./wysiwyg/renderBacklink";
 import {setEmpty} from "../mobile/util/setEmpty";
 /// #if MOBILE
 import {removeMobileSecondaryEditor, unregisterMobileSecondaryEditor} from "../mobile/util/secondaryEditors";
+import {destroyMobileBottomBacklinkPanel} from "../mobile/util/bottomBacklink";
 /// #endif
 import {resize} from "./util/resize";
 import {getDocByScroll} from "./scroll/saveScroll";
 import type {App} from "../index";
 import {insertHTML} from "./util/insertHTML";
 import {avRender} from "./render/av/render";
+import {clearSubItemsState} from "./render/av/subItemsState";
 import {focusBlock, getEditorRange} from "./util/selection";
 import {hasClosestBlock} from "./util/hasClosest";
 import {setStorageVal} from "./util/compatibility";
@@ -173,6 +177,7 @@ export class Protyle {
             }
         };
         registerProtyleRuntimeCapabilities(this.protyle, runtimeCapabilities);
+        registerSyncEditorSave(this.protyle);
         if (runtimeCapabilities.upload === false) {
             disableProtyleUpload(this.protyle);
         }
@@ -197,6 +202,7 @@ export class Protyle {
 
         this.protyle.element.innerHTML = "";
         this.protyle.element.classList.add("protyle");
+        this.protyle.element.dataset.protyleLite = String(this.protyle.lite);
         if (this.protyle.notebookId) {
             this.protyle.element.setAttribute("data-notebook-id", this.protyle.notebookId);
         } else {
@@ -263,10 +269,10 @@ export class Protyle {
                         case "refreshAttributeView":
                             Array.from(this.protyle.wysiwyg.element.querySelectorAll(`.av[data-av-id="${data.data.id}"]`)).forEach((item: HTMLElement) => {
                                 item.removeAttribute("data-render");
-                                avRender(item, this.protyle);
+                                avRender(item, this.protyle, undefined, true, undefined, true);
                             });
                             if (this.protyle.databaseAttributePanel?.hasDatabase(data.data.id)) {
-                                this.protyle.databaseAttributePanel.refresh();
+                                this.protyle.databaseAttributePanel.refresh(true);
                             }
                             queueDatabaseRowRefresh(this.protyle.id, data.data.id);
                             break;
@@ -280,6 +286,9 @@ export class Protyle {
                             break;
                         case "transactions":
                             this.onTransaction(data);
+                            break;
+                        case "notebookIconChanged":
+                            updateNotebookBreadcrumbIcon(data.data.boxID, data.data.icon);
                             break;
                         case "readonly":
                             window.siyuan.config.editor.readOnly = data.data;
@@ -317,6 +326,9 @@ export class Protyle {
                             }
                             break;
                         case "renamenotebook":
+                            if (window.siyuan.config.editor.globalBreadcrumb && this.protyle.notebookId === data.data.box) {
+                                this.protyle.breadcrumb?.render(this.protyle, true);
+                            }
                             /// #if !MOBILE
                             forSearchByEditor(this, (config, element) => {
                                 void refreshSearchPathAfterNotebookRename({
@@ -333,6 +345,10 @@ export class Protyle {
                             /// #endif
                             break;
                         case "rename":
+                            if (window.siyuan.config.editor.globalBreadcrumb && (this.protyle.block.rootID === data.data.id ||
+                                this.protyle.path?.split("/").includes(data.data.id))) {
+                                this.protyle.breadcrumb?.render(this.protyle, true);
+                            }
                             if (this.protyle.path === data.data.path) {
                                 if (this.protyle.model) {
                                     this.protyle.model.parent.updateTitle(getDocDisplayName(data.data.title, data.data.empty));
@@ -389,6 +405,7 @@ export class Protyle {
                                 } else {
                                     this.protyle.element.removeAttribute("data-notebook-id");
                                 }
+                                if (window.siyuan.config.editor.globalBreadcrumb) this.protyle.breadcrumb?.render(this.protyle, true);
                             }
                             /// #if !MOBILE
                             forSearchByEditor(this, (_config, element) => {
@@ -399,6 +416,7 @@ export class Protyle {
                         case "closeBox":
                         case "removeBox":
                             if (this.protyle.notebookId === data.data.box) {
+                                clearSubItemsState(this.protyle.element);
                                 /// #if MOBILE
                                 // 主编辑器由页签管理切换文档，避免切换前显示空白主页
                                 if (!removeMobileSecondaryEditor(this) && !window.siyuan.mobile.tabs) {
@@ -406,7 +424,7 @@ export class Protyle {
                                 }
                                 /// #else
                                 if (this.protyle.model) {
-                                    this.protyle.model.parent.parent.removeTab(this.protyle.model.parent.id);
+                                    this.protyle.model.parent.parent.removeTab(this.protyle.model.parent.id, false, false, true, true);
                                 }
                                 /// #endif
                             }
@@ -420,7 +438,7 @@ export class Protyle {
                                 }
                                 /// #else
                                 if (this.protyle.model) {
-                                    this.protyle.model.parent.parent.removeTab(this.protyle.model.parent.id);
+                                    this.protyle.model.parent.parent.removeTab(this.protyle.model.parent.id, false, false, true, true);
                                 }
                                 /// #endif
                                 delete window.siyuan.storage[Constants.LOCAL_FILEPOSITION][this.protyle.block.rootID];
@@ -663,7 +681,7 @@ export class Protyle {
 
     /** 上传是否还在进行中 */
     public isUploading() {
-        return this.protyle.upload?.isUploading || false;
+        return this.protyle.upload?.isUploading || this.protyle.title?.isUploading() || false;
     }
 
     /** 清空 undo & redo 栈 */
@@ -675,6 +693,7 @@ export class Protyle {
     public destroy() {
         this.destroyed = true;
         /// #if MOBILE
+        destroyMobileBottomBacklinkPanel(this.protyle);
         unregisterMobileSecondaryEditor(this);
         /// #endif
         destroy(this.protyle);
@@ -703,8 +722,15 @@ export class Protyle {
     }
 
     public async flushPendingTransactions() {
+        if (this.destroyed) return;
+        await this.protyle.title?.flushPendingInput();
+        if (this.destroyed) return;
         await this.protyle.wysiwyg.flushPendingInput();
+        if (this.destroyed) return;
         await waitForPendingTransactions(this.protyle);
+        if (this.destroyed) return;
+        // 正文保存期间标题仍可输入，销毁或交接前确认最后一份标题源。
+        await this.protyle.title?.flushPendingInput();
     }
 
     public transaction(doOperations: IOperation[], undoOperations?: IOperation[]) {

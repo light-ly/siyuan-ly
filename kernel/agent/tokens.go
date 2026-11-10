@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package agent
 
@@ -22,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/pkoukk/tiktoken-go"
-	loader "github.com/pkoukk/tiktoken-go-loader"
 	"github.com/sashabaranov/go-openai"
 	tools "github.com/siyuan-note/siyuan/kernel/mcp/tools"
 	"github.com/siyuan-note/siyuan/kernel/util"
@@ -33,10 +20,7 @@ type tokenCounter struct {
 	enc *tiktoken.Tiktoken
 }
 
-var (
-	tokenLoaderOnce sync.Once
-	tokenCounters   sync.Map
-)
+var tokenCounters sync.Map
 
 const (
 	estimatedLowDetailImageTokens  = 256
@@ -46,20 +30,13 @@ const (
 // getTokenCounter 按模型缓存 counter，避免切换模型后继续沿用上一个模型的编码器。
 // 未识别的模型回退到 cl100k_base。离线 BPE loader 只注册一次。
 func getTokenCounter(modelName string) (*tokenCounter, error) {
-	tokenLoaderOnce.Do(func() {
-		tiktoken.SetBpeLoader(loader.NewOfflineLoader())
-	})
 	key := strings.ToLower(strings.TrimSpace(modelName))
 	if cached, ok := tokenCounters.Load(key); ok {
 		return cached.(*tokenCounter), nil
 	}
-	enc, err := tiktoken.EncodingForModel(modelName)
+	enc, err := util.GetTokenEncoding(modelName)
 	if err != nil {
-		// 模型名未识别，回退到 cl100k_base（覆盖 GPT-3.5/4 系，最通用的编码）。
-		enc, err = tiktoken.GetEncoding("cl100k_base")
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 	counter := &tokenCounter{enc: enc}
 	actual, _ := tokenCounters.LoadOrStore(key, counter)

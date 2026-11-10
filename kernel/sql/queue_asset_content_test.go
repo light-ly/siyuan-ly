@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package sql
 
@@ -111,5 +99,68 @@ func useAssetContentQueueDB(t *testing.T) func() {
 		assetContentOperationQueue = previousQueue
 		assetContentDBQueueLock.Unlock()
 		testDB.Close()
+	}
+}
+
+func TestAssetContentQueueReportsWriteFailure(t *testing.T) {
+	testDB, err := gosql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousDB, previousQueue := assetContentDB, assetContentOperationQueue
+	assetContentDB, assetContentOperationQueue = testDB, nil
+	t.Cleanup(func() {
+		_ = testDB.Close()
+		assetContentDB, assetContentOperationQueue = previousDB, previousQueue
+	})
+	if _, err := testDB.Exec("CREATE TABLE asset_contents_fts_case_insensitive (id TEXT UNIQUE, name TEXT, ext TEXT, path TEXT, size INTEGER, updated INTEGER, content TEXT)"); err != nil {
+		t.Fatal(err)
+	}
+	IndexAssetContentsQueue([]*AssetContent{{ID: "first", Path: "assets/test.txt", Content: "content"}})
+	if err := FlushAssetContentQueue(); err != nil {
+		t.Fatal(err)
+	}
+	IndexAssetContentsQueue([]*AssetContent{{ID: "first", Path: "assets/duplicate.txt"}})
+	if err := FlushAssetContentQueue(); err == nil {
+		t.Fatal("failed write reported success")
+	}
+	var count int
+	if err := testDB.QueryRow("SELECT COUNT(*) FROM asset_contents_fts_case_insensitive").Scan(&count); err != nil || count != 1 {
+		t.Fatalf("failed write damaged committed data: count=%d err=%v", count, err)
+	}
+	DeleteAssetContentsByPathQueue("assets/test.txt")
+	if err := FlushAssetContentQueue(); err != nil {
+		t.Fatal(err)
+	}
+	if err := testDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	IndexAssetContentsQueue([]*AssetContent{{ID: "closed"}})
+	if err := FlushAssetContentQueue(); err == nil {
+		t.Fatal("closed database reported success")
+	}
+	assetContentDB = nil
+	IndexAssetContentsQueue([]*AssetContent{{ID: "missing"}})
+	if err := FlushAssetContentQueue(); err == nil {
+		t.Fatal("unavailable database reported success")
+	}
+}
+
+func TestAssetContentQueueReportsShutdown(t *testing.T) {
+	testDB, err := gosql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousDB, previousQueue, previousExiting := assetContentDB, assetContentOperationQueue, util.IsExiting.Load()
+	assetContentDB, assetContentOperationQueue = testDB, nil
+	t.Cleanup(func() {
+		_ = testDB.Close()
+		assetContentDB, assetContentOperationQueue = previousDB, previousQueue
+		util.IsExiting.Store(previousExiting)
+	})
+	util.IsExiting.Store(true)
+	IndexAssetContentsQueue([]*AssetContent{{ID: "shutdown"}})
+	if err := FlushAssetContentQueue(); err == nil {
+		t.Fatal("interrupted indexing reported success")
 	}
 }

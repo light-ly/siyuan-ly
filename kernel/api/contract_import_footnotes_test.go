@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //go:build fts5 && (sqlcipher || libsqlcipher)
 
 package api
@@ -16,11 +20,13 @@ import (
 
 	"github.com/88250/lute/ast"
 	"github.com/gin-gonic/gin"
+	"github.com/siyuan-note/siyuan/kernel/apicontract"
 	"github.com/siyuan-note/siyuan/kernel/conf"
 	"github.com/siyuan-note/siyuan/kernel/filesys"
 	"github.com/siyuan-note/siyuan/kernel/internal/testutil"
 	"github.com/siyuan-note/siyuan/kernel/model"
 	"github.com/siyuan-note/siyuan/kernel/sql"
+	"github.com/siyuan-note/siyuan/kernel/task"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
@@ -96,9 +102,9 @@ func TestAPIContractMarkdownFootnotes(t *testing.T) {
 	}
 	engine := gin.New()
 	engine.Use(boxLeaseMiddleware)
-	engine.POST("/api/filetree/createDocWithMd", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, createDocWithMd)
+	engine.POST("/api/filetree/createDocByParent", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, createDocByParent)
 	engine.POST("/api/import/importStdMd", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, importStdMd)
-	post := func(route string, payload map[string]string, success bool) json.RawMessage {
+	post := func(route string, payload any, success bool) json.RawMessage {
 		t.Helper()
 		body, _ := json.Marshal(payload)
 		request := httptest.NewRequest(http.MethodPost, route, bytes.NewReader(body))
@@ -133,10 +139,20 @@ func TestAPIContractMarkdownFootnotes(t *testing.T) {
 		if _, err = model.Mount(boxID); err != nil {
 			t.Fatal(err)
 		}
-		create := map[string]string{"notebook": boxID, "path": "/API footnotes", "markdown": markdown}
-		var id string
-		if err = json.Unmarshal(post("/api/filetree/createDocWithMd", create, true), &id); err != nil || id == "" {
-			t.Fatalf("invalid document ID: %q, %v", id, err)
+		// 独立进程未启动后台任务，先执行挂载触发的真实索引再调用结构化创建接口。
+		deadline := time.Now().Add(20 * time.Second)
+		for treenode.DocumentMetadataState(boxID) != "ready" {
+			if state := treenode.DocumentMetadataState(boxID); state == "error" || time.Now().After(deadline) {
+				t.Fatal("notebook index did not become ready", state)
+			}
+			task.ExecTaskJob()
+			time.Sleep(time.Millisecond)
+		}
+		create := apicontract.CreateDocByParentRequest{Notebook: boxID, ID: ast.NewNodeID(),
+			Title: apicontract.DocumentCreateTitle{Format: "plain", Text: "API footnotes"}, Markdown: markdown}
+		var created apicontract.CreatedDocumentData
+		if err = json.Unmarshal(post("/api/filetree/createDocByParent", create, true), &created); err != nil || created.ID != create.ID {
+			t.Fatalf("invalid created document: %+v, %v", created, err)
 		}
 		importRequest := map[string]string{"notebook": boxID, "localPath": source, "toPath": "/"}
 		if data := post("/api/import/importStdMd", importRequest, true); string(data) != "null" {
@@ -154,12 +170,12 @@ func TestAPIContractMarkdownFootnotes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			count := 0
+			var refs []*ast.Node
 			ast.Walk(tree.Root, func(n *ast.Node, entering bool) ast.WalkStatus {
 				if entering && treenode.IsBlockRef(n) {
-					count++
+					refs = append(refs, n)
 					def := treenode.GetNodeInTree(tree, n.TextMarkBlockRefID)
-					if def == nil || def.Type != ast.NodeListItem || !n.IsTextMarkType("sup") {
+					if def == nil || def.Type != ast.NodeListItem || !n.IsTextMarkType("sup") || n.TextMarkBlockRefSubtype != "s" {
 						t.Errorf("lost footnote target or content in %s", hpath)
 						return ast.WalkContinue
 					}
@@ -168,7 +184,7 @@ func TestAPIContractMarkdownFootnotes(t *testing.T) {
 							def.FirstChild.Text() != "" || def.Text() != "Nested firstNested second" {
 							t.Errorf("lost nested footnote structure in %s", hpath)
 						}
-					} else if def.Text() != "Confidential footnoteSecond paragraph" {
+					} else if n.TextMarkTextContent != "[note_key]" || def.Text() != "Confidential footnoteSecond paragraph" {
 						t.Errorf("lost multi-paragraph footnote in %s", hpath)
 					}
 					if refs := sql.QueryRefsByDefIDInBox(n.TextMarkBlockRefID, false, boxID); len(refs) != 2 {
@@ -177,11 +193,39 @@ func TestAPIContractMarkdownFootnotes(t *testing.T) {
 				}
 				return ast.WalkContinue
 			})
-			if count != 4 {
-				t.Fatalf("expected four references in %s, got %d", hpath, count)
+			if len(refs) != 4 {
+				t.Fatalf("expected four references in %s, got %d", hpath, len(refs))
 			}
-			if text := tree.Root.FirstChild.Text(); text != "First[note_key]." {
+			want := "First[note_key]."
+			if hpath == "/API footnotes" {
+				// 创建接口经过 BlockDOM，上标引用两侧带有编辑器插入符边界。
+				want = "First\u200b[note_key]\u200b."
+			}
+			if text := tree.Root.FirstChild.Text(); text != want {
 				t.Fatalf("footnote label altered paragraph in %s: %q", hpath, text)
+			}
+			luteEngine := util.NewLute()
+			dom := luteEngine.Tree2BlockDOM(tree, luteEngine.RenderOptions, luteEngine.ParseOptions)
+			reopened := luteEngine.BlockDOM2Tree(luteEngine.SpinBlockDOM(dom))
+			index := 0
+			ast.Walk(reopened.Root, func(n *ast.Node, entering bool) ast.WalkStatus {
+				if entering && treenode.IsBlockRef(n) {
+					if index >= len(refs) {
+						t.Fatal("editing added a footnote reference")
+					}
+					original := refs[index]
+					def := treenode.GetNodeInTree(reopened, n.TextMarkBlockRefID)
+					if n.TextMarkTextContent != original.TextMarkTextContent || n.TextMarkType != original.TextMarkType ||
+						n.TextMarkBlockRefSubtype != "s" || n.TextMarkBlockRefID != original.TextMarkBlockRefID ||
+						def == nil || def.Text() != treenode.GetNodeInTree(tree, original.TextMarkBlockRefID).Text() {
+						t.Fatalf("editing changed footnote label, type or target in %s", hpath)
+					}
+					index++
+				}
+				return ast.WalkContinue
+			})
+			if index != len(refs) || reopened.Root.FirstChild.Text() != "First\u200b[note_key]\u200b." {
+				t.Fatalf("editing changed footnote count or boundaries in %s", hpath)
 			}
 			data, err := os.ReadFile(filepath.Join(util.DataDir, boxID, block.Path))
 			if err != nil || util.IsCiphertext(data) != encrypted {
@@ -190,7 +234,7 @@ func TestAPIContractMarkdownFootnotes(t *testing.T) {
 		}
 		if encrypted {
 			model.LockBox(boxID)
-			post("/api/filetree/createDocWithMd", create, false)
+			post("/api/filetree/createDocByParent", create, false)
 			post("/api/import/importStdMd", importRequest, false)
 		}
 	}

@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
@@ -137,10 +141,10 @@ func globalBacklinkSnapshotPut(query GlobalBacklinkQuery, items []*GlobalBacklin
 	return token, snapshot, nil
 }
 
-// 同一引用块只产生一个条目，按正文遍历选择首个命中的行内引用。
+// 同一引用块只产生一个条目，按源顺序选择首个命中的行内引用（含文档标题）。
 func globalBacklinkAnchor(node *ast.Node, targets map[string]bool) string {
 	text := ""
-	ast.Walk(node, func(n *ast.Node, entering bool) ast.WalkStatus {
+	treenode.WalkWithInlineTitles(node, func(n *ast.Node, entering bool) ast.WalkStatus {
 		if !entering {
 			return ast.WalkContinue
 		}
@@ -185,6 +189,7 @@ func collectGlobalBacklinks(query GlobalBacklinkQuery, accessible func(string) b
 			}
 		}
 	}
+	blocks = filterBacklinkDatabaseBlocks(blocks, query.Notebook, query.SourceFilter)
 	blocks = filterBacklinkSourcesInBox(blocks, definition.RootID, query.Notebook, query.SourceFilter)
 	byRoot := map[string]map[string]*Block{}
 	for _, block := range blocks {

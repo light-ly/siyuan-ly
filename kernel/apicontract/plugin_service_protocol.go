@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package apicontract
 
 import (
@@ -10,8 +14,8 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+	"go.yaml.in/yaml/v4"
 	"google.golang.org/protobuf/encoding/protowire"
-	"gopkg.in/yaml.v3"
 )
 
 const PluginServiceOutput OutputMode = "pluginService"
@@ -243,7 +247,7 @@ func (b *Bundle) ValidatePluginServiceResponse(method, path string, mode PluginS
 		}
 	case PluginServiceYAML:
 		var value yaml.Node
-		if err := yaml.Unmarshal(payload, &value); err != nil {
+		if err := yaml.Load(payload, &value); err != nil {
 			return err
 		}
 	case PluginServiceTOML:

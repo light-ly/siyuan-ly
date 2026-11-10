@@ -12,7 +12,6 @@ import {initTopBarMenu} from "../menus/topBar";
 import {MenuItem} from "../menus/Menu";
 import {hideTooltip} from "../dialog/tooltip";
 import {setMode} from "../util/assets";
-import {openSetting} from "../config";
 import {openSearch} from "../search/spread";
 import type {App} from "../index";
 /// #if !BROWSER
@@ -267,7 +266,8 @@ ${isInMobileApp() ? `<div id="barExit" data-topbar-entry="barExit" class="ft__er
                 event.stopPropagation();
                 break;
             } else if (targetId === "barCommand") {
-                toggleMenu({target, build: () => commandPanel(app)});
+                // 命令面板在桌面端是独立对话框，不自建共享菜单，因此不接入共享菜单的开关状态，开关由面板自身处理
+                commandPanel(app);
                 event.stopPropagation();
                 break;
             } else if (targetId === "barZoom") {

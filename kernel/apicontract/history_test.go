@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package apicontract
 
 import (
@@ -30,6 +34,22 @@ func TestHistoryItemsRequestCompatibility(t *testing.T) {
 		if _, err := GetHistoryItems.Decode(strings.NewReader(body)); err == nil {
 			t.Fatalf("invalid history input accepted: %s", body)
 		}
+	}
+}
+
+func TestHistoryItemsPaginationContract(t *testing.T) {
+	for _, body := range []string{`{"created":"time"}`, `{"created":"time","page":null}`} {
+		request, err := GetHistoryItems.Decode(strings.NewReader(body))
+		if err != nil || request.Page != nil {
+			t.Fatalf("missing page must retain default: %+v %v", request, err)
+		}
+	}
+	request, err := GetHistoryItems.Decode(strings.NewReader(`{"created":"time","page":2}`))
+	if err != nil || request.Page == nil || *request.Page != 2 {
+		t.Fatalf("explicit page not decoded: %+v %v", request, err)
+	}
+	if _, err := GetHistoryItems.Decode(strings.NewReader(`{"created":"time","page":"2"}`)); err == nil {
+		t.Fatal("invalid page accepted")
 	}
 }
 

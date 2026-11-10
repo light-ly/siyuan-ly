@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -22,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/88250/gulu"
 	"github.com/88250/lute/ast"
@@ -37,9 +26,12 @@ import (
 )
 
 const (
-	boxDocMetaSpec = 1
-	boxDocMetaName = "boxDoc.json"
+	boxDocMetaSpec        = 1
+	boxDocMetaName        = "boxDoc.json"
+	boxDocTitleSourceAttr = "custom-sy-notebook-title-source"
 )
+
+var boxDocTitleNameLock sync.Mutex
 
 type boxDocMeta struct {
 	Spec     int    `json:"spec"`
@@ -208,7 +200,7 @@ func findBoxDoc(box *Box) (ret string, err error) {
 
 func createBoxDoc(box *Box, boxDocID string) error {
 	boxConf := box.GetConf()
-	title := normalizeDocTitle(boxConf.Name)
+	title := normalizeTitleText(boxConf.Name)
 	if "" == title {
 		title = Conf.Language(16)
 	}
@@ -240,16 +232,29 @@ func indexBoxDocIfNeeded(boxID, boxDocID string) {
 }
 
 func reconcileBoxDoc(box *Box, boxDocID string) error {
+	boxDocTitleNameLock.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			boxDocTitleNameLock.Unlock()
+		}
+	}()
 	tree, err := filesys.LoadTree(box.ID, boxDocPath(boxDocID), util.NewLute())
 	if err != nil {
 		return err
 	}
 	boxConf := box.GetConf()
-	title := normalizeDocTitle(boxConf.Name)
+	title := normalizeTitleText(boxConf.Name)
 	if "" == title {
 		title = Conf.Language(16)
 	}
-	titleChanged := tree.Root.IALAttr("title") != title
+	if tree.Root.IALAttr(boxDocTitleSourceAttr) == "document" || tree.Root.DocumentTitle != nil {
+		if err = syncBoxDocTitleName0(tree); err != nil {
+			return err
+		}
+		title = treenode.ReadDocumentTitle(tree.Root).Text
+	}
+	titleChanged := treenode.ReadDocumentTitle(tree.Root).Text != title
 	changed := titleChanged || tree.HPath != "/"+title || tree.Root.IALAttr(DocHiddenAttr) != "true" ||
 		tree.Root.IALAttr("icon") != boxConf.Icon
 	if !changed {
@@ -267,6 +272,8 @@ func reconcileBoxDoc(box *Box, boxDocID string) error {
 	if err = indexWriteTreeUpsertQueue(tree); err != nil {
 		return err
 	}
+	boxDocTitleNameLock.Unlock()
+	locked = false
 	if titleChanged {
 		updateRefTextRenameDoc(tree)
 	}
@@ -330,12 +337,43 @@ func normalizeBoxDocTarget(boxID, p string) string {
 	return normalizeBoxDocPath(boxID, p)
 }
 
-func renameBoxDoc(boxID, name string) error {
-	box := Conf.Box(boxID)
-	if nil == box || !box.Exist(boxDocPath(box.ID)) {
-		return nil
+// 笔记本文档保存完整标题，配置中的名称是可重新生成的纯文本投影。
+func syncBoxDocTitleName(tree *parse.Tree) error {
+	boxDocTitleNameLock.Lock()
+	defer boxDocTitleNameLock.Unlock()
+	return syncBoxDocTitleName0(tree)
+}
+
+// 调用方持有 boxDocTitleNameLock，避免旧的重开快照覆盖已提交的历史标题。
+func syncBoxDocTitleName0(tree *parse.Tree) error {
+	box := Conf.Box(tree.Box)
+	if box == nil || tree.ID != box.ID {
+		return ErrBoxNotFound
 	}
-	return renameDoc0(boxID, boxDocPath(box.ID), name)
+	boxConf, err := readRawBoxConf(box.ID)
+	if err != nil {
+		return err
+	}
+	if boxConf == nil {
+		return errors.New("notebook configuration is missing")
+	}
+	if boxConf.Encrypted {
+		if err = revealBoxMetadataIfUnlocked(box.ID, boxConf); err != nil {
+			return err
+		}
+	}
+	name := treenode.ReadDocumentTitle(tree.Root).Text
+	if name == "" {
+		name = Conf.Language(16)
+	}
+	if boxConf.Name != name {
+		boxConf.Name = name
+		if err = box.SaveConf(boxConf); err != nil {
+			return err
+		}
+	}
+	box.Name = name
+	return nil
 }
 
 func setBoxDocIcon(boxID, icon string) error {

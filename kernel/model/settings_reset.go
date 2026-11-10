@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
@@ -38,6 +42,13 @@ func defaultWorkspaceSettings(current *AppConf) *AppConf {
 	next.Graph.Store(conf.NewGraph())
 	next.Flashcard.Store(conf.NewFlashcard())
 	next.OCR.Store(conf.NewOCR())
+	bazaar := conf.NewBazaar()
+	if currentBazaar := current.Bazaar.Load(); currentBazaar != nil {
+		// 兼容性筛选属于面板偏好，集市授权和插件启用状态保持当前值。
+		bazaar.Trust = currentBazaar.Trust
+		bazaar.PetalDisabled = currentBazaar.PetalDisabled
+	}
+	next.Bazaar.Store(bazaar)
 	next.Appearance.Store(conf.NewAppearanceForContainer(util.IsMobileContainer()))
 	next.Appearance.Load().Lang = current.Lang
 	if current.Appearance.Load() != nil {
@@ -87,6 +98,8 @@ func ResetSettings() error {
 	if util.ReadOnly {
 		return errors.New("read-only mode")
 	}
+	unlockTarget := lockDocumentTargetConfiguration()
+	defer unlockTarget()
 	Conf.m.Lock()
 	localStorageLock.Lock()
 	bootAppearanceConfLock.Lock()
@@ -150,6 +163,7 @@ func ResetSettings() error {
 		Conf.UILayout.Store(confSectionValue0)
 		Conf.Keymap.Store(confSectionValue1)
 	}
+	Conf.Bazaar.Store(next.Bazaar.Load())
 	if Conf.System.Load() != nil {
 		replaceConfSectionLocked(&Conf.System, func(system *conf.System) bool {
 			system.DownloadInstallPkg = next.System.Load().DownloadInstallPkg

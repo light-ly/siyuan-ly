@@ -1,16 +1,6 @@
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package sql
 
@@ -88,7 +78,10 @@ func renderAttributeViewTable(attrView *av.AttributeView, view *av.View, query s
 	}
 
 	rowsValues := generateAttrViewItems(attrView, view) // 生成行
-	filterNotFoundAttrViewItems(rowsValues)             // 过滤掉不存在的行
+	historical := renderContext.HistoricalAttributeViewID != "" && renderContext.HistoricalAttributeViewID == attrView.ID
+	if !historical {
+		filterNotFoundAttrViewItems(rowsValues) // 实时视图过滤不存在的绑定块，历史源保留当时的条目身份。
+	}
 
 	// 生成行单元格
 	for rowID, rowValues := range rowsValues {
@@ -140,7 +133,7 @@ func renderAttributeViewTable(attrView *av.AttributeView, view *av.View, query s
 	var ialIDs []string
 	for _, row := range ret.Rows {
 		blockVal := row.GetBlockValue()
-		if nil != blockVal && !blockVal.IsDetached {
+		if !historical && nil != blockVal && !blockVal.IsDetached {
 			ialIDs = append(ialIDs, blockVal.Block.ID)
 		}
 	}

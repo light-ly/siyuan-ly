@@ -1,4 +1,4 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -21,7 +21,6 @@ import (
 	"github.com/88250/lute/ast"
 	"github.com/88250/lute/parse"
 	"github.com/ClarkThan/ahocorasick"
-	"github.com/siyuan-note/dataparser"
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/siyuan/kernel/apicontract"
 	"github.com/siyuan-note/siyuan/kernel/av"
@@ -183,21 +182,21 @@ func (p *assetRelinkPlan) scan() error {
 				return nil
 			}
 			p.parsedDocuments++
-			tree, readErr := dataparser.ParseJSONWithoutFix(data, luteEngine.ParseOptions)
+			tree, readErr := treenode.ParseJSONWithoutFix(data, luteEngine.ParseOptions)
 			if readErr != nil || tree == nil || tree.Root == nil {
 				return fmt.Errorf("cannot parse document %s: %v", absPath, readErr)
 			}
 			rel, _ := filepath.Rel(boxDir, absPath)
 			tree.Box, tree.Path = boxID, "/"+filepath.ToSlash(rel)
 			tree.Root.Box, tree.Root.Path = tree.Box, tree.Path
-			tree.HPath = "/" + tree.Root.IALAttr("title")
+			tree.HPath = "/" + treenode.ReadDocumentTitle(tree.Root).Text
 			if readErr = filesys.NormalizeTreeForRead(tree); readErr != nil {
 				return readErr
 			}
 			if tree.Root.ID != strings.TrimSuffix(entry.Name(), ".sy") {
 				return fmt.Errorf("document ID does not match path: %s", absPath)
 			}
-			titles[tree.Root.ID] = tree.Root.IALAttr("title")
+			titles[tree.Root.ID] = treenode.ReadDocumentTitle(tree.Root).Text
 			before := len(p.result.References)
 			p.tree(tree, apicontract.AssetReference{Notebook: boxID, RootID: tree.Root.ID, Path: tree.Path})
 			retain := false

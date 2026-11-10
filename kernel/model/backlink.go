@@ -1,25 +1,12 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
 import (
 	"bytes"
 	"fmt"
-	"path"
 	"sort"
 	"strings"
 
@@ -29,6 +16,7 @@ import (
 	"github.com/88250/lute/parse"
 	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/siyuan-note/logging"
+	"github.com/siyuan-note/siyuan/kernel/av"
 	"github.com/siyuan-note/siyuan/kernel/filesys"
 	"github.com/siyuan-note/siyuan/kernel/search"
 	"github.com/siyuan-note/siyuan/kernel/sql"
@@ -157,10 +145,16 @@ const (
 )
 
 type BacklinkSourceFilter struct {
-	DailyNote           string   `json:"dailyNote"`
-	ExcludedNotebookIDs []string `json:"excludedNotebookIDs"`
-	ExcludeSelf         bool     `json:"excludeSelf"`
-	ExcludedRefDefIDs   []string `json:"excludedRefDefIDs"`
+	DailyNote           string                  `json:"dailyNote"`
+	ExcludedNotebookIDs []string                `json:"excludedNotebookIDs"`
+	ExcludeSelf         bool                    `json:"excludeSelf"`
+	ExcludedRefDefIDs   []string                `json:"excludedRefDefIDs"`
+	Database            *BacklinkDatabaseFilter `json:"database,omitempty"`
+}
+
+type BacklinkDatabaseFilter struct {
+	AvID    string           `json:"avID"`
+	Filters []*av.ViewFilter `json:"filters"`
 }
 
 func NormalizeBacklinkSourceFilter(filter *BacklinkSourceFilter) *BacklinkSourceFilter {
@@ -183,7 +177,7 @@ func NormalizeBacklinkSourceFilter(filter *BacklinkSourceFilter) *BacklinkSource
 	}
 	sort.Strings(excludedNotebookIDs)
 	excludedRefDefIDs := normalizeBacklinkRefDefIDs(filter.ExcludedRefDefIDs)
-	if BacklinkDailyNoteAll == dailyNote && 0 == len(excludedNotebookIDs) && !filter.ExcludeSelf && 0 == len(excludedRefDefIDs) {
+	if BacklinkDailyNoteAll == dailyNote && 0 == len(excludedNotebookIDs) && !filter.ExcludeSelf && 0 == len(excludedRefDefIDs) && nil == filter.Database {
 		return nil
 	}
 	return &BacklinkSourceFilter{
@@ -191,6 +185,7 @@ func NormalizeBacklinkSourceFilter(filter *BacklinkSourceFilter) *BacklinkSource
 		ExcludedNotebookIDs: excludedNotebookIDs,
 		ExcludeSelf:         filter.ExcludeSelf,
 		ExcludedRefDefIDs:   excludedRefDefIDs,
+		Database:            filter.Database,
 	}
 }
 
@@ -312,7 +307,7 @@ func GetBacklinkDocWithSort(defID, refTreeID, keyword string, containChildren, h
 	}
 	refs = removeDuplicatedRefs(refs)
 
-	linkRefs, _, _, originalRefBlockIDs := buildLinkRefsInBox(rootID, refs, keywords, encBoxIDUsed)
+	linkRefs, _, _, originalRefBlockIDs := buildLinkRefsInBox(rootID, refs, keywords, encBoxIDUsed, filters...)
 	if len(filters) > 0 {
 		linkRefs = filterBacklinkSourcesInBox(linkRefs, rootID, encBoxIDUsed, filters[0])
 	}
@@ -322,7 +317,7 @@ func GetBacklinkDocWithSort(defID, refTreeID, keyword string, containChildren, h
 		return
 	}
 
-	linkRefs = expandBacklinkDocumentEntries(linkRefs, tmpRefs, rootID, keywords, encBoxIDUsed, originalRefBlockIDs, blockSort)
+	linkRefs = expandBacklinkDocumentEntries(linkRefs, tmpRefs, rootID, keywords, encBoxIDUsed, originalRefBlockIDs, blockSort, filters...)
 	anchorKeys := backlinkAnchorSortKeys(linkRefs, refTree, tmpRefs, originalRefBlockIDs, blockSort)
 	avTargets := backlinkAttributeViewTargets(refTree, tmpRefs)
 	luteEngine := util.NewLute()
@@ -369,7 +364,7 @@ func GetBacklinkDocInBoxWithSort(defID, refTreeID, keyword string, containChildr
 	}
 	refs = removeDuplicatedRefs(refs)
 
-	linkRefs, _, _, originalRefBlockIDs := buildLinkRefsInBox(rootID, refs, keywords, boxID)
+	linkRefs, _, _, originalRefBlockIDs := buildLinkRefsInBox(rootID, refs, keywords, boxID, filters...)
 	if len(filters) > 0 {
 		linkRefs = filterBacklinkSourcesInBox(linkRefs, rootID, boxID, filters[0])
 	}
@@ -379,7 +374,7 @@ func GetBacklinkDocInBoxWithSort(defID, refTreeID, keyword string, containChildr
 		return
 	}
 
-	linkRefs = expandBacklinkDocumentEntries(linkRefs, tmpRefs, rootID, keywords, boxID, originalRefBlockIDs, blockSort)
+	linkRefs = expandBacklinkDocumentEntries(linkRefs, tmpRefs, rootID, keywords, boxID, originalRefBlockIDs, blockSort, filters...)
 	anchorKeys := backlinkAnchorSortKeys(linkRefs, refTree, tmpRefs, originalRefBlockIDs, blockSort)
 	avTargets := backlinkAttributeViewTargets(refTree, tmpRefs)
 	luteEngine := util.NewLute()
@@ -495,6 +490,9 @@ func buildBacklink(refID string, refTree *parse.Tree, originalRefBlockIDs map[st
 	}
 
 	renderNodes, expand := getBacklinkRenderNodes(node, originalRefBlockIDs)
+	if len(renderNodes) == 0 {
+		return nil
+	}
 	referenceBlockID := getBacklinkReferenceBlockID(node, renderNodes, originalRefBlockIDs[node.ID])
 	var blockPaths []*BlockPath
 	if (nil != node.Parent && ast.NodeDocument != node.Parent.Type) || (ast.NodeHeading != node.Type && 0 < treenode.HeadingLevel(node)) {
@@ -531,6 +529,11 @@ func buildBacklink(refID string, refTree *parse.Tree, originalRefBlockIDs map[st
 	fillBlockRefCount(renderNodes, refTree.Box)
 
 	dom := renderVisibleBlockDOMByNodes(renderNodes, luteEngine)
+	if node.Type == ast.NodeDocument && originalRefBlockIDs[node.ID] == "" {
+		// 仅标记临时预览，前端通过文档标题事务编辑，不能作为正文段落写回。
+		dom = strings.ReplaceAll(dom, `contenteditable="true"`, `contenteditable="false"`)
+		dom = strings.Replace(dom, "<div ", `<div data-document-title="true" contenteditable="false" `, 1)
+	}
 	ret = &Backlink{ID: refID, DOM: dom, BlockPaths: blockPaths, Expand: expand, ReferenceBlockID: referenceBlockID, node: node}
 	ret.Type = node.Type.String()
 	if 0 < len(avTargets) {
@@ -540,6 +543,17 @@ func buildBacklink(refID string, refTree *parse.Tree, originalRefBlockIDs map[st
 }
 
 func getBacklinkRenderNodes(n *ast.Node, originalRefBlockIDs map[string]string) (ret []*ast.Node, expand bool) {
+	if n.Type == ast.NodeDocument && originalRefBlockIDs[n.ID] == "" {
+		paragraph, err := treenode.DocumentTitleParagraph(n)
+		if err != nil {
+			logging.LogErrorf("render backlink document title [%s] failed: %s", n.ID, err)
+			return nil, false
+		}
+		paragraph.ID, paragraph.Box, paragraph.Path = n.ID, n.Box, n.Path
+		paragraph.SetIALAttr("id", n.ID)
+		paragraph.SetIALAttr("updated", n.IALAttr("updated"))
+		return []*ast.Node{paragraph}, false
+	}
 	expand = true
 	if ast.NodeListItem == n.Type {
 		if nil == n.FirstChild {
@@ -639,7 +653,11 @@ func GetBacklink2InBoxWithOptions(id, keyword, mentionKeyword string, sortMode, 
 
 	linkRefs, linkRefsCount, excludeBacklinkIDs, _ := buildLinkRefsInBox(rootID, refs, keywords, boxID)
 	if includeBacklinks {
-		filteredLinkRefs := filterBacklinkSourcesInBox(linkRefs, rootID, boxID, sourceFilter)
+		backlinkRefs := linkRefs
+		if sourceFilter != nil && sourceFilter.Database != nil {
+			backlinkRefs, _, _, _ = buildLinkRefsInBox(rootID, refs, keywords, boxID, sourceFilter)
+		}
+		filteredLinkRefs := filterBacklinkSourcesInBox(backlinkRefs, rootID, boxID, sourceFilter)
 		if nil != NormalizeBacklinkSourceFilter(sourceFilter) {
 			linkRefsCount = len(filteredLinkRefs)
 		}
@@ -740,7 +758,7 @@ func backlinkListPaths(blocks []*Block, boxID string) (ret []*Path) {
 			}
 			block := fromSQLBlock(root, "", 0)
 			ret = append(ret, &Path{
-				ID: block.ID, Box: block.Box, Name: path.Base(block.HPath), HPath: block.HPath,
+				ID: block.ID, Box: block.Box, Name: root.Content, HPath: block.HPath,
 				NodeType: block.Type, Type: "backlink", SubType: block.SubType,
 				Count: counts[block.ID], Updated: block.IAL["updated"], Created: block.ID[:14],
 			})
@@ -755,11 +773,13 @@ func buildLinkRefs(defRootID string, refs []*sql.Ref, keywords []string) (ret []
 }
 
 // buildLinkRefsInBox 与 buildLinkRefs 一致，但按 boxID 路由到加密 db 或全局 db。
-func buildLinkRefsInBox(defRootID string, refs []*sql.Ref, keywords []string, boxID string) (ret []*Block, refsCount int, excludeBacklinkIDs *hashset.Set, originalRefBlockIDs map[string]string) {
-	return buildLinkRefsInBoxWithDocumentGrouping(defRootID, refs, keywords, boxID, true)
+func buildLinkRefsInBox(defRootID string, refs []*sql.Ref, keywords []string, boxID string, filters ...*BacklinkSourceFilter) (ret []*Block, refsCount int, excludeBacklinkIDs *hashset.Set, originalRefBlockIDs map[string]string) {
+	return buildLinkRefsInBoxWithDocumentGrouping(defRootID, refs, keywords, boxID, true, filters...)
 }
 
-func buildLinkRefsInBoxWithDocumentGrouping(defRootID string, refs []*sql.Ref, keywords []string, boxID string, groupDocuments bool) (ret []*Block, refsCount int, excludeBacklinkIDs *hashset.Set, originalRefBlockIDs map[string]string) {
+func buildLinkRefsInBoxWithDocumentGrouping(defRootID string, refs []*sql.Ref, keywords []string, boxID string, groupDocuments bool, filters ...*BacklinkSourceFilter) (ret []*Block, refsCount int, excludeBacklinkIDs *hashset.Set, originalRefBlockIDs map[string]string) {
+	// 数据库条件先约束实际引用来源，再合并父块，避免一个来源命中后放行同文档的其他引用。
+	refs = filterBacklinkDatabaseRefs(refs, boxID, filters...)
 	// 为了减少查询，组装好 IDs 后一次查出
 	defSQLBlockIDs, refSQLBlockIDs := map[string]bool{}, map[string]bool{}
 	var queryBlockIDs []string
@@ -830,6 +850,7 @@ func buildLinkRefsInBoxWithDocumentGrouping(defRootID string, refs []*sql.Ref, k
 	coveredRefIDs := map[string]bool{}
 	for _, mapping := range buildBacklinkParentMappingsWithDocumentGrouping(backlinkRefBlocks, boxID, groupDocuments) {
 		originalRefBlockIDs[mapping.parent.ID] = mapping.refBlock.ID
+		mapping.parent.backlinkDocumentContext = mapping.parent.Type == "NodeDocument"
 		for refID := range mapping.coveredRefIDs {
 			coveredRefIDs[refID] = true
 		}
@@ -907,10 +928,11 @@ func matchBacklinkKeyword(block *Block, keywords []string) bool {
 		return true
 	}
 
+	title := documentTitleText(block.Box, block.RootID)
 	for _, k := range keywords {
 		k = strings.ToLower(k)
 		if strings.Contains(strings.ToLower(block.Content), k) ||
-			strings.Contains(strings.ToLower(path.Base(block.HPath)), k) ||
+			strings.Contains(strings.ToLower(title), k) ||
 			strings.Contains(strings.ToLower(block.Name), k) ||
 			strings.Contains(strings.ToLower(block.Alias), k) ||
 			strings.Contains(strings.ToLower(block.Memo), k) ||
@@ -1032,7 +1054,7 @@ func buildTreeBackmentionInBox(defSQLBlock *sql.Block, refBlocks []*Block, keywo
 			aliases = sql.QueryBlockAliasesInBox(defSQLBlock.ID, boxID)
 		}
 		if confSearchSnapshot.BacklinkMentionDoc {
-			fName = path.Base(defSQLBlock.HPath)
+			fName = defSQLBlock.Content
 		}
 		rootID = defSQLBlock.ID
 	} else {
@@ -1140,6 +1162,7 @@ func searchBackmentionInBox(mentionKeywords []string, keyword string, excludeBac
 		terms = append(terms, keyword)
 	}
 	luteEngine := util.NewLute()
+	markStart, markEnd := search.GetMarkSpanStart(search.MarkDataType), search.GetMarkSpanEnd()
 	limit := confSearchSnapshot.Limit
 	beforeID := ""
 	// 按块 ID 分批补取候选，正文校验和反链排除后的有效提及才占用结果额度。
@@ -1155,13 +1178,36 @@ func searchBackmentionInBox(mentionKeywords []string, keyword string, excludeBac
 			if excludeBacklinkIDs.Contains(b.ID) {
 				continue
 			}
-			tree := parse.Parse("", gulu.Str.ToBytes(b.Markdown), luteEngine.ParseOptions)
-			if nil == tree {
-				continue
+			markdown := b.Markdown
+			var textRoot, documentRoot *ast.Node
+			if b.IsDoc() {
+				// 文档索引没有正文 Markdown；读取原始标题片段，避免把摘要中的代码或引用当作普通文字。
+				tree, err := LoadTreeByBlockIDInExactBox(b.ID, b.Box)
+				if err != nil || tree.Root.ID != b.ID {
+					continue
+				}
+				documentRoot = tree.Root
+				paragraph, err := treenode.DocumentTitleParagraph(documentRoot)
+				if err != nil {
+					continue
+				}
+				if documentRoot.DocumentTitle == nil {
+					// 旧标题本来就是普通文字，不能重新解释其中的 Markdown 符号。
+					textRoot = paragraph
+				} else {
+					markdown = treenode.ExportNodeStdMd(paragraph, luteEngine)
+				}
+			}
+			if textRoot == nil {
+				tree := parse.Parse("", gulu.Str.ToBytes(markdown), luteEngine.ParseOptions)
+				if tree == nil {
+					continue
+				}
+				textRoot = tree.Root
 			}
 
 			textBuf := &bytes.Buffer{}
-			ast.Walk(tree.Root, func(n *ast.Node, entering bool) ast.WalkStatus {
+			ast.Walk(textRoot, func(n *ast.Node, entering bool) ast.WalkStatus {
 				if !entering || n.IsBlock() {
 					return ast.WalkContinue
 				}
@@ -1173,16 +1219,31 @@ func searchBackmentionInBox(mentionKeywords []string, keyword string, excludeBac
 
 			text := textBuf.String()
 			text = strings.TrimSpace(text)
-			if "" == text {
+			if "" == text && documentRoot == nil {
 				continue
 			}
 
-			newText, matched := markReplaceSpanWithSplit(text, mentionKeywords, search.GetMarkSpanStart(search.MarkDataType), search.GetMarkSpanEnd())
+			newText, matched := markReplaceSpanWithSplit(text, mentionKeywords, markStart, markEnd)
 			if matched {
 				ret = append(ret, b)
 
-				k := getMarkedTextContents(newText, search.GetMarkSpanStart(search.MarkDataType), search.GetMarkSpanEnd())
+				k := getMarkedTextContents(newText, markStart, markEnd)
 				retMentionKeywords = append(retMentionKeywords, k...)
+			} else if documentRoot != nil {
+				// 标题没有普通文字时仍可匹配文档命名、别名，并遵循搜索范围及大小写规则。
+				var fields []string
+				if confSearchSnapshot.Name {
+					fields = append(fields, documentRoot.IALAttr("name"))
+				}
+				if confSearchSnapshot.Alias {
+					fields = append(fields, documentRoot.IALAttr("alias"))
+				}
+				for _, field := range fields {
+					if _, matched = markReplaceSpanWithSplit(field, mentionKeywords, markStart, markEnd); matched {
+						ret = append(ret, b)
+						break
+					}
+				}
 			} else {
 				// columnFilter 中的命名、别名和备注命中的情况
 				// 反链提及搜索范围增加命名、别名和备注 https://github.com/siyuan-note/siyuan/issues/7639

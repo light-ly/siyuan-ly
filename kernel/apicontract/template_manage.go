@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package apicontract
 
 import "encoding/json"
@@ -11,9 +15,10 @@ type TemplateFileRequest struct {
 }
 
 type TemplateFileEntry struct {
-	Path      string `json:"path"`
-	IsDir     bool   `json:"isDir"`
-	IsPackage bool   `json:"isPackage,omitempty"`
+	HTTPPermission bool   `json:"httpPermission"`
+	Path           string `json:"path"`
+	IsDir          bool   `json:"isDir"`
+	IsPackage      bool   `json:"isPackage,omitempty"`
 }
 
 type TemplateFileSource struct {

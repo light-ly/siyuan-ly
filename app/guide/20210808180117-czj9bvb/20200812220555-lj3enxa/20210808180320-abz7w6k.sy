@@ -7,7 +7,7 @@
 		"id": "20210808180320-abz7w6k",
 		"title": "编辑器",
 		"type": "doc",
-		"updated": "20261012014930"
+		"updated": "20261107224449"
 	},
 	"Children": [
 		{
@@ -252,6 +252,23 @@
 			]
 		},
 		{
+			"ID": "20261101145217-7710279",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261101145217-7710279",
+				"updated": "20261101145217"
+			},
+			"Children": [
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "block-ref",
+					"TextMarkBlockRefID": "20261101145217-402153c",
+					"TextMarkBlockRefSubtype": "d",
+					"TextMarkTextContent": "独立 Markdown 编辑器"
+				}
+			]
+		},
+		{
 			"ID": "20260920102915-5a60iu6",
 			"Type": "NodeHeading",
 			"HeadingLevel": 2,
@@ -373,7 +390,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260928091724-31ks0a6",
-				"updated": "20261012014859"
+				"updated": "20261024164212"
 			},
 			"Children": [
 				{
@@ -424,16 +441,210 @@
 			]
 		},
 		{
-			"ID": "20260927164841-y6wu08m",
-			"Type": "NodeParagraph",
+			"ID": "20261024163013-5ii2y6n",
+			"Type": "NodeHeading",
 			"Properties": {
-				"id": "20260927164841-y6wu08m",
-				"updated": "20261012014859"
+				"id": "20261024163013-5ii2y6n",
+				"updated": "20261107224449"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "编辑自定义方案时，可通过分类选择框切换工具栏与斜杠菜单。拖动项目左侧的六点手柄调整顺序，使用项目开关调整显隐；拖至列表边缘可滚动。排序前需清空搜索，修改后确认保存方案。内置方案只读，可复制后自定义，再启用保存的方案。方案保存在本设备，不跨设备同步。基于简洁或完整创建的新自定义方案，未修改过的入口显隐会跟随后续版本的默认值；手动切换过的入口保留用户选择。旧方案保持原有显隐行为，复制方案或基于当前方案创建时保留其继承方式和明确选择。基于简洁或完整创建的新方案，其未自定义的层级排序会随版本默认顺序更新；基于当前创建或复制方案会保留已有自定义排序。清空搜索后，可点击列标题或停靠栏分组标题上的重置图标重置该层级。重置全部排序时，桌面端可点击“位置”列标题右侧的刷新图标，提示为“重置全部排序”；移动端可点击底部的重置全部排序按钮。确认后保存，取消则放弃修改。重置排序会保留显隐和停靠栏入口所在位置，重置后的层级持续跟随后续版本的默认排序。"
+					"Data": "编辑与保存方案"
+				}
+			],
+			"HeadingLevel": 3
+		},
+		{
+			"ID": "20260927164841-y6wu08m",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260927164841-y6wu08m",
+				"updated": "20261030103731"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "新工作空间默认使用完整方案，方案列表中完整方案排在简洁方案之前。已有工作空间保留当前启用的方案和已保存的显隐及排序设置。编辑自定义方案时，可通过分类选择框切换工具栏与斜杠菜单。拖动项目左侧的六点手柄调整顺序，使用项目开关调整显隐；拖至列表边缘可滚动。排序前需清空搜索，修改后确认保存方案。内置方案只读，可复制后自定义，再启用保存的方案。方案保存在本设备，不跨设备同步。基于简洁或完整创建的新自定义方案，未修改过的入口显隐会跟随后续版本的默认值；手动切换过的入口保留用户选择。"
+				}
+			]
+		},
+		{
+			"ID": "20261024161816-linfdyq",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024161816-linfdyq",
+				"updated": "20261024164212"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "旧方案保持原有显隐行为，复制方案或基于当前方案创建时保留其继承方式和明确选择。基于简洁或完整创建的新方案，其未自定义的层级排序会随版本默认顺序更新；基于当前创建或复制方案会保留已有自定义排序。"
+				}
+			]
+		},
+		{
+			"ID": "20261024164212-i2v7jm2",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024164212-i2v7jm2",
+				"updated": "20261024164212"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "清空搜索后，可点击列标题或停靠栏分组标题上的重置图标重置该层级。重置全部排序时，桌面端可点击“位置”列标题右侧的刷新图标，提示为“重置全部排序”；移动端可点击底部的重置全部排序按钮。确认后保存，取消则放弃修改。重置排序会保留显隐和停靠栏入口所在位置，重置后的层级持续跟随后续版本的默认排序。"
+				}
+			]
+		},
+		{
+			"ID": "20261107104457-oh9rxn2",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261107104457-oh9rxn2",
+				"updated": "20261107224449"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "在桌面端和移动端打开 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "设置"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "外观"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "菜单和按钮的显隐与排序"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "，编辑自定义方案并选择 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "编辑器"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "引用"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 分类，可分别隐藏引用搜索候选中的 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "新建文档"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "、"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "新建子文档"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 和 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "选择位置新建文档"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "，三项默认显示。保存并启用方案后生效。"
+				}
+			]
+		},
+		{
+			"ID": "20261020212341-tm2junw",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261020212341-tm2junw",
+				"updated": "20261020212341"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "文档底部反链"
+				}
+			],
+			"HeadingLevel": 2
+		},
+		{
+			"ID": "20261020212341-af4kmxc",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261020212341-af4kmxc",
+				"updated": "20261020212341"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "桌面端和移动端均可在 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "设置"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "编辑器"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "双向链接"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "在文档底部显示反链面板"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 中启用此功能，在文档末尾查看反链和提及。面板在接近时加载，正文末尾加载完成后才会显示，无结果时自动隐藏。"
 				}
 			]
 		}

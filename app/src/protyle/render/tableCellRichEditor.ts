@@ -18,9 +18,10 @@ import {focusByOffset, getUndoFocusContext} from "../util/selection";
 import {focusByRange, getSelectionOffset} from "../util/selectionOffsets";
 import {getAdjacentRichTableCell, isTableCellCaretAtBoundary, leaveRichTableCell} from "../util/tableCellRichNavigation";
 import {focusEditableAtGoalX, getCaretGoalX} from "../wysiwyg/verticalCaret";
+import {scheduleCaretScroll} from "../wysiwyg/caretScroll";
 import {fixTable} from "../util/table";
 import {updateTableCellContentLayout} from "../util/tableCellRich";
-import {TABLE_CELL_SLASH_IDS} from "../util/tableCellRichMenu";
+import {filterTableCellSlashMenuItems} from "../util/tableCellRichMenu";
 import {captureRichCellSelection, captureRichCellSelectionAtPoint, restoreRichCellSelection} from "../util/tableCellRichSelection";
 import {matchHotKey} from "../util/hotKey";
 import {bindTableCellRichDrag} from "../util/tableCellRichDrag";
@@ -31,6 +32,8 @@ import {bindLiteCodeActions} from "../lite/codeActions";
 import {setTaskListItemMarker} from "../wysiwyg/list";
 import {nextTaskListMarker} from "../wysiwyg/taskListMarker";
 import {getTableVirtualCellIndex, getTableVirtualRowIndex, restoreTableVirtualizationDOM} from "../util/tableVirtualizationDOM";
+import {isIOSDevice} from "../util/compatibility";
+import {isNativeTextSelectionHandleTouch} from "../wysiwyg/nativeTextMenu";
 
 let activeEditor: {cell: Element, finish: () => void, prepareSwitch: () => boolean} | undefined;
 let openingEditor: object | undefined;
@@ -173,7 +176,6 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
     let source: string;
     try {
         initialBlockHTML = getTableCellRichBlockDOM(cell);
-        source = serializeTableCellRich(initialBlockHTML).markdown;
     } catch (error) {
         console.error(error);
         showMessage(window.siyuan.languages.tableCellRichInvalid);
@@ -202,32 +204,35 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
     const events = ["beforeinput", "input", "compositionstart", "compositionupdate", "compositionend",
         "copy", "cut", "paste", "pointerdown", "pointerup", "pointermove", "mousedown", "mouseup", "mousemove",
         "click", "dblclick", "contextmenu", "dragstart", "dragover", "drop", "focusin", "focusout"];
-    events.forEach(type => host.addEventListener(type, event => event.stopPropagation()));
-    ["keydown", "keyup"].forEach(type => host.addEventListener(type, (event: KeyboardEvent) => {
-        event.stopPropagation();
-        if (event.defaultPrevented || event.isComposing || composing) {
-            return;
-        }
-        // 跳过外层正文的编辑处理，让未消费的快捷键继续到达全局监听器。
-        const forwarded = new KeyboardEvent(event.type, {
-            key: event.key, code: event.code, location: event.location, repeat: event.repeat,
-            keyCode: event.keyCode, charCode: event.charCode,
-            ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey,
-            bubbles: true, cancelable: true,
-        });
-        setTableCellRichEventTarget(forwarded, host);
-        if (!owner.element.dispatchEvent(forwarded)) {
-            event.preventDefault();
-        }
-    }));
-    ["mouseover", "pointerover"].forEach(type => host.addEventListener(type, event => {
-        event.stopPropagation();
-        owner.gutter?.render(owner, table, host);
-    }));
+    const bindEditorEvents = (element: HTMLElement) => {
+        events.forEach(type => element.addEventListener(type, event => event.stopPropagation()));
+        ["keydown", "keyup"].forEach(type => element.addEventListener(type, (event: KeyboardEvent) => {
+            event.stopPropagation();
+            if (event.defaultPrevented || event.isComposing || composing) {
+                return;
+            }
+            // 跳过外层正文的编辑处理，让未消费的快捷键继续到达全局监听器。
+            const forwarded = new KeyboardEvent(event.type, {
+                key: event.key, code: event.code, location: event.location, repeat: event.repeat,
+                keyCode: event.keyCode, charCode: event.charCode,
+                ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey,
+                bubbles: true, cancelable: true,
+            });
+            setTableCellRichEventTarget(forwarded, host);
+            if (!owner.element.dispatchEvent(forwarded)) {
+                event.preventDefault();
+            }
+        }));
+        ["mouseover", "pointerover"].forEach(type => element.addEventListener(type, event => {
+            event.stopPropagation();
+            owner.gutter?.render(owner, table, host);
+        }));
+    };
+    bindEditorEvents(host);
     owner.gutter?.render(owner, table, host);
     const toolbar = getDefaultToolbar(isMobile()).filter(item => typeof item === "string" ? item !== "ai" : item.name !== "ai");
     const safeSlash = registerBuiltinSlashHint((key: string, protyle: IProtyle, hintSource: THintSource) =>
-        hintSlash(key, protyle, hintSource).filter(item => TABLE_CELL_SLASH_IDS.has(item.id)));
+        filterTableCellSlashMenuItems(hintSlash(key, protyle, hintSource, {allowCreateRef: true})));
     const hint: IProtyleOptions["hint"] = {
         extend: [{key: "((", hint: hintRef}, {key: "【【", hint: hintRef}, {key: "（（", hint: hintRef},
             {key: "[[", hint: hintRef}, {key: "#", hint: hintTag}, {key: "/", hint: safeSlash}, {key: "、", hint: safeSlash},
@@ -276,16 +281,32 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
         // 移动端正文有独立层叠上下文，源码编辑框需要挂在页面层以覆盖顶栏。
         document.body.appendChild(mobileRenderOverlay);
     }
+    const desktopOverlays = isMobile() ? [] : [fragment.protyle.toolbar.element, fragment.protyle.toolbar.subElement];
+    // 浮层与外层表格操作条共享层叠上下文，避免被页签的隔离层压住。
+    desktopOverlays.forEach(element => {
+        owner.element.appendChild(element);
+        bindEditorEvents(element);
+    });
     fragment.protyle.block.rootID = owner.block.rootID;
     fragment.protyle.block.parentID = table.dataset.nodeId;
     fragment.protyle.path = owner.path;
+    // 进入和离开未修改的单元格无需经过 Markdown 往返转换。
+    let savedBlockHTML = fragment.getBlockHTML();
+    const getSource = () => source ??= serializeTableCellRich(initialBlockHTML).markdown;
     const commit = () => {
         if (!cell.isConnected || !table.isConnected || !host.isConnected || owner.disabled || composing) {
             return;
         }
         try {
-            const serialized = serializeTableCellRich(fragment.getBlockHTML());
-            if (serialized.markdown === source) {
+            const blockHTML = fragment.getBlockHTML();
+            if (blockHTML === savedBlockHTML) {
+                contentChanged = false;
+                return;
+            }
+            const previousSource = getSource();
+            const serialized = serializeTableCellRich(blockHTML);
+            if (serialized.markdown === previousSource) {
+                savedBlockHTML = blockHTML;
                 contentChanged = false;
                 return;
             }
@@ -309,6 +330,7 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
             updateTransaction(owner, table, oldHTML, focusContext(undoSelection), {
                 doOperations: [], undoOperations: [], context: focusContext(redoSelection),
             });
+            savedBlockHTML = blockHTML;
             undoSelection = redoSelection;
             contentChanged = false;
         } catch (error) {
@@ -318,7 +340,11 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
     };
     const controller = new AbortController();
     const observer = new MutationObserver(() => {
-        if (!host.isConnected || !owner.element.isConnected) {
+        const hidden = host.closest('.tab-item[data-tabs-hidden="true"]');
+        if (hidden) {
+            hideElements(["hint", "toolbar", "util"], fragment.protyle, true);
+        }
+        if (!host.isConnected || !owner.element.isConnected || hidden) {
             finish();
         }
     });
@@ -336,6 +362,7 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
         observer.disconnect();
         fragment.destroy();
         mobileRenderOverlay?.remove();
+        desktopOverlays.forEach(element => element.remove());
         if (cell.isConnected && host.isConnected) {
             renderTableCellRich(cell);
             if (cell.hasAttribute(TABLE_CELL_RICH_ATTRIBUTE)) {
@@ -380,18 +407,22 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
     bindTableCellRichDrag(owner, cell, fragment.wysiwyg, finish, signal,
         target => openTableCellRichEditor(owner, target));
     const captureBeforeChange = () => {
-        if (!contentChanged || serializeTableCellRich(fragment.getBlockHTML()).markdown === source) {
+        if (!contentChanged || serializeTableCellRich(fragment.getBlockHTML()).markdown === getSource()) {
             undoSelection = captureRichCellSelection(fragment.wysiwyg, getSelection());
         }
     };
-    host.addEventListener("beforeinput", captureBeforeChange, {capture: true, signal});
+    const addEditorEventListener = <K extends keyof HTMLElementEventMap>(type: K,
+        listener: (event: HTMLElementEventMap[K]) => void, options?: AddEventListenerOptions) => {
+        [host, ...desktopOverlays].forEach(element => element.addEventListener(type, listener, options));
+    };
+    addEditorEventListener("beforeinput", captureBeforeChange, {capture: true, signal});
     bindLiteCodeActions(host, fragment.protyle, {
         signal,
         canEdit: () => !finished && !owner.disabled,
         beforeChange: captureBeforeChange,
         onChange: commit,
     });
-    host.addEventListener("pointerdown", event => {
+    addEditorEventListener("pointerdown", event => {
         captureBeforeChange();
         if (fragment.wysiwyg.contains(event.target as Node)) {
             hideElements(["toolbar"], fragment.protyle);
@@ -399,7 +430,7 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
         // 单元格编辑器自行接管焦点，编辑区收不到块级点击，需在此同步大纲高亮
         updateOutlineCurrentBlock(owner, cell);
     }, {capture: true, signal});
-    host.addEventListener("mousedown", event => {
+    addEditorEventListener("mousedown", event => {
         if (event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey ||
             !(event.target instanceof Element) || event.target.closest(".protyle-action, .protyle-toolbar, .protyle-table-control")) {
             return;
@@ -433,7 +464,8 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
         fragment.protyle.toolbar.element.contains(target) || fragment.protyle.toolbar.subElement.contains(target) ||
         !!(target instanceof Element && target.closest("#keyboardToolbar, #commonMenu, .b3-dialog"));
     document.addEventListener("pointerdown", event => {
-        if (belongsToEditor(event.target as Node)) {
+        if (belongsToEditor(event.target as Node) ||
+            (isIOSDevice() && isNativeTextSelectionHandleTouch(event, fragment.wysiwyg))) {
             return;
         }
         const target = event.target instanceof Element ? event.target : undefined;
@@ -466,11 +498,11 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
             commit();
         }
     }, {signal});
-    host.addEventListener("compositionstart", () => {
+    addEditorEventListener("compositionstart", () => {
         captureBeforeChange();
         composing = true;
     }, {capture: true, signal});
-    host.addEventListener("compositionend", () => {
+    addEditorEventListener("compositionend", () => {
         // 等待内部编辑器处理组合输入，再提交最终文字。
         queueMicrotask(() => {
             composing = false;
@@ -480,7 +512,7 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
             }
         });
     }, {capture: true, signal});
-    host.addEventListener("keydown", event => {
+    addEditorEventListener("keydown", event => {
         captureBeforeChange();
         const keymap = window.siyuan.config.keymap.editor.general;
         const alignment = [keymap.alignLeft, keymap.alignCenter, keymap.alignRight]
@@ -534,6 +566,9 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
                     if (leaveRichTableCell(owner, table, event.key, goalX)) {
                         finish();
                         owner.toolbar.range = getSelection().getRangeAt(0).cloneRange();
+                        if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                            scheduleCaretScroll(owner, event.key === "ArrowUp" ? "up" : "down");
+                        }
                     }
                 }
                 return;
@@ -575,7 +610,11 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
             getSelection().addRange(range);
         }
     }, {capture: true, signal});
-    observer.observe(owner.element, {childList: true, subtree: true});
+    observer.observe(owner.element, {childList: true, subtree: true, attributes: true, attributeFilter: ["data-tabs-hidden"]});
+    // 文档或布局容器被移除时也需回收挂在外部的浮层。
+    for (let parent = owner.element.parentElement; parent; parent = parent.parentElement) {
+        observer.observe(parent, {childList: true});
+    }
     fragment.focus(true);
     // 进入单元格编辑即按所属表格块同步大纲高亮
     updateOutlineCurrentBlock(owner, cell);
@@ -610,6 +649,9 @@ const mountTableCellRichEditor = async (request: object, previousEditor: typeof 
         return;
     }
     if (navigation) {
+        if (navigation.key === "ArrowUp" || navigation.key === "ArrowDown") {
+            scheduleCaretScroll(fragment.protyle, navigation.key === "ArrowUp" ? "up" : "down");
+        }
         const editables = fragment.wysiwyg.querySelectorAll<HTMLElement>('[contenteditable="true"]');
         const backward = navigation.key === "ArrowLeft" || navigation.key === "ArrowUp";
         const edit = backward ? editables[editables.length - 1] : editables[0];

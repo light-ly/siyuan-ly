@@ -1,10 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -262,4 +258,56 @@ func getAttributeViewViewCarrier(avID, blockID string) (*av.AttributeView, *av.V
 	}
 	view, err := getAttrViewViewByBlockID(attrView, blockID)
 	return attrView, view, err
+}
+
+// AttributeViewViewFieldIDs 按布局顺序返回字段 ID，包含隐藏字段。
+func AttributeViewViewFieldIDs(view *av.View) (ret []string) {
+	ret = []string{}
+	if nil == view {
+		return
+	}
+	switch view.LayoutType {
+	case av.LayoutTypeTable, av.LayoutTypeList, av.LayoutTypeCalendar:
+		if layout := view.GetTableLayout(); nil != layout {
+			for _, column := range layout.Columns {
+				if nil != column && "" != column.ID {
+					ret = append(ret, column.ID)
+				}
+			}
+		}
+	case av.LayoutTypeGallery:
+		if nil != view.Gallery {
+			for _, field := range view.Gallery.CardFields {
+				if nil != field && "" != field.ID {
+					ret = append(ret, field.ID)
+				}
+			}
+		}
+	case av.LayoutTypeKanban:
+		if nil != view.Kanban {
+			for _, field := range view.Kanban.Fields {
+				if nil != field && "" != field.ID {
+					ret = append(ret, field.ID)
+				}
+			}
+		}
+	}
+	return
+}
+
+// MoveAttributeViewViewField 在载体所属数据库的指定视图内移动字段，并保留字段配置。
+func MoveAttributeViewViewField(avID, blockID, viewID, keyID, previousKeyID string) error {
+	FlushTxQueue()
+	attrView, view, err := GetAttributeViewViewTarget(avID, blockID, viewID)
+	if nil != err {
+		return err
+	}
+	if err = sortAttributeViewViewKey(view, keyID, previousKeyID); nil != err {
+		return err
+	}
+	if err = avSaveView(attrView, blockID); nil != err {
+		return err
+	}
+	ReloadAttrView(avID)
+	return nil
 }

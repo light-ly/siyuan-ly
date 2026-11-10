@@ -49,6 +49,7 @@ size-adjust: 85%;
     let capturedTitleImage: boolean;
     let dialog: {element: HTMLElement, resize: () => void};
     let captured: {blob: Blob, width: number, height: number, x: number, y: number};
+    const suspendedColumns = new Set<HTMLElement>();
     const messages: string[] = [];
     let watermarkWidth = 0;
     class ExportDialog {
@@ -96,7 +97,13 @@ size-adjust: 85%;
     const dependencies: Record<string, unknown> = {
         "./imageLayout": layout,
         "./imageFonts": fonts,
-        "../../dialog": {Dialog: ExportDialog},
+        "../render/av/columnWindow": {suspendAVColumnWindows: (element: HTMLElement) => {
+            check.equal(element, dialog.element.querySelector(".protyle-wysiwyg"));
+            check.equal(suspendedColumns.has(element), false);
+            suspendedColumns.add(element);
+            return () => check.equal(suspendedColumns.delete(element), true);
+        }},
+        "../../dialog/mobileDialog": {MobileDialog: ExportDialog},
         "../../dialog/message": {showMessage: (message: string) => messages.push(message), hideMessage: () => {}},
         "../../util/fetch": {fetchPost: (url: string, data: {file: File, excludeTitleImage: boolean, addTitle: boolean}, callback: (response: unknown) => void) => {
             if (url === "/api/export/exportPreviewHTML") {
@@ -138,18 +145,25 @@ size-adjust: 85%;
     };
     const exported: {exportImage: (id: string, copyOnly?: boolean) => void} = new Function("exports", "require",
         `${exportSource}; return exports;`)({}, (name: string) => dependencies[name] || {});
-    const waitForActions = async (phase: string, timeout = 5000) => {
+    const waitForActions = async (phase: string, timeout = 15000) => {
         const started = Date.now();
-        while (Date.now() - started < timeout) {
+        while (true) {
             if (!document.body.contains(dialog.element) ||
                 !(dialog.element.querySelector('[data-type="copy"]') as HTMLButtonElement).disabled) {
                 return;
+            }
+            // 布局和字体处理可能阻塞计时器，恢复后先检查实际状态，再判断是否超时。
+            if (Date.now() - started >= timeout) {
+                break;
             }
             await new Promise(resolve => setTimeout(resolve, 10));
         }
         check.fail("Export actions did not become available: " + JSON.stringify({
             phase, elapsedMs: Date.now() - started, engine, mobile,
             visibility: document.visibilityState, messages, captured: !!captured,
+            copyDisabled: (dialog.element.querySelector('[data-type="copy"]') as HTMLButtonElement).disabled,
+            loading: !!dialog.element.querySelector(".fn__loading"),
+            fonts: document.fonts.status,
             table: dialog.element.querySelector("table")?.getBoundingClientRect().toJSON(),
         }));
     };
@@ -163,11 +177,12 @@ ${index === columns - 1 ? '<span class="marker" style="display:block;width:20px;
         captured = undefined;
         messages.length = 0;
         exported.exportImage("root", copyOnly);
-        await waitForActions(copyOnly ? "automatic copy" : "preview", copyOnly ? 15000 : 5000);
+        await waitForActions(copyOnly ? "automatic copy" : "preview");
         return dialog.element.querySelector<HTMLElement>(".b3-dialog__content");
     };
     const verifyCaptured = async () => {
         check.ok(captured, "No PNG captured: " + messages.join("\n"));
+        check.equal(suspendedColumns.size, 0, "capture restores column virtualization");
         const image = new Image();
         const url = URL.createObjectURL(captured.blob);
         try {
@@ -314,6 +329,7 @@ ${index === columns - 1 ? '<span class="marker" style="display:block;width:20px;
         await waitForActions("oversized image");
         check.equal(captured, undefined);
         check.ok(messages.includes("Image too large"), "Oversized image must show a size error");
+        check.equal(suspendedColumns.size, 0, "failed capture restores column virtualization");
         check.equal(large.style.overflow, "");
         large.querySelector<HTMLElement>("table").style.width = "";
         await capture();

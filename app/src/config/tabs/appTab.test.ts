@@ -13,7 +13,7 @@ type Invoke = (channel: string, data: {cmd: string; enabled?: boolean}) => Promi
 type Slot = {key: string; html: () => string; afterMount: (root: unknown) => Promise<void>};
 
 const getAccessibilitySlot = (browser: boolean, mobile: boolean, invoke?: Invoke, slotKey = "accessibilitySupport",
-                              switches: string[] = []): Slot | undefined => {
+                              switches: string[] = [], scheme = "http"): Slot | undefined => {
     const source = readFileSync(resolve(process.cwd(), "src/config/tabs/appTab.ts"), "utf8");
     const processed = parse(source, {BROWSER: browser, MOBILE: mobile}, false, true);
     const code = transpileModule(processed, {compilerOptions: {module: ModuleKind.CommonJS}}).outputText;
@@ -24,7 +24,7 @@ const getAccessibilitySlot = (browser: boolean, mobile: boolean, invoke?: Invoke
         console: {warn: (): void => undefined},
         window: {siyuan: {
             languages: new Proxy({}, {get: (_, key) => String(key)}),
-            config: {system: {isMicrosoftStore: true, networkProxy: {host: 'user:"<&@host', port: "7890", scheme: "http"}}},
+            config: {system: {isMicrosoftStore: true, networkProxy: {host: 'user:"<&@host', port: "7890", scheme}}},
         }},
         require: (name: string) => {
             if (name === "electron") {
@@ -78,6 +78,71 @@ test("network proxy renders escaped values in every build target", () => {
         assert.ok(slot.html().includes('value="user:&quot;&lt;&amp;@host"'));
         assert.ok(slot.html().includes('value="7890"'));
     }
+});
+
+test("network proxy keeps its layout space and hides only the manual inputs", () => {
+    const manual = getAccessibilitySlot(true, false, undefined, "networkProxy");
+    assert.ok(manual);
+    assert.ok(manual.html().includes('<div id="networkProxyManual" class="fn__flex fn__flex-1">'));
+    assert.equal(manual.html().includes('class="b3-text-field fn__flex-1 fn__none"'), false);
+
+    for (const scheme of ["system", ""]) {
+        const automatic = getAccessibilitySlot(true, false, undefined, "networkProxy", [], scheme);
+        assert.ok(automatic);
+        assert.ok(automatic.html().includes('<div id="networkProxyManual" class="fn__flex fn__flex-1">'));
+        assert.equal(automatic.html().match(/class="b3-text-field fn__flex-1 fn__none"/g)?.length, 2);
+    }
+});
+
+const proxyControls = (scheme: string) => {
+    let change: () => Promise<void>;
+    const schemeElement = {
+        value: scheme,
+        addEventListener: (_: string, listener: () => Promise<void>) => { change = listener; },
+    };
+    const hidden: Record<string, boolean[]> = {host: [], port: []};
+    const field = (name: string) => ({
+        value: "",
+        classList: {
+            toggle: (className: string, force?: boolean): void => {
+                assert.equal(className, "fn__none");
+                hidden[name].push(Boolean(force));
+            },
+        },
+    });
+    const host = field("host");
+    const port = field("port");
+    const root = {
+        querySelector: (selector: string) => {
+            if (selector === "#networkProxyScheme") {
+                return schemeElement;
+            }
+            if (selector === "#networkProxyHost") {
+                return host;
+            }
+            if (selector === "#networkProxyPort") {
+                return port;
+            }
+            return {addEventListener: (): void => undefined};
+        },
+    };
+    return {root, schemeElement, hidden, change: () => change()};
+};
+
+test("network proxy hides host and port inputs unless a manual scheme is selected", async () => {
+    const cases = [["http", false], ["https", false], ["socks5", false], ["system", true], ["", true]] as const;
+    for (const [scheme, hidden] of cases) {
+        const slot = getAccessibilitySlot(true, false, undefined, "networkProxy");
+        const view = proxyControls(scheme);
+        await slot.afterMount(view.root);
+        assert.deepEqual(view.hidden, {host: [hidden], port: [hidden]}, `scheme ${scheme}`);
+    }
+    const slot = getAccessibilitySlot(true, false, undefined, "networkProxy");
+    const view = proxyControls("http");
+    await slot.afterMount(view.root);
+    view.schemeElement.value = "system";
+    await view.change();
+    assert.deepEqual(view.hidden, {host: [false, true], port: [false, true]});
 });
 
 const controls = () => {
@@ -152,4 +217,71 @@ test("save failures restore the previous choice and allow retry", async () => {
     assert.equal(view.input.checked, false);
     assert.equal(view.input.disabled, false);
     assert.equal(view.status.textContent, "accessibilitySupportError");
+});
+
+test("mobile workspace deletion awaits success and keeps list-only cancellation separate", async () => {
+    const source = readFileSync(resolve(process.cwd(), "src/config/tabs/appTab.ts"), "utf8");
+    const code = transpileModule(parse(source, {BROWSER: false, MOBILE: true}, false, true), {
+        compilerOptions: {module: ModuleKind.CommonJS},
+    }).outputText;
+    let slot: Slot;
+    let click: (event: unknown) => void;
+    let confirmation: unknown[];
+    let complete: (response: {code: number}) => void;
+    let reads = 0;
+    const requests: Array<{url: string; path: string}> = [];
+    const current = "/temporary/current";
+    const target = "/temporary/disposable";
+    const exports: {registerAppTab?: (tab: unknown) => void} = {};
+    runInNewContext(code, {exports, process: {platform: "android"},
+        window: {siyuan: {config: {system: {workspaceDir: current, isMicrosoftStore: true}},
+            languages: {removeWorkspacePhysically: "Delete ${x}"}}},
+        require: (name: string) => {
+            if (name === "../../protyle/util/compatibility") return {isInMobileApp: () => true};
+            if (name === "../../util/hostCapabilities") return {getHostCapabilities: () => ({workspaces: true})};
+            if (name === "../../util/escape") return {escapeAttr: (value: string) => value, escapeHtml: (value: string) => value};
+            if (name === "../../dialog/mobileConfirmDialog") return {
+                mobileConfirmDialog: (...args: unknown[]) => { confirmation = args; },
+            };
+            if (name === "../../util/fetch") return {
+                fetchPost: (url: string, data: {path: string}, callback?: (response: unknown) => void) => {
+                    if (url.endsWith("getWorkspaces")) { reads++; callback?.({data: []}); }
+                    else { requests.push({url, path: data.path}); callback?.({code: 0}); }
+                },
+                fetchSyncPost: (url: string, data: {path: string}) => {
+                    requests.push({url, path: data.path});
+                    return new Promise(resolve => { complete = resolve; });
+                },
+            };
+            return new Proxy({}, {get: () => () => ""});
+        },
+    });
+    const group = new Proxy({}, {get: (_, method) => (value: Slot) => {
+        if (method === "slot" && value.key === "workspaceList") slot = value;
+    }});
+    exports.registerAppTab({group: () => group});
+    const list = {innerHTML: ""};
+    await slot.afterMount({querySelector: () => list, addEventListener: (_: string, listener: typeof click) => { click = listener; }});
+    const remove = (path: string) => click({target: {id: "", getAttribute: () => "remove",
+        parentElement: {getAttribute: () => path}}, preventDefault() {}, stopPropagation() {}});
+    remove(target);
+    assert.equal((confirmation[7] as {awaitConfirm: boolean}).awaitConfirm, true);
+    const confirm = confirmation[2] as () => Promise<boolean>;
+    const cancel = confirmation[3] as () => void;
+    const failed = confirm();
+    assert.equal(reads, 1);
+    complete({code: -1});
+    assert.equal(await failed, false);
+    assert.equal(reads, 1);
+    const retry = confirm();
+    complete({code: 0});
+    assert.equal(await retry, true);
+    assert.equal(reads, 2);
+    cancel();
+    assert.equal(requests.at(-1).url, "/api/system/removeWorkspaceDir");
+    assert.equal(requests.at(-1).path, target);
+    assert.equal(requests.filter(item => item.url.endsWith("removeWorkspaceDirPhysically")).length, 2);
+    remove(current);
+    assert.equal(requests.at(-1).url, "/api/system/removeWorkspaceDir");
+    assert.equal(requests.at(-1).path, current);
 });

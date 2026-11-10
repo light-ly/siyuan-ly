@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
@@ -53,5 +57,68 @@ func TestParseStdMdValidFrontMatterCompatibility(t *testing.T) {
 	if tree.Root.FirstChild.Type != ast.NodeCodeBlock ||
 		!strings.Contains(tree.Root.FirstChild.ChildByType(ast.NodeCodeBlockCode).TokensStr(), "title: Note") {
 		t.Fatal("valid front matter was not preserved as YAML code")
+	}
+}
+
+func TestParseStdMdTagsTypes(t *testing.T) {
+	for _, tc := range []struct {
+		name, yaml, tags string
+	}{
+		{"string", "tags: ' book, note '", "book, note"},
+		{"list", "tags: [note, 1111]", "note,1111"},
+		{"empty", "tags:", ""},
+		{"integer", "tags: 2026", ""},
+		{"boolean", "tags: true", ""},
+		{"mapping", "tags: {name: note}", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := "---\ntitle: Note\n" + tc.yaml + "\n---\n\nBody\n"
+			tree, _, title, _ := parseStdMd([]byte(source), false)
+			if title != "Note" || tree.Root.IALAttr("tags") != tc.tags {
+				t.Fatalf("unexpected metadata: title=%q, tags=%q", title, tree.Root.IALAttr("tags"))
+			}
+			code := tree.Root.FirstChild.ChildByType(ast.NodeCodeBlockCode)
+			if code == nil || !strings.Contains(code.TokensStr(), tc.yaml) {
+				t.Fatal("original metadata was not preserved")
+			}
+			if body := tree.Root.ChildByType(ast.NodeParagraph); body == nil || body.Text() != "Body" {
+				t.Fatalf("body was not preserved: %v", body)
+			}
+		})
+	}
+}
+
+func TestParseStdMdEmptyFrontMatter(t *testing.T) {
+	for _, header := range []string{"", "\n", " \n\t\n", "# comment\n# another comment\n"} {
+		for _, newline := range []string{"\n", "\r\n"} {
+			source := strings.ReplaceAll("---\n"+header+"---\n\nBody\n", "\n", newline)
+			tree, id, title, updated := parseStdMd([]byte(source), false)
+			if id != "" || title != "" || updated != "" {
+				t.Fatalf("unexpected attributes: %q %q %q", id, title, updated)
+			}
+			bodies := 0
+			ast.Walk(tree.Root, func(n *ast.Node, entering bool) ast.WalkStatus {
+				if !entering {
+					return ast.WalkContinue
+				}
+				if n.Type == ast.NodeThematicBreak {
+					t.Fatalf("empty front matter became separator: %q", source)
+				}
+				if n.Type == ast.NodeParagraph && n.Text() == "Body" {
+					bodies++
+				}
+				return ast.WalkContinue
+			})
+			if bodies != 1 {
+				t.Fatalf("body count = %d", bodies)
+			}
+		}
+	}
+}
+
+func TestParseStdMdNegativeZero(t *testing.T) {
+	tree, _, title, _ := parseStdMd([]byte("---\ntitle: -0\nnumber: -0\n---\nBody\n"), false)
+	if title != "-0" || tree.Root.IALAttr("custom-number") != "-0" {
+		t.Fatalf("negative zero lost its sign: %q %v", title, tree.Root.KramdownIAL)
 	}
 }

@@ -100,8 +100,8 @@ const genSwitchQueryItemHtml = (item: SwitchQueryItem): string => {
     }
 };
 
-export const genButtonHtml = (id: string, label: string, icon: string): string =>
-    `<button class="b3-button b3-button--outline fn__flex-center fn__size200" id="${id}">
+export const genButtonHtml = (id: string, label: string, icon: string, hidden = false): string =>
+    `<button class="b3-button b3-button--outline fn__flex-center fn__size200${hidden ? " fn__none" : ""}" id="${id}">
         <svg><use xlink:href="#${icon}"></use></svg>
         ${label}
     </button>`;
@@ -141,7 +141,7 @@ export const genTextPairHtml = (
 const genStackRight = (r: StackRight): string => {
     switch (r.kind) {
         case "button":
-            return genButtonHtml(r.id, r.label, r.icon);
+            return genButtonHtml(r.id, r.label, r.icon, typeof r.hidden === "function" ? r.hidden() : r.hidden);
         case "select":
             return genSelectOptionsHtml(r.id, r.options, r.readConfig() as number | string);
         case "number":
@@ -271,11 +271,8 @@ export const genConfigGroup = (itemsHtml: string, title?: string, attrs?: Record
     const attrsHtml = attrs
         ? Object.entries(attrs).map(([key, value]) => ` ${key}="${escapeAttr(value)}"`).join("")
         : "";
-    const toggle = title && attrs?.["data-config-group-id"]
-        ? `<button type="button" class="block__icon block__icon--show block__icon--tap" data-action="toggle-config-group" aria-expanded="true" aria-label="${escapeAttr(window.siyuan.languages.collapse + " - " + title)}"><svg><use xlink:href="#iconDown"></use></svg></button>`
-        : "";
     const titleHtml = title
-        ? `<div class="config-title${toggle ? " config-title--action" : ""}">${toggle ? `<span class="fn__flex-1">${title}</span>${toggle}` : title}</div>`
+        ? `<div class="config-title">${title}</div>`
         : "";
     return `<div class="config-group"${attrsHtml}>${titleHtml}<div class="config-items">${itemsHtml}</div></div>`;
 };

@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package api
 
@@ -21,20 +9,20 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/88250/gulu"
 	"github.com/gin-gonic/gin"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/apicontract"
 	"github.com/siyuan-note/siyuan/kernel/av"
 	"github.com/siyuan-note/siyuan/kernel/model"
+	"github.com/siyuan-note/siyuan/kernel/sql"
+	"github.com/siyuan-note/siyuan/kernel/templatehttp"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
 var removeUnusedAttributeView = contractHandler(apicontract.RemoveUnusedAttributeView, func(c *gin.Context, request apicontract.RemoveUnusedAttributeViewRequest) apicontract.Response[apicontract.AVIDData] {
-	ret := gulu.Ret.NewResult()
-	if util.InvalidIDPattern(request.ID, ret) {
-		return contractFailure[apicontract.AVIDData](ret)
+	if err := util.ValidateID(request.ID); err != nil {
+		return apicontract.FailureFrom[apicontract.AVIDData](err)
 	}
 	if err := model.RemoveUnusedAttributeView(request.ID); err != nil {
 		return apicontract.Failure[apicontract.AVIDData](-1, err.Error())
@@ -76,7 +64,7 @@ var getAttributeViewItemStatuses = contractHandler(apicontract.GetAttributeViewI
 	if err := holdAttributeViewRequest(c, request.BlockID, request.ID); err != nil {
 		return apicontract.Failure[map[string]string](-1, model.Conf.Language(314))
 	}
-	values, err := model.GetAttributeViewItemStatuses(request.BlockID, request.ID, request.ViewID, request.Query, append([]string{}, request.ItemIDs...))
+	values, err := model.GetAttributeViewItemStatusesWithNested(request.BlockID, request.ID, request.ViewID, request.Query, append([]string{}, request.ItemIDs...), fromContractAVNestedRequest(request.Nested))
 	if err != nil {
 		return apicontract.Failure[map[string]string](-1, err.Error())
 	}
@@ -207,6 +195,21 @@ var setDatabaseBlockView = contractHandler(apicontract.SetDatabaseBlockView, fun
 })
 
 var getAttributeViewPrimaryKeyValues = contractHandler(apicontract.GetAttributeViewPrimaryKeyValues, func(c *gin.Context, request apicontract.GetAttributeViewPrimaryKeyValuesRequest) apicontract.Response[apicontract.AVPrimaryValuesData] {
+	if dependency := request.RelationDependencyContext; dependency != nil {
+		if model.IsReadOnlyRoleContext(c) {
+			return apicontract.Failure[apicontract.AVPrimaryValuesData](-1, av.ErrAttributeViewNotFound.Error())
+		}
+		context := fromContractAVRelationContext(&dependency.RelationContext)
+		if err := holdRelationDetailRequest(c, request.BlockID, context.SourceAvID, context); err != nil {
+			return apicontract.Failure[apicontract.AVPrimaryValuesData](-1, err.Error())
+		}
+		name, blockIDs, rows, total, err := model.GetAttributeViewRelationDependencyPrimaryValues(request.ID, request.BlockID, context,
+			dependency.RelationKeyIDs, request.Keyword, avNonemptyStrings(request.BlockIDs), avPage(request.Page, 1), avPage(request.PageSize, -1))
+		if err != nil {
+			return apicontract.Failure[apicontract.AVPrimaryValuesData](-1, err.Error())
+		}
+		return apicontract.Success(apicontract.AVPrimaryValuesData{Name: name, BlockIDs: blockIDs, Rows: toContractAVKeyValues(rows), Total: total})
+	}
 	name, blockIDs, rows, total, err := model.GetAttributeViewPrimaryKeyValues(request.ID, request.Keyword, avNonemptyStrings(request.BlockIDs), avPage(request.Page, 1), avPage(request.PageSize, -1))
 	if err != nil {
 		return apicontract.Failure[apicontract.AVPrimaryValuesData](-1, err.Error())
@@ -219,8 +222,20 @@ var getAttributeViewRelationCandidates = contractHandler(apicontract.GetAttribut
 	if avID == "" {
 		avID = request.ID
 	}
-	if request.IncludeNewItemPreview || request.BlockID != "" {
-		if err := holdAttributeViewRequest(c, request.BlockID, avID); err != nil {
+	relationContext := fromContractAVRelationContext(request.RelationContext)
+	cellContext := fromContractAVRelationCellContext(request.RelationCellContext)
+	if cellContext != nil && (relationContext != nil || model.IsReadOnlyRoleContext(c)) {
+		return apicontract.Failure[apicontract.AVRelationCandidatesData](-1, "invalid relation cell context")
+	}
+	storageContext := relationContext
+	if cellContext != nil {
+		storageContext = &cellContext.RelationContext
+	}
+	if storageContext == nil && request.BlockID != "" {
+		storageContext = &model.AttributeViewRelationContext{SourceAvID: avID}
+	}
+	if storageContext != nil || request.IncludeNewItemPreview || request.BlockID != "" {
+		if err := holdRelationDetailRequest(c, request.BlockID, avID, storageContext); err != nil {
 			return apicontract.Failure[apicontract.AVRelationCandidatesData](-1, err.Error())
 		}
 	}
@@ -228,19 +243,43 @@ var getAttributeViewRelationCandidates = contractHandler(apicontract.GetAttribut
 	if request.Sort != nil {
 		candidateSort = &av.ViewSort{Column: request.Sort.Column, Order: av.SortOrder(request.Sort.Order)}
 	}
-	name, blockIDs, colors, columns, selectedRows, rows, total, err := model.GetAttributeViewRelationCandidates(avID, request.KeyID, request.Keyword, avNonemptyStrings(request.SelectedBlockIDs), avPage(request.Page, 1), avPage(request.PageSize, -1), candidateSort, request.BlockID)
+	var name string
+	var blockIDs []string
+	var colors []*av.AttributeViewCustomColor
+	var columns []*av.TableColumn
+	var selectedRows, rows []*av.TableRow
+	var total int
+	var err error
+	if cellContext != nil {
+		name, blockIDs, colors, columns, selectedRows, rows, total, err = model.GetAttributeViewRelationCellCandidates(avID, request.KeyID, request.BlockID, request.Keyword, avNonemptyStrings(request.SelectedBlockIDs), avPage(request.Page, 1), avPage(request.PageSize, -1), candidateSort, avNonemptyStrings(request.ExcludeItemIDs), cellContext)
+	} else {
+		name, blockIDs, colors, columns, selectedRows, rows, total, err = model.GetAttributeViewRelationDetailCandidates(avID, request.KeyID, request.Keyword, avNonemptyStrings(request.SelectedBlockIDs), avPage(request.Page, 1), avPage(request.PageSize, -1), candidateSort, avNonemptyStrings(request.ExcludeItemIDs), relationContext, request.BlockID)
+	}
 	if err != nil {
 		return apicontract.Failure[apicontract.AVRelationCandidatesData](-1, err.Error())
 	}
 	notebookID := ""
-	if len(blockIDs) > 0 {
+	if storageContext != nil {
+		boxID, _ := storageContext.StorageContext()
+		notebookID = boxID
+		if len(blockIDs) > 0 {
+			if tree := treenode.GetBlockTreeInExactBox(blockIDs[0], boxID); tree != nil {
+				notebookID = tree.BoxID
+			}
+		}
+	} else if len(blockIDs) > 0 {
 		if tree := treenode.GetBlockTree(blockIDs[0]); tree != nil {
 			notebookID = tree.BoxID
 		}
 	}
 	data := apicontract.AVRelationCandidatesData{Name: name, BlockIDs: blockIDs, CustomColors: avContractSlice(colors, toContractAVAttributeViewCustomColor), NotebookID: notebookID, Columns: avContractSlice(columns, toContractAVTableColumn), SelectedRows: avContractSlice(selectedRows, toContractAVTableRow), Rows: avContractSlice(rows, toContractAVTableRow), Total: total}
 	if request.IncludeNewItemPreview {
-		preview := model.PreviewAttributeViewRelationItem(avID, request.BlockID, request.KeyID, request.Keyword)
+		var preview *model.AttributeViewRelationItemPreview
+		if cellContext != nil {
+			preview = model.PreviewAttributeViewRelationCellItem(avID, request.BlockID, request.KeyID, request.Keyword, cellContext)
+		} else {
+			preview = model.PreviewAttributeViewRelationItem(avID, request.BlockID, request.KeyID, request.Keyword, relationContext)
+		}
 		data.NewItemPreview = &apicontract.AVRelationItemPreview{TemplateID: preview.TemplateID,
 			PrimaryKey: preview.PrimaryKey, CreatedAt: preview.CreatedAt, Error: preview.Error,
 			HasPrimaryKeyTemplate: preview.HasPrimaryKeyTemplate, InputPrimaryKey: preview.InputPrimaryKey}
@@ -341,19 +380,72 @@ var searchAttributeViewRelationKey = contractHandler(apicontract.SearchAttribute
 })
 
 var getAttributeView = contractHandler(apicontract.GetAttributeView, func(c *gin.Context, request apicontract.GetAttributeViewRequest) apicontract.Response[apicontract.AVData] {
+	if dependency := request.RelationDependencyContext; dependency != nil {
+		if request.RelationFieldContext != nil || model.IsReadOnlyRoleContext(c) {
+			return apicontract.Failure[apicontract.AVData](-1, av.ErrAttributeViewNotFound.Error())
+		}
+		context := fromContractAVRelationContext(&dependency.RelationContext)
+		if err := holdRelationDetailRequest(c, request.BlockID, context.SourceAvID, context); err != nil {
+			return apicontract.Failure[apicontract.AVData](-1, err.Error())
+		}
+		value, err := model.GetAttributeViewRelationDependencyMetadata(request.ID, request.BlockID, context, dependency.RelationKeyIDs)
+		if err != nil {
+			return apicontract.Failure[apicontract.AVData](-1, err.Error())
+		}
+		return apicontract.Success(apicontract.AVData{Av: toContractAVAttributeViewData(value)})
+	}
+	if field := request.RelationFieldContext; field != nil {
+		if model.IsReadOnlyRoleContext(c) {
+			return apicontract.Failure[apicontract.AVData](-1, av.ErrAttributeViewNotFound.Error())
+		}
+		context := &model.AttributeViewRelationContext{SourceAvID: field.SourceAvID, RelationKeyID: field.RelationKeyID}
+		if err := holdRelationDetailRequest(c, request.BlockID, field.SourceAvID, context); err != nil {
+			return apicontract.Failure[apicontract.AVData](-1, err.Error())
+		}
+		value, err := model.GetAttributeViewRelationFieldMetadata(request.ID, request.BlockID, context)
+		if err != nil {
+			return apicontract.Failure[apicontract.AVData](-1, err.Error())
+		}
+		return apicontract.Success(apicontract.AVData{Av: toContractAVAttributeViewData(value)})
+	}
+	if request.BlockID != "" {
+		if model.IsReadOnlyRoleContext(c) {
+			return apicontract.Failure[apicontract.AVData](-1, av.ErrAttributeViewNotFound.Error())
+		}
+		context := &model.AttributeViewRelationContext{SourceAvID: request.ID}
+		if err := holdRelationDetailRequest(c, request.BlockID, request.ID, context); err != nil {
+			return apicontract.Failure[apicontract.AVData](-1, err.Error())
+		}
+		value, err := model.GetAttributeViewByCarrier(request.BlockID, context)
+		if err != nil {
+			return apicontract.Failure[apicontract.AVData](-1, err.Error())
+		}
+		return apicontract.Success(apicontract.AVData{Av: toContractAVAttributeViewData(value)})
+	}
 	return apicontract.Success(apicontract.AVData{Av: toContractAVAttributeViewData(model.NewAttributeViewData(model.GetAttributeView(request.ID)))})
 })
 
 var getAttributeViewPasteRows = contractHandler(apicontract.GetAttributeViewPasteRows, func(c *gin.Context, request apicontract.GetAttributeViewPasteRowsRequest) apicontract.Response[apicontract.AVPasteRowsData] {
-	ret := gulu.Ret.NewResult()
-	if util.InvalidIDPattern(request.AvID, ret) || util.InvalidIDPattern(request.BlockID, ret) || util.InvalidIDPattern(request.StartItemID, ret) || (request.ViewID != "" && util.InvalidIDPattern(request.ViewID, ret)) || (request.GroupID != "" && util.InvalidIDPattern(request.GroupID, ret)) {
-		return contractFailure[apicontract.AVPasteRowsData](ret)
+	if err := util.ValidateID(request.AvID); err != nil {
+		return apicontract.FailureFrom[apicontract.AVPasteRowsData](err)
+	}
+	if err := util.ValidateID(request.BlockID); err != nil {
+		return apicontract.FailureFrom[apicontract.AVPasteRowsData](err)
+	}
+	if err := util.ValidateID(request.StartItemID); err != nil {
+		return apicontract.FailureFrom[apicontract.AVPasteRowsData](err)
+	}
+	if err := util.ValidateOptionalID(request.ViewID); err != nil {
+		return apicontract.FailureFrom[apicontract.AVPasteRowsData](err)
+	}
+	if err := util.ValidateOptionalID(request.GroupID); err != nil {
+		return apicontract.FailureFrom[apicontract.AVPasteRowsData](err)
 	}
 	count := int(request.Count)
 	if request.Count != float64(count) || count < 1 || count > 100000 {
 		return apicontract.Failure[apicontract.AVPasteRowsData](-1, "invalid paste row count")
 	}
-	view, keys, err := model.GetAttributeViewPasteRows(request.BlockID, request.AvID, request.ViewID, request.GroupID, request.Query, request.StartItemID, count)
+	view, keys, err := model.GetAttributeViewPasteRowsWithItems(request.BlockID, request.AvID, request.ViewID, request.GroupID, request.Query, request.StartItemID, count, request.ItemIDs)
 	if err != nil {
 		return apicontract.Failure[apicontract.AVPasteRowsData](-1, err.Error())
 	}
@@ -361,9 +453,11 @@ var getAttributeViewPasteRows = contractHandler(apicontract.GetAttributeViewPast
 })
 
 var getAttributeViewFieldViews = contractHandler(apicontract.GetAttributeViewFieldViews, func(c *gin.Context, request apicontract.GetAttributeViewFieldViewsRequest) apicontract.Response[apicontract.AVFieldViewsData] {
-	ret := gulu.Ret.NewResult()
-	if util.InvalidIDPattern(request.AvID, ret) || util.InvalidIDPattern(request.KeyID, ret) {
-		return contractFailure[apicontract.AVFieldViewsData](ret)
+	if err := util.ValidateID(request.AvID); err != nil {
+		return apicontract.FailureFrom[apicontract.AVFieldViewsData](err)
+	}
+	if err := util.ValidateID(request.KeyID); err != nil {
+		return apicontract.FailureFrom[apicontract.AVFieldViewsData](err)
 	}
 	views, err := model.GetAttributeViewFieldViews(request.AvID, request.KeyID)
 	if err != nil {
@@ -373,15 +467,28 @@ var getAttributeViewFieldViews = contractHandler(apicontract.GetAttributeViewFie
 })
 
 var createAttributeViewItem = contractHandler(apicontract.CreateAttributeViewItem, func(c *gin.Context, request apicontract.CreateAttributeViewItemRequest) apicontract.Response[apicontract.AVCreateItemResult] {
-	value, err := model.CreateAttributeViewItem(request.AvID, request.BlockID, request.ViewID, request.TemplateID, request.PreviousID, request.GroupID, request.CalendarDate)
-	return createAVItemResponse(value, err, request.App, request.Session)
+	selection, err := documentSelectionModel(request.Selection)
+	if err != nil {
+		return apicontract.Failure[apicontract.AVCreateItemResult](-1, err.Error())
+	}
+	value, err := model.CreateAttributeViewItemWithSelection(request.AvID, request.BlockID, request.ViewID, request.TemplateID, request.PreviousID, request.GroupID, request.CalendarDate, selection)
+	return createAVItemResponse(c, value, err, request.App, request.Session)
 })
 
 var createAttributeViewRelationItem = contractHandler(apicontract.CreateAttributeViewRelationItem, func(c *gin.Context, request apicontract.CreateAttributeViewRelationItemRequest) apicontract.Response[apicontract.AVCreateItemResult] {
 	if err := holdEncryptedBlockRequests(c, "", []string{request.BlockID}, false); err != nil {
 		return apicontract.Failure[apicontract.AVCreateItemResult](-1, err.Error())
 	}
-	if err := holdAttributeViewRequest(c, request.BlockID, request.AvID); err != nil {
+	relationContext := fromContractAVRelationContext(request.RelationContext)
+	cellContext := fromContractAVRelationCellContext(request.RelationCellContext)
+	if cellContext != nil && (relationContext != nil || model.IsReadOnlyRoleContext(c)) {
+		return apicontract.Failure[apicontract.AVCreateItemResult](-1, "invalid relation cell context")
+	}
+	storageContext := relationContext
+	if cellContext != nil {
+		storageContext = &cellContext.RelationContext
+	}
+	if err := holdRelationDetailRequest(c, request.BlockID, request.AvID, storageContext); err != nil {
 		return apicontract.Failure[apicontract.AVCreateItemResult](-1, err.Error())
 	}
 	var preview *model.AttributeViewRelationItemPreview
@@ -396,8 +503,24 @@ var createAttributeViewRelationItem = contractHandler(apicontract.CreateAttribut
 		}
 		cells = append(cells, &model.AttributeViewRelationItemCell{ItemID: cell.ItemID, RelatedItemIDs: cell.RelatedItemIDs})
 	}
-	result, err := model.CreateAttributeViewRelationItem(request.AvID, request.BlockID, request.KeyID, request.Keyword, cells, preview, request.UseInputName)
+	selection, err := documentSelectionModel(request.Selection)
 	if err != nil {
+		return apicontract.Failure[apicontract.AVCreateItemResult](-1, err.Error())
+	}
+	var result *model.CreateAttributeViewItemResult
+	if cellContext != nil {
+		result, err = model.CreateAttributeViewRelationCellItem(request.AvID, request.BlockID, request.KeyID, request.Keyword, cells, preview, request.UseInputName, cellContext, selection)
+	} else if request.RelationContext != nil {
+		result, err = model.CreateAttributeViewRelationDetailItem(request.AvID, request.BlockID, request.KeyID, request.Keyword, cells, preview, request.UseInputName, relationContext, selection)
+	} else {
+		result, err = model.CreateAttributeViewRelationItem(request.AvID, request.BlockID, request.KeyID, request.Keyword, cells, preview, request.UseInputName, selection)
+	}
+	if err != nil {
+		if failure, leaseErr := documentSelectionFailure(c, err); leaseErr != nil {
+			return apicontract.Failure[apicontract.AVCreateItemResult](-1, leaseErr.Error())
+		} else if failure != nil {
+			return apicontract.CreateAttributeViewRelationItem.FailureWithData(-1, err.Error(), apicontract.NewAVCreateItemSelectionFailure(*failure))
+		}
 		if errors.Is(err, model.ErrBoxNotFound) {
 			return apicontract.CreateAttributeViewRelationItem.FailureWithData(1, "", apicontract.NewAVCreateItemResultError(apicontract.AVUnavailableNotebook{UnavailableNotebook: true}))
 		}
@@ -408,13 +531,26 @@ var createAttributeViewRelationItem = contractHandler(apicontract.CreateAttribut
 })
 
 var createAttributeViewItemWithMarkdown = contractHandler(apicontract.CreateAttributeViewItemWithMarkdown, func(c *gin.Context, request apicontract.CreateAttributeViewItemWithMarkdownRequest) apicontract.Response[apicontract.AVCreateItemResult] {
-	value, err := model.CreateAttributeViewItemWithMarkdown(request.AvID, request.BlockID, request.ViewID, request.TemplateID, request.PreviousID, request.GroupID, &model.CreateAttributeViewItemMarkdown{Title: request.Title, Markdown: request.Markdown, Tags: request.Tags, WithMath: request.WithMath, ClippingHref: request.ClippingHref, ListDocTree: request.ListDocTree})
-	return createAVItemResponse(value, err, request.App, request.Session)
+	selection, err := documentSelectionModel(request.Selection)
+	if err != nil {
+		return apicontract.Failure[apicontract.AVCreateItemResult](-1, err.Error())
+	}
+	value, err := model.CreateAttributeViewItemWithMarkdown(request.AvID, request.BlockID, request.ViewID, request.TemplateID, request.PreviousID, request.GroupID, &model.CreateAttributeViewItemMarkdown{Title: request.Title, Markdown: request.Markdown, Tags: request.Tags, WithMath: request.WithMath, ClippingHref: request.ClippingHref, ListDocTree: request.ListDocTree}, selection)
+	return createAVItemResponse(c, value, err, request.App, request.Session)
 })
 
 var createAttributeViewItemDocs = contractHandler(apicontract.CreateAttributeViewItemDocs, func(c *gin.Context, request apicontract.CreateAttributeViewItemDocsRequest) apicontract.Response[apicontract.AVCreateItemDocsResult] {
-	value, err := model.CreateAttributeViewItemDocs(request.AvID, request.BlockID, request.SaveMode, avNonemptyStrings(request.ItemIDs))
+	selection, err := documentSelectionModel(request.Selection)
 	if err != nil {
+		return apicontract.Failure[apicontract.AVCreateItemDocsResult](-1, err.Error())
+	}
+	value, err := model.CreateAttributeViewItemDocs(request.AvID, request.BlockID, request.SaveMode, avNonemptyStrings(request.ItemIDs), selection)
+	if err != nil {
+		if failure, leaseErr := documentSelectionFailure(c, err); leaseErr != nil {
+			return apicontract.Failure[apicontract.AVCreateItemDocsResult](-1, leaseErr.Error())
+		} else if failure != nil {
+			return apicontract.CreateAttributeViewItemDocs.FailureWithData(-1, err.Error(), apicontract.NewAVCreateItemDocsSelectionFailure(*failure))
+		}
 		if errors.Is(err, model.ErrBoxNotFound) {
 			return apicontract.CreateAttributeViewItemDocs.FailureWithData(1, "", apicontract.NewAVCreateItemDocsResultError(apicontract.AVUnavailableNotebook{UnavailableNotebook: true}))
 		}
@@ -442,7 +578,7 @@ var renderSnapshotAttributeView = contractHandler(apicontract.RenderSnapshotAttr
 	if err = holdEncryptedBoxRequest(c, boxID); err != nil {
 		return apicontract.Failure[apicontract.AVArchiveRenderData](-1, model.Conf.Language(314))
 	}
-	view, attrView, err := model.RenderRepoSnapshotAttributeView(request.Snapshot, request.ID, request.ViewID, request.CarrierViewID, fromContractAVCalendarRange(request.CalendarRange))
+	view, attrView, err := model.RenderRepoSnapshotAttributeViewWithPagingOptions(request.Snapshot, request.ID, request.ViewID, request.CarrierViewID, request.Query, avPage(request.Page, 1), avPage(request.PageSize, -1), avGroupPaging(request.GroupPaging), model.AttributeViewRenderOptions{CalendarRange: fromContractAVCalendarRange(request.CalendarRange), Nested: fromContractAVNestedRequest(request.Nested)})
 	if err != nil {
 		return apicontract.Failure[apicontract.AVArchiveRenderData](-1, err.Error())
 	}
@@ -460,7 +596,7 @@ var renderHistoryAttributeView = contractHandler(apicontract.RenderHistoryAttrib
 	if err = holdEncryptedBoxRequest(c, boxID); err != nil {
 		return apicontract.Failure[apicontract.AVArchiveRenderData](-1, model.Conf.Language(314))
 	}
-	view, attrView, err := model.RenderHistoryAttributeView(request.ID, request.ViewID, request.CarrierViewID, request.Query, avPage(request.Page, 1), avPage(request.PageSize, -1), avGroupPaging(request.GroupPaging), request.Created, fromContractAVCalendarRange(request.CalendarRange))
+	view, attrView, err := model.RenderHistoryAttributeViewWithOptions(request.ID, request.ViewID, request.CarrierViewID, request.Query, avPage(request.Page, 1), avPage(request.PageSize, -1), avGroupPaging(request.GroupPaging), request.Created, model.AttributeViewRenderOptions{CalendarRange: fromContractAVCalendarRange(request.CalendarRange), Nested: fromContractAVNestedRequest(request.Nested)})
 	if err != nil {
 		return apicontract.Failure[apicontract.AVArchiveRenderData](-1, err.Error())
 	}
@@ -468,7 +604,13 @@ var renderHistoryAttributeView = contractHandler(apicontract.RenderHistoryAttrib
 })
 
 var renderAttributeView = contractHandler(apicontract.RenderAttributeView, func(c *gin.Context, request apicontract.RenderAttributeViewRequest) apicontract.Response[apicontract.AVRenderResult] {
-	if err := holdAttributeViewRequest(c, request.BlockID, request.ID); err != nil {
+	relationContext := fromContractAVRelationContext(request.RelationContext)
+	if request.RelationContext != nil {
+		if model.IsReadOnlyRoleContext(c) {
+			return apicontract.Failure[apicontract.AVRenderResult](-1, av.ErrAttributeViewNotFound.Error())
+		}
+	}
+	if err := holdRelationDetailRequest(c, request.BlockID, request.ID, relationContext); err != nil {
 		return apicontract.Failure[apicontract.AVRenderResult](-1, model.Conf.Language(314))
 	}
 	readOnly := model.IsReadOnlyRoleContext(c)
@@ -486,9 +628,32 @@ var renderAttributeView = contractHandler(apicontract.RenderAttributeView, func(
 	if request.CreateIfNotExist != nil {
 		create = *request.CreateIfNotExist
 	}
-	return renderAttrView(request.BlockID, request.ID, request.ViewID, request.Query, avPage(request.Page, 1), avPage(request.PageSize, -1), avGroupPaging(request.GroupPaging), av.LayoutType(request.InitialLayout), create, request.IgnoreRows, request.TargetItemID, request.TargetGroupID, filter, readOnly, model.AttributeViewRenderOptions{
-		CalendarRange: fromContractAVCalendarRange(request.CalendarRange), TemporarySort: fromContractAVViewSort(request.TemporarySort),
-	})
+	execution, executionErr := startTemplateHTTP(c, "attribute-view:"+request.ID+":"+request.BlockID)
+	if executionErr != nil {
+		return apicontract.Failure[apicontract.AVRenderResult](-1, executionErr.Error())
+	}
+	defer execution.Close()
+	options := model.AttributeViewRenderOptions{
+		RelationContext:  relationContext,
+		TemporaryFilters: avContractSlice(request.TemporaryFilters, fromContractAVViewFilter),
+		CalendarRange:    fromContractAVCalendarRange(request.CalendarRange), TemporarySort: fromContractAVViewSort(request.TemporarySort), Nested: fromContractAVNestedRequest(request.Nested),
+	}
+	if request.DeferHTTPTemplates && !readOnly {
+		options.HTTPPreview = &sql.HTTPTemplatePreview{}
+	}
+	if execution != nil {
+		options.TemplateHTTP = execution.Runtime
+		execution.Runtime.SetAutomaticRefresh(request.AutomaticRefresh)
+		execution.Runtime.SetPreserveHTTPResults(request.PreserveHTTPResults)
+	}
+	response := renderAttrView(request.BlockID, request.ID, request.ViewID, request.Query, avPage(request.Page, 1), avPage(request.PageSize, -1), avGroupPaging(request.GroupPaging), av.LayoutType(request.InitialLayout), create, request.IgnoreRows, request.TargetItemID, request.TargetGroupID, filter, readOnly, options)
+	if response.Code() == 0 && execution != nil {
+		execution.Runtime.CommitTemplateResults()
+		if err := execution.Runtime.Err(); err != nil {
+			return apicontract.Failure[apicontract.AVRenderResult](-1, err.Error())
+		}
+	}
+	return response
 })
 
 var getAttributeViewCalendarUndated = contractHandler(apicontract.GetAttributeViewCalendarUndated, func(c *gin.Context, request apicontract.AVCalendarUndatedRequest) apicontract.Response[apicontract.AVCalendarUndatedData] {
@@ -521,6 +686,20 @@ var getAttributeViewCalendarUndated = contractHandler(apicontract.GetAttributeVi
 		Rows: avContractSlice(rows, toContractAVTableRow), Total: total,
 	})
 })
+
+func holdRelationDetailRequest(c *gin.Context, blockID, avID string, context *model.AttributeViewRelationContext) error {
+	if context == nil {
+		return holdAttributeViewRequest(c, blockID, avID)
+	}
+	if err := context.ResolveStorage(blockID); err != nil {
+		return err
+	}
+	boxID, _ := context.StorageContext()
+	if boxID != "" {
+		return holdEncryptedBoxRequest(c, boxID)
+	}
+	return nil
+}
 
 func holdAttributeViewRequest(c *gin.Context, blockID, avID string) error {
 	if blockID != "" {
@@ -558,14 +737,53 @@ var getCurrentAttrViewImages = contractHandler(apicontract.GetCurrentAttrViewIma
 })
 
 var getAttributeViewKeys = contractHandler(apicontract.GetAttributeViewKeys, func(c *gin.Context, request apicontract.GetAttributeViewKeysRequest) apicontract.Response[[]*apicontract.AVBlockAttributeViewKeys] {
+	execution, executionErr := startTemplateHTTP(c, "attribute-keys:"+request.ID+":"+request.AvID)
+	if executionErr != nil {
+		return apicontract.Failure[[]*apicontract.AVBlockAttributeViewKeys](-1, executionErr.Error())
+	}
+	defer execution.Close()
+	var runtime *templatehttp.Execution
+	if execution != nil {
+		runtime = execution.Runtime
+		runtime.SetAutomaticRefresh(request.AutomaticRefresh)
+	}
 	var values []*model.BlockAttributeViewKeys
-	if request.AvID != "" && (request.ItemID != "" || request.ValueID != "") {
-		values = model.GetAttributeViewItemKeys(request.AvID, request.ItemID, request.ValueID)
+	if request.RelationContext != nil || request.BlockID != "" {
+		if request.RelationContext != nil && model.IsReadOnlyRoleContext(c) {
+			return apicontract.Failure[[]*apicontract.AVBlockAttributeViewKeys](-1, av.ErrAttributeViewNotFound.Error())
+		}
+		context := fromContractAVRelationContext(request.RelationContext)
+		related := context != nil
+		if context == nil {
+			context = &model.AttributeViewRelationContext{SourceAvID: request.AvID}
+		}
+		if err := holdRelationDetailRequest(c, request.BlockID, context.SourceAvID, context); err != nil {
+			return apicontract.Failure[[]*apicontract.AVBlockAttributeViewKeys](-1, err.Error())
+		}
+		if boxID, _ := context.StorageContext(); boxID != "" && model.IsReadOnlyRoleContext(c) {
+			return apicontract.Failure[[]*apicontract.AVBlockAttributeViewKeys](-1, av.ErrAttributeViewNotFound.Error())
+		}
+		var err error
+		values, err = model.GetAttributeViewItemKeysWithContext(request.AvID, request.ItemID, request.ValueID, request.BlockID, context, related, runtime)
+		if err != nil {
+			return apicontract.Failure[[]*apicontract.AVBlockAttributeViewKeys](-1, err.Error())
+		}
+	} else if request.AvID != "" && (request.ItemID != "" || request.ValueID != "") {
+		values = model.GetAttributeViewItemKeys(request.AvID, request.ItemID, request.ValueID, runtime)
 	} else {
-		values = model.GetBlockAttributeViewKeys(request.ID)
+		values = model.GetBlockAttributeViewKeys(request.ID, runtime)
+	}
+	if runtime != nil && runtime.Err() != nil {
+		return apicontract.Failure[[]*apicontract.AVBlockAttributeViewKeys](-1, runtime.Err().Error())
 	}
 	if model.IsReadOnlyRoleContext(c) {
 		values = model.FilterBlockAttributeViewKeysByPublishAccess(c, model.GetPublishAccess(), values)
+	}
+	if runtime != nil {
+		runtime.CommitTemplateResults()
+		if err := runtime.Err(); err != nil {
+			return apicontract.Failure[[]*apicontract.AVBlockAttributeViewKeys](-1, err.Error())
+		}
 	}
 	return apicontract.Success(avContractSlice(values, toContractAVBlockAttributeViewKeys))
 })
@@ -575,6 +793,23 @@ var getAttributeViewSearchTarget = contractHandler(apicontract.GetAttributeViewS
 })
 
 var getAttributeViewBacklinks = contractHandler(apicontract.GetAttributeViewBacklinks, func(c *gin.Context, request apicontract.GetAttributeViewBacklinksRequest) apicontract.Response[*apicontract.AVAttributeViewBacklinks] {
+	if request.BlockID != "" {
+		context := &model.AttributeViewRelationContext{SourceAvID: request.AvID}
+		if err := holdRelationDetailRequest(c, request.BlockID, request.AvID, context); err != nil {
+			return apicontract.Failure[*apicontract.AVAttributeViewBacklinks](-1, err.Error())
+		}
+		if boxID, _ := context.StorageContext(); boxID != "" && model.IsReadOnlyRoleContext(c) {
+			return apicontract.Failure[*apicontract.AVAttributeViewBacklinks](-1, av.ErrAttributeViewNotFound.Error())
+		}
+		value, err := model.GetAttributeViewBacklinksByCarrier(request.ItemID, request.ValueID, request.BlockID, context)
+		if err != nil {
+			return apicontract.Failure[*apicontract.AVAttributeViewBacklinks](-1, err.Error())
+		}
+		if model.IsReadOnlyRoleContext(c) {
+			value = model.FilterAttributeViewBacklinksByPublishAccess(c, model.GetPublishAccess(), value)
+		}
+		return apicontract.Success(toContractAVAttributeViewBacklinks(value))
+	}
 	values := model.GetAttributeViewBacklinks(request.ID, request.AvID, request.ItemID, request.ValueID)
 	if model.IsReadOnlyRoleContext(c) {
 		values = model.FilterAttributeViewBacklinksByPublishAccess(c, model.GetPublishAccess(), values)

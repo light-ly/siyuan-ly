@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package util
 
@@ -23,7 +11,92 @@ import (
 	"github.com/88250/lute"
 	"github.com/88250/lute/ast"
 	"github.com/88250/lute/parse"
+	"github.com/88250/lute/render"
+	"github.com/siyuan-note/dataparser"
 )
+
+func TestLuteBlockIDUpdatedCompatibility(t *testing.T) {
+	for _, test := range []struct {
+		name            string
+		id              string
+		existingUpdated string
+		wantUpdated     string
+	}{
+		{name: "short", id: "1"},
+		{name: "thirteen bytes", id: "1234567890123"},
+		{name: "fourteen bytes", id: "20200101000000", wantUpdated: "20200101000000"},
+		{name: "normal", id: "20200101000000-abcdefg", wantUpdated: "20200101000000"},
+		{name: "existing updated", id: "1", existingUpdated: "20210101000000", wantUpdated: "20210101000000"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			engine := NewLute()
+			updated := ""
+			if test.existingUpdated != "" {
+				updated = ` updated="` + test.existingUpdated + `"`
+			}
+			_, tree := engine.Md2BlockDOMTree("foo\n{: id=\""+test.id+"\""+updated+"}\n", true)
+			node := tree.Root.FirstChild
+			if node == nil || node.Type != ast.NodeParagraph || node.ID != test.id || node.IALAttr("id") != test.id {
+				t.Fatalf("block ID was not preserved: %#v", node)
+			}
+			if got := node.IALAttr("updated"); got != test.wantUpdated {
+				t.Fatalf("updated = %q, want %q", got, test.wantUpdated)
+			}
+
+			engine.SetSpin(true)
+			dom := `<div data-node-id="` + test.id + `" data-type="NodeParagraph" class="p"` + updated + `>` +
+				`<div contenteditable="true">foo</div><div class="protyle-attr" contenteditable="false"></div></div>`
+			for round := range 3 {
+				dom = engine.SpinBlockDOM(dom)
+				node = engine.BlockDOM2Tree(dom).Root.FirstChild
+				if node == nil || node.Type != ast.NodeParagraph || node.ID != test.id || node.IALAttr("id") != test.id {
+					t.Fatalf("round %d: block ID was not preserved: %s", round, dom)
+				}
+				if got := node.IALAttr("updated"); got != test.wantUpdated {
+					t.Fatalf("round %d: updated = %q, want %q", round, got, test.wantUpdated)
+				}
+			}
+		})
+	}
+}
+
+func TestLuteQuotedHashCodeRoundTrip(t *testing.T) {
+	engine := NewLute()
+	for _, source := range []string{
+		"маркер «#» и код `bare_guille` между «#» и «#» же.",
+		"маркер „#“ и код `bare_lapki` между „#“ и „#“ же.",
+	} {
+		markdown := source
+		for round := range 3 {
+			_, tree := engine.Md2BlockDOMTree(markdown, true)
+			data := render.NewJSONRenderer(tree, engine.RenderOptions, engine.ParseOptions).Render()
+			tree, err := dataparser.ParseJSONWithoutFix(data, engine.ParseOptions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			codeCount := 0
+			ast.Walk(tree.Root, func(node *ast.Node, entering bool) ast.WalkStatus {
+				if entering && node.Type == ast.NodeTextMark {
+					if node.IsTextMarkType("tag") {
+						t.Fatalf("quoted hash became a tag: %s", data)
+					}
+					if node.IsTextMarkType("code") {
+						codeCount++
+					}
+				}
+				return ast.WalkContinue
+			})
+			if codeCount != 1 {
+				t.Fatalf("round %d: code mark count = %d", round, codeCount)
+			}
+			renderer := render.NewProtyleExportMdRenderer(tree, engine.RenderOptions, engine.ParseOptions)
+			markdown = strings.TrimSpace(string(renderer.Render()))
+			if markdown != source {
+				t.Fatalf("round %d: markdown = %q, want %q", round, markdown, source)
+			}
+		}
+	}
+}
 
 func TestLuteTextMarkEscapedContentRoundTrip(t *testing.T) {
 	for _, blockType := range []string{"NodeHeading", "NodeParagraph"} {

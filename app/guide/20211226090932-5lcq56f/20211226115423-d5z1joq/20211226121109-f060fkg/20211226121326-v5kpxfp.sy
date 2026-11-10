@@ -6,7 +6,7 @@
 		"id": "20211226121326-v5kpxfp",
 		"title": "主題",
 		"type": "doc",
-		"updated": "20261016202635"
+		"updated": "20261107142118"
 	},
 	"Children": [
 		{
@@ -111,7 +111,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20220806105512-qod53ij",
-				"updated": "20261016202635"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -121,230 +121,19 @@
 			]
 		},
 		{
-			"ID": "20230417141958-yemp12k",
-			"Type": "NodeList",
-			"ListData": {
-				"Typ": 1
-			},
+			"ID": "20261024162311-1zfqu7j",
+			"Type": "NodeHeading",
 			"Properties": {
-				"id": "20230417141958-yemp12k",
-				"updated": "20261016202635"
+				"id": "20261024162311-1zfqu7j",
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
-					"ID": "20230417141958-141fdej",
-					"Type": "NodeListItem",
-					"ListData": {
-						"Typ": 1,
-						"Delimiter": 46,
-						"Marker": "MS4=",
-						"Num": 1
-					},
-					"Properties": {
-						"id": "20230417141958-141fdej",
-						"updated": "20261016202635"
-					},
-					"Children": [
-						{
-							"ID": "20230417141958-m3qhlu1",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20230417141958-m3qhlu1",
-								"updated": "20261016202635"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "打開 "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "設定"
-								},
-								{
-									"Type": "NodeText",
-									"Data": " - "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "外觀"
-								},
-								{
-									"Type": "NodeText",
-									"Data": " - "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "代碼片段"
-								},
-								{
-									"Type": "NodeText",
-									"Data": " - "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "設定"
-								},
-								{
-									"Type": "NodeText",
-									"Data": "，選擇 CSS 分頁"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20230417141958-slzg8hh",
-					"Type": "NodeListItem",
-					"ListData": {
-						"Typ": 1,
-						"Delimiter": 46,
-						"Marker": "Mi4=",
-						"Num": 2
-					},
-					"Properties": {
-						"id": "20230417141958-slzg8hh",
-						"updated": "20230417141958"
-					},
-					"Children": [
-						{
-							"ID": "20230417141958-9xigs5p",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20230417141958-9xigs5p",
-								"updated": "20230417141958"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "填入標題"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20230417141958-r7aflkw",
-					"Type": "NodeListItem",
-					"ListData": {
-						"Typ": 1,
-						"Delimiter": 46,
-						"Marker": "My4=",
-						"Num": 3
-					},
-					"Properties": {
-						"id": "20230417141958-r7aflkw",
-						"updated": "20230417141958"
-					},
-					"Children": [
-						{
-							"ID": "20230417141958-oonruqo",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20230417141958-oonruqo",
-								"updated": "20230417141958"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "根據主題和 theme.css 中的變量參照如下寫法進行編碼後填入代碼片段中"
-								}
-							]
-						},
-						{
-							"ID": "20230417141958-fzl7p5c",
-							"Type": "NodeCodeBlock",
-							"IsFencedCodeBlock": true,
-							"Properties": {
-								"id": "20230417141958-fzl7p5c",
-								"updated": "20230417141958"
-							},
-							"Children": [
-								{
-									"Type": "NodeCodeBlockFenceOpenMarker",
-									"Data": "```"
-								},
-								{
-									"Type": "NodeCodeBlockFenceInfoMarker",
-									"CodeBlockInfo": "Y3Nz"
-								},
-								{
-									"Type": "NodeCodeBlockCode",
-									"Data": "html[data-light-theme=\"daylight\"][data-theme-mode=\"light\"] {\n    --b3-theme-primary: red;\n}\n\nhtml[data-light-theme=\"daylight\"][data-theme-mode=\"dark\"] {\n    --b3-theme-primary: blue;\n}\n"
-								},
-								{
-									"Type": "NodeCodeBlockFenceCloseMarker",
-									"Data": "```"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20230417141958-lti6wgc",
-					"Type": "NodeListItem",
-					"ListData": {
-						"Typ": 1,
-						"Delimiter": 46,
-						"Marker": "NC4=",
-						"Num": 4
-					},
-					"Properties": {
-						"id": "20230417141958-lti6wgc",
-						"updated": "20230417141958"
-					},
-					"Children": [
-						{
-							"ID": "20230417141958-rit2pvw",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20230417141958-rit2pvw",
-								"updated": "20230417141958"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "開啟該代碼片段"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20230417141958-088cu1s",
-					"Type": "NodeListItem",
-					"ListData": {
-						"Typ": 1,
-						"Delimiter": 46,
-						"Marker": "NS4=",
-						"Num": 5
-					},
-					"Properties": {
-						"id": "20230417141958-088cu1s",
-						"updated": "20230417141958"
-					},
-					"Children": [
-						{
-							"ID": "20230417141958-wjn3w7f",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20230417141958-wjn3w7f",
-								"updated": "20230417141958"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "點擊確定按鈕"
-								}
-							]
-						}
-					]
+					"Type": "NodeText",
+					"Data": "類型與管理"
 				}
-			]
+			],
+			"HeadingLevel": 3
 		},
 		{
 			"ID": "20260614110327-nq24t6j",
@@ -434,6 +223,20 @@
 							]
 						}
 					]
+				}
+			]
+		},
+		{
+			"ID": "20261103081326-bde85eb",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261103081326-bde85eb",
+				"updated": "20261103081326"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "行動端關閉已修改的程式碼片段時會詢問是否儲存。點擊確定儲存變更，點擊取消放棄變更並關閉編輯器。在詢問對話框中返回、下拉或點擊遮罩，只會收起詢問並保留草稿，方便繼續編輯；儲存失敗時也會保留草稿供重試。"
 				}
 			]
 		},
@@ -633,12 +436,271 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20230418093635-7nkc3rv",
-				"updated": "20261016202635"
+				"updated": "20261107023948"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
 					"Data": "主題包"
+				}
+			]
+		},
+		{
+			"ID": "20261024162311-h9cpt6d",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024162311-h9cpt6d",
+				"updated": "20261024163429"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "停用 CSS 片段會移除其樣式。JS 片段已執行的操作不會因關閉開關而自動復原；需要清除執行效果時，請停用後重新載入介面。"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 片段已經寫入的資料需要另行復原。"
+				}
+			]
+		},
+		{
+			"ID": "20261024162311-ss3n4rx",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261024162311-ss3n4rx",
+				"updated": "20261024162311"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "撰寫 CSS 片段"
+				}
+			],
+			"HeadingLevel": 3
+		},
+		{
+			"ID": "20230417141958-yemp12k",
+			"Type": "NodeList",
+			"ListData": {
+				"Typ": 1
+			},
+			"Properties": {
+				"id": "20230417141958-yemp12k",
+				"updated": "20261024160716"
+			},
+			"Children": [
+				{
+					"ID": "20230417141958-141fdej",
+					"Type": "NodeListItem",
+					"ListData": {
+						"Typ": 1,
+						"Delimiter": 46,
+						"Marker": "MS4=",
+						"Num": 1
+					},
+					"Properties": {
+						"id": "20230417141958-141fdej",
+						"updated": "20261016202635"
+					},
+					"Children": [
+						{
+							"ID": "20230417141958-m3qhlu1",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20230417141958-m3qhlu1",
+								"updated": "20261016202635"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "打開 "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "設定"
+								},
+								{
+									"Type": "NodeText",
+									"Data": " - "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "外觀"
+								},
+								{
+									"Type": "NodeText",
+									"Data": " - "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "代碼片段"
+								},
+								{
+									"Type": "NodeText",
+									"Data": " - "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "設定"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "，選擇 CSS 分頁"
+								}
+							]
+						}
+					]
+				},
+				{
+					"ID": "20230417141958-slzg8hh",
+					"Type": "NodeListItem",
+					"ListData": {
+						"Typ": 1,
+						"Delimiter": 46,
+						"Marker": "Mi4=",
+						"Num": 2
+					},
+					"Properties": {
+						"id": "20230417141958-slzg8hh",
+						"updated": "20230417141958"
+					},
+					"Children": [
+						{
+							"ID": "20230417141958-9xigs5p",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20230417141958-9xigs5p",
+								"updated": "20230417141958"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "填入標題"
+								}
+							]
+						}
+					]
+				},
+				{
+					"ID": "20230417141958-r7aflkw",
+					"Type": "NodeListItem",
+					"ListData": {
+						"Typ": 1,
+						"Delimiter": 46,
+						"Marker": "My4=",
+						"Num": 3
+					},
+					"Properties": {
+						"id": "20230417141958-r7aflkw",
+						"updated": "20261024160716"
+					},
+					"Children": [
+						{
+							"ID": "20230417141958-oonruqo",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20230417141958-oonruqo",
+								"updated": "20230417141958"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "根據主題和 theme.css 中的變量參照如下寫法進行編碼後填入代碼片段中"
+								}
+							]
+						},
+						{
+							"ID": "20230417141958-fzl7p5c",
+							"Type": "NodeCodeBlock",
+							"IsFencedCodeBlock": true,
+							"Properties": {
+								"id": "20230417141958-fzl7p5c",
+								"updated": "20261024160716"
+							},
+							"Children": [
+								{
+									"Type": "NodeCodeBlockFenceOpenMarker",
+									"Data": "```"
+								},
+								{
+									"Type": "NodeCodeBlockFenceInfoMarker",
+									"CodeBlockInfo": "Y3Nz"
+								},
+								{
+									"Type": "NodeCodeBlockCode",
+									"Data": "html[data-light-theme=\"daylight\"][data-theme-mode=\"light\"] {\n    --b3-theme-primary: red;\n}\n\nhtml[data-dark-theme=\"midnight\"][data-theme-mode=\"dark\"] {\n    --b3-theme-primary: blue;\n}\n"
+								},
+								{
+									"Type": "NodeCodeBlockFenceCloseMarker",
+									"Data": "```"
+								}
+							]
+						}
+					]
+				},
+				{
+					"ID": "20230417141958-lti6wgc",
+					"Type": "NodeListItem",
+					"ListData": {
+						"Typ": 1,
+						"Delimiter": 46,
+						"Marker": "NC4=",
+						"Num": 4
+					},
+					"Properties": {
+						"id": "20230417141958-lti6wgc",
+						"updated": "20230417141958"
+					},
+					"Children": [
+						{
+							"ID": "20230417141958-rit2pvw",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20230417141958-rit2pvw",
+								"updated": "20230417141958"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "開啟該代碼片段"
+								}
+							]
+						}
+					]
+				},
+				{
+					"ID": "20230417141958-088cu1s",
+					"Type": "NodeListItem",
+					"ListData": {
+						"Typ": 1,
+						"Delimiter": 46,
+						"Marker": "NS4=",
+						"Num": 5
+					},
+					"Properties": {
+						"id": "20230417141958-088cu1s",
+						"updated": "20230417141958"
+					},
+					"Children": [
+						{
+							"ID": "20230417141958-wjn3w7f",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20230417141958-wjn3w7f",
+								"updated": "20230417141958"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "點擊確定按鈕"
+								}
+							]
+						}
+					]
 				}
 			]
 		},
@@ -662,7 +724,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20211226121625-afma4ct",
-				"updated": "20261016202635"
+				"updated": "20261107142118"
 			},
 			"Children": [
 				{
@@ -762,6 +824,70 @@
 							]
 						}
 					]
+				}
+			]
+		},
+		{
+			"ID": "20261107023948-9mgy2ah",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261107023948-9mgy2ah",
+				"updated": "20261107142118"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "線上瀏覽插件、主題、圖示、範本和小工具時，點擊搜尋框左側的篩選圖示，在選單中分別或同時勾選 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "隱藏版本不支援的套件"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 和 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "隱藏平台不相容的套件"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "。兩項預設不勾選，選擇會按套件類型儲存，僅影響線上清單，不影響已下載和更新清單。"
+				}
+			]
+		},
+		{
+			"ID": "20261107023948-cv5acqo",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261107023948-cv5acqo",
+				"updated": "20261107023948"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "可選擇 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "發布時間降序"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 或 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "發布時間升序"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "。發布時間取集市記錄的首次收錄時間，缺失或無效的時間排在末尾。"
 				}
 			]
 		},

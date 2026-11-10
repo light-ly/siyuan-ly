@@ -6,7 +6,7 @@
 		"id": "20210721112206-mhr9wxi",
 		"title": "Data sync",
 		"type": "doc",
-		"updated": "20261016111950"
+		"updated": "20261105042900"
 	},
 	"Children": [
 		{
@@ -48,157 +48,16 @@
 			]
 		},
 		{
-			"ID": "20260905184908-022q2es",
-			"Type": "NodeHeading",
-			"HeadingLevel": 2,
-			"Properties": {
-				"id": "20260905184908-022q2es",
-				"updated": "20260905191024"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Asset downloads"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-jpha7l7",
+			"ID": "20261102100000-9iwlyi8",
 			"Type": "NodeParagraph",
 			"Properties": {
-				"id": "20260905184908-jpha7l7",
-				"updated": "20260905184908"
+				"id": "20261102100000-9iwlyi8",
+				"updated": "20261102100000"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "Choose Download all or Download on demand in "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Settings"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " - "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Account & Sync"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " - "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Asset downloads"
-				},
-				{
-					"Type": "NodeText",
-					"Data": ". This setting applies only to the current device."
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-5jlxwbn",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-5jlxwbn",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Download all is the default. On-demand mode still fully syncs documents, database definitions, and the asset list. Required assets are downloaded when displaying images, audio, video, PDFs, or other content, or when opening asset links. Encrypted notebook assets still require the notebook to be unlocked."
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-2t2p88b",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-2t2p88b",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Downloaded assets remain on this device and continue to receive updates during subsequent syncs. Enabling on-demand downloads does not remove existing files or immediately free their storage space."
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-bb2w63n",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-bb2w63n",
-				"updated": "20260905191024"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Assets that have not been downloaded are unavailable offline, and an error is reported if they cannot be retrieved. Switching to Download all first downloads the content needed by current assets and all retained local snapshots, which may include historical versions. If downloading fails, the previous mode is retained; reconnect and try again."
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-yzvkosv",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-yzvkosv",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Local snapshots in on-demand mode may depend on cloud storage and must not be treated as complete offline backups. Downloading a complete snapshot, and exports or recovery operations that need asset content, first download the required assets and report an error if they cannot be retrieved."
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-1wxzlh9",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-1wxzlh9",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Before changing the sync target, resetting the data repository, or opening this workspace with an older version, switch to Download all and finish downloading to preserve access to assets that are not yet stored locally."
-				}
-			]
-		},
-		{
-			"ID": "20261012014537-ws3euhl",
-			"Type": "NodeHeading",
-			"Properties": {
-				"id": "20261012014537-ws3euhl",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Themes and icons"
-				}
-			],
-			"HeadingLevel": 2
-		},
-		{
-			"ID": "20260917190844-p6hrspl",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260917190844-p6hrspl",
-				"updated": "20260918195936"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Theme and icon package files, updates, and uninstallations sync between devices; each device chooses its own theme and icons. Images, fonts, and other package resources are always downloaded completely. Synchronization, deletion, and conflicts follow the same file-level rules as plugins, widgets, and templates. Restoring a snapshot without a package removes it."
+					"Data": "Synchronization transfers documents in their original format even when this version cannot read them. Unsupported documents cannot be opened or edited and are excluded from the local content index; upgrade to a version supporting their format to read them. Other compatible documents continue to synchronize normally. This does not guarantee safe mixed use with older clients: editing caches in older versions may still overwrite newer content."
 				}
 			]
 		},
@@ -208,7 +67,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20210721112403-77frbcy",
-				"updated": "20261016111950"
+				"updated": "20261103163507"
 			},
 			"Children": [
 				{
@@ -222,23 +81,46 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20220703231817-nbhxxb6",
-				"updated": "20220821170709"
+				"updated": "20261024161816"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "After "
+					"Data": "First "
 				},
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "block-ref",
 					"TextMarkBlockRefID": "20220615120602-iya2886",
 					"TextMarkBlockRefSubtype": "s",
-					"TextMarkTextContent": "initializing the data repo key"
+					"TextMarkTextContent": "initialize the data repository key"
 				},
 				{
 					"Type": "NodeText",
-					"Data": ", if all goes well, the synchronization is already configured. If you are not familiar with synchronization configuration, it is recommended to open the synchronization configuration wizard by clicking the synchronization button. It is easier to configure through the wizard."
+					"Data": ", then choose a storage provider, configure a sync target, and enable synchronization. Use the sync button to open the setup wizard if you need guidance."
+				}
+			]
+		},
+		{
+			"ID": "20261103104841-cb869f1",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261103104841-cb869f1",
+				"updated": "20261103110957"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "If creating, switching or deleting a cloud sync directory fails, the directory list is preserved so you can retry. If the list itself fails to load, click "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Retry"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " to reload it. If enabling synchronization or submitting a sync direction fails, the wizard keeps the current page and selection for retry."
 				}
 			]
 		},
@@ -364,7 +246,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20230220103708-l6sdi3r",
-				"updated": "20261016111950"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -404,7 +286,7 @@
 					},
 					"Properties": {
 						"id": "20230220103708-fmphm6k",
-						"updated": "20261016111950"
+						"updated": "20261024163013"
 					},
 					"Children": [
 						{
@@ -412,7 +294,7 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20230220103708-ml52xbc",
-								"updated": "20261016111950"
+								"updated": "20261024163013"
 							},
 							"Children": [
 								{
@@ -453,7 +335,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​, transfer it to the new device, and use "
+									"Data": ", transfer it to the new device, and use "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -476,7 +358,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20261011151543-4pvea6y",
-				"updated": "20261016111431"
+				"updated": "20261103163507"
 			},
 			"Children": [
 				{
@@ -490,7 +372,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20261011151543-l4oq2bn",
-				"updated": "20261016111431"
+				"updated": "20261024164212"
 			},
 			"Children": [
 				{
@@ -513,7 +395,21 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": ", select S3, WebDAV, or the local file system, then click the configuration button in the sync service configuration row. The local file system is available with standard desktop and Docker kernels, not mobile kernels; its path is on the kernel’s machine or inside its container, not on the device running the browser. Complete the form and click "
+					"Data": ", select S3, WebDAV, or the local file system, then click the configuration button in the sync service configuration row. The local file system is available with standard desktop and Docker kernels, not mobile kernels; its path is on the kernel’s machine or inside its container, not on the device running the browser."
+				}
+			]
+		},
+		{
+			"ID": "20261024164212-ztfy57c",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024164212-ztfy57c",
+				"updated": "20261024164212"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Complete the form and click "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -523,6 +419,57 @@
 				{
 					"Type": "NodeText",
 					"Data": ". Typing does not save changes; closing an edited form asks whether to discard the draft."
+				}
+			]
+		},
+		{
+			"ID": "20261020224352-z87gp3i",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261020224352-z87gp3i",
+				"updated": "20261020224352"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Click "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Test connection"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " before saving to check the current S3, WebDAV, or local filesystem draft without saving it. WebDAV checks directory creation and probe read/write access; the local filesystem checks directory read/write access. The probe is cleaned up where possible. If the test fails, follow the diagnostic and try again; your saved configuration is retained."
+				}
+			]
+		},
+		{
+			"ID": "20261102160000-9592b55",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102160000-9592b55",
+				"updated": "20261102160000"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "For S3 and WebDAV endpoints without a protocol, dotted hostnames use HTTPS by default; IP addresses, localhost, and single-label hostnames use HTTP. To connect to an HTTP-only service using a dotted hostname, enter http:// explicitly. Explicit http:// and https:// addresses are preserved, including saved configurations."
+				}
+			]
+		},
+		{
+			"ID": "20261102113000-c64909d",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102113000-c64909d",
+				"updated": "20261103163507"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Before changing the sync provider, endpoint, or directory, SiYuan saves open editors and creates a complete snapshot of the current data. When the new source is nonempty, automatic merging stops. Click Sync to review the local and source file counts, source time and device, and the number of files to upload, overwrite, or delete. Choose either upload from local data or restore from the source; neither direction is selected by default. Uploading publishes the current local snapshot without deleting extra stored objects in the source; restoring replaces local data according to the source. An empty source receives local data directly. If the first sync fails before saving recoverable progress or committing the data, review and confirm the source again. Saved progress resumes in the selected direction; asset downloads that fail after the data is committed can be retried directly. The snapshot created before the change remains available in Data history."
 				}
 			]
 		},
@@ -564,17 +511,245 @@
 			]
 		},
 		{
+			"ID": "20261020231029-lr7z60a",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261020231029-lr7z60a",
+				"updated": "20261101195843"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Automatic sync normally runs in the background without opening a panel. Click the sync icon to view the current file, written bytes, speed, and estimated remaining time. While restoring indexes after files are written, both expanded and collapsed views show the current indexing status with an animated progress bar until index restoration completes. "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Hide details"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " hides the details; "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Sync"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " reopens them."
+				},
+				{
+					"Type": "NodeText",
+					"Data": " The sync icon retains the last completed result: a check mark means success, an error mark means failure or automatic sync paused, and a plain cloud means the result is unknown. The result is retained after restarting and changes after the next completed sync. While syncing, the icon keeps rotating; disabling sync shows the disabled icon."
+				}
+			]
+		},
+		{
+			"ID": "20261024164212-n2h2yit",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024164212-n2h2yit",
+				"updated": "20261024164212"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Editing pauses only while local changes are applied and affected documents are refreshed, including recovery after cancellation. Click "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Cancel"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " to request cancellation of preparation, network transfer, or file restoration."
+				}
+			]
+		},
+		{
+			"ID": "20261020231029-kuhlekv",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261020231029-kuhlekv",
+				"updated": "20261020231029"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Canceling keeps completed files and removes the current temporary file. Sync again to finish the remaining content. If storage is insufficient, free up space and retry. Recognizable temporary files from interrupted syncs are cleaned up on startup or before restoration, and the freed space is reported."
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-022q2es",
+			"Type": "NodeHeading",
+			"HeadingLevel": 2,
+			"Properties": {
+				"id": "20260905184908-022q2es",
+				"updated": "20261105042900"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Asset downloads"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-jpha7l7",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-jpha7l7",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Choose Download all or Download on demand in "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Settings"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Account & Sync"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Asset downloads"
+				},
+				{
+					"Type": "NodeText",
+					"Data": ". This setting applies only to the current device."
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-5jlxwbn",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-5jlxwbn",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Download all is the default. On-demand mode still fully syncs documents, database definitions, and the asset list. Required assets are downloaded when displaying images, audio, video, PDFs, or other content, or when opening asset links. Encrypted notebook assets still require the notebook to be unlocked."
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-2t2p88b",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-2t2p88b",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Downloaded assets remain on this device and continue to receive updates during subsequent syncs. Enabling on-demand downloads does not remove existing files or immediately free their storage space."
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-bb2w63n",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-bb2w63n",
+				"updated": "20260905191024"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Assets that have not been downloaded are unavailable offline, and an error is reported if they cannot be retrieved. Switching to Download all first downloads the content needed by current assets and all retained local snapshots, which may include historical versions. If downloading fails, the previous mode is retained; reconnect and try again."
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-yzvkosv",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-yzvkosv",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Local snapshots in on-demand mode may depend on cloud storage and must not be treated as complete offline backups. Downloading a complete snapshot, and exports or recovery operations that need asset content, first download the required assets and report an error if they cannot be retrieved."
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-1wxzlh9",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-1wxzlh9",
+				"updated": "20261105042900"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Before changing the sync target, resetting the data repository, or opening this workspace with an older version, switch to Download all and finish downloading to preserve access to assets that are not yet stored locally. After signing out, if only the account or cloud region was selected incorrectly and the other sync settings are unchanged, sign in to the original account in its original cloud region, then switch to Download all. If the download state is valid and all chunks needed by current assets and retained snapshots are already local, you can also switch while signed out or with sync disabled. If the cloud directory or repository key has changed, or the asset download state is missing or damaged, preserve the workspace and original backups. Do not delete the state file or repository marker to bypass the checks; signing in alone cannot repair these states."
+				}
+			]
+		},
+		{
+			"ID": "20261012014537-ws3euhl",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261012014537-ws3euhl",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Themes and icons"
+				}
+			],
+			"HeadingLevel": 2
+		},
+		{
+			"ID": "20260917190844-p6hrspl",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260917190844-p6hrspl",
+				"updated": "20260918195936"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Theme and icon package files, updates, and uninstallations sync between devices; each device chooses its own theme and icons. Images, fonts, and other package resources are always downloaded completely. Synchronization, deletion, and conflicts follow the same file-level rules as plugins, widgets, and templates. Restoring a snapshot without a package removes it."
+				}
+			]
+		},
+		{
 			"ID": "20230219121305-3yj6w9y",
 			"Type": "NodeHeading",
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20230219121305-3yj6w9y",
-				"updated": "20261016111431"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "Synchronous mode"
+					"Data": "Sync modes"
 				}
 			]
 		},
@@ -583,7 +758,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20230219121305-p0gorey",
-				"updated": "20261016111431"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -597,7 +772,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -606,7 +781,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -615,7 +790,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​:"
+					"Data": ":"
 				}
 			]
 		},
@@ -845,6 +1020,20 @@
 							]
 						}
 					]
+				}
+			]
+		},
+		{
+			"ID": "20261026111206-481cuuh",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261026111206-481cuuh",
+				"updated": "20261026115057"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "While waiting to exit, the exit dialog displays incoming status bar messages so you can follow the current sync status. If exiting takes more than 12 seconds, you can choose \"Skip sync and exit\" and confirm to cancel synchronization and finish exiting. Unsynced changes remain saved on this device. Cancel the confirmation to continue waiting for synchronization."
 				}
 			]
 		},
@@ -1125,7 +1314,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20261016111431-tjkwrig",
-				"updated": "20261016111710"
+				"updated": "20261024164212"
 			},
 			"Children": [
 				{
@@ -1176,7 +1365,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20261016111431-hvkyscs",
-				"updated": "20261016111431"
+				"updated": "20261024164212"
 			},
 			"Children": [
 				{
@@ -1204,7 +1393,21 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " prefers encrypted data objects from reachable LAN devices using the same repository key and cloud sync target. Cloud storage remains authoritative, with fallback to the cloud if LAN transfers are unavailable; this is not a fully offline peer-to-peer replacement. Docker kernels do not provide LAN acceleration. LAN notifications trigger synchronization only in automatic mode."
+					"Data": " prefers encrypted data objects from reachable LAN devices using the same repository key and cloud sync target. For S3, Endpoint, Bucket, and Region must match on both devices. Even if auto and an explicit Region can access the same cloud repository, LAN discovery will not match them; set Region to the same value on both devices. Cloud storage remains authoritative, with fallback to the cloud if LAN transfers are unavailable; this is not a fully offline peer-to-peer replacement."
+				}
+			]
+		},
+		{
+			"ID": "20261024164212-sqpyaj7",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024164212-sqpyaj7",
+				"updated": "20261024164212"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Docker kernels do not provide LAN acceleration. LAN notifications trigger synchronization only in automatic mode."
 				}
 			]
 		},

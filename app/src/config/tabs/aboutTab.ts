@@ -1,3 +1,4 @@
+import {MobileDialog} from "../../dialog/mobileDialog";
 import type {SettingTabBuilder} from "../setting/builder";
 import {Constants} from "../../constants";
 import {fetchPost} from "../../util/fetch";
@@ -7,7 +8,6 @@ import {getHostCapabilities} from "../../util/hostCapabilities";
 import {openChangelog} from "../../boot/openChangelog";
 import {writeClipboardData} from "../../protyle/util/compatibility";
 import {showMessage} from "../../dialog/message";
-import {Dialog} from "../../dialog";
 /// #if !BROWSER
 import {ipcRenderer} from "electron";
 /// #endif
@@ -103,7 +103,7 @@ const mountAboutVersionSlot = (root: HTMLElement) => {
             }
             /// #endif
             const text = lines.join("\n");
-            const dialog = new Dialog({
+            const dialog = new MobileDialog({
                 title: window.siyuan.languages.runtimeInfo,
                 width: "min(720px, 92vw)",
                 content: `<div class="b3-dialog__content">
@@ -132,8 +132,8 @@ const mountAboutVersionSlot = (root: HTMLElement) => {
             if (!received) logStage("request_failed");
         });
     });
-    root.querySelector("#viewChangelogBtn")?.addEventListener("click", () => {
-        openChangelog(true);
+    root.querySelector("#viewChangelogBtn")?.addEventListener("click", (event) => {
+        void openChangelog(true, event.currentTarget as HTMLButtonElement);
     });
 };
 

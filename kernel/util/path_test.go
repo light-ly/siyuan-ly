@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package util
 
@@ -23,6 +11,37 @@ import (
 	"runtime"
 	"testing"
 )
+
+func TestNormalizeEndpoint(t *testing.T) {
+	for _, test := range []struct{ input, want string }{
+		{"", ""},
+		{"  \t", ""},
+		{"oss-cn-qingdao.aliyuncs.com", "https://oss-cn-qingdao.aliyuncs.com/"},
+		{"nas.example.lan:9000/dav", "https://nas.example.lan:9000/dav/"},
+		{"example.com./path", "https://example.com./path/"},
+		{"192.168.1.5:9000", "http://192.168.1.5:9000/"},
+		{"127.0.0.1", "http://127.0.0.1/"},
+		{"[::1]:9000", "http://[::1]:9000/"},
+		{"[::ffff:192.168.1.5]:9000", "http://[::ffff:192.168.1.5]:9000/"},
+		{"[fe80::1%eth0]:9000", "http://[fe80::1%eth0]:9000/"},
+		{"localhost:9000", "http://localhost:9000/"},
+		{"minio:9000", "http://minio:9000/"},
+		{"http://example.com/path", "http://example.com/path/"},
+		{"https://localhost:9000/", "https://localhost:9000/"},
+		{"http(s)://example.com//dav///", "https://example.com/dav/"},
+		{"http://http(s)://example.com", "https://example.com/"},
+		{" \u200bexample.com//dav \u200b", "https://example.com/dav/"},
+	} {
+		t.Run(test.input, func(t *testing.T) {
+			if got := NormalizeEndpoint(test.input); got != test.want {
+				t.Fatalf("got %q, want %q", got, test.want)
+			}
+			if got := NormalizeEndpoint(test.want); got != test.want {
+				t.Fatalf("normalizing twice changed endpoint: %q", got)
+			}
+		})
+	}
+}
 
 func TestFilterSelfChildDocsPreservesInputOrder(t *testing.T) {
 	paths := []string{
@@ -45,10 +64,23 @@ func TestIsPossiblyImageWithQueryAndFragment(t *testing.T) {
 		"assets/photo.heic",
 		"assets/photo.HEIF?box=20260816000000-abcdefg",
 		"assets/photo.heic?box=20260816000000-abcdefg#preview",
+		"assets/photo.tif",
+		"assets/photo.TIFF?box=20260816000000-abcdefg#preview",
 	} {
 		if !IsPossiblyImage(assetPath) {
-			t.Fatalf("HEIF asset was not recognized as an image: %s", assetPath)
+			t.Fatalf("asset was not recognized as an image: %s", assetPath)
 		}
+	}
+}
+
+func TestIsDisplayableAssetTIFF(t *testing.T) {
+	for _, path := range []string{"assets/photo.tif", "assets/photo.TIFF", "20261021000000-tiffbox/assets/photo.tiff"} {
+		if !IsDisplayableAsset(path) {
+			t.Fatalf("TIFF snapshot asset was not displayable: %s", path)
+		}
+	}
+	if IsDisplayableAsset("assets/photo.tiff.txt") {
+		t.Fatal("a TIFF name without a TIFF extension was displayable")
 	}
 }
 
@@ -126,8 +158,95 @@ func TestIsSensitivePathCredentialDotfiles(t *testing.T) {
 	}
 }
 
+// sensitiveTestHome 返回不在系统临时目录中的合成家目录。
+// /tmp、/var 等前缀本身已是敏感目录，把家目录放在 t.TempDir() 中会掩盖点条目的判定结果。
+func sensitiveTestHome() string {
+	if runtime.GOOS == "windows" {
+		drive := os.Getenv("SystemDrive")
+		if drive == "" {
+			drive = "C:"
+		}
+		return filepath.Join(drive+`\`, "Users", "siyuan-sensitive-test")
+	}
+	return filepath.Join(string(filepath.Separator), "home", "siyuan-sensitive-test")
+}
+
+// TestIsSensitivePathShellInitFamily 覆盖 shell 初始化文件与用户数据目录：它们决定 shell 启动时执行的脚本，
+// 写入即可获得持久化能力（GHSA-4xfj-946m-258h）。
+func TestIsSensitivePathShellInitFamily(t *testing.T) {
+	home := sensitiveTestHome()
+	origHome, origWorkspace := HomeDir, WorkspaceDir
+	HomeDir, WorkspaceDir = home, filepath.Join(home, "SiYuan")
+	t.Cleanup(func() { HomeDir, WorkspaceDir = origHome, origWorkspace })
+
+	for _, rel := range []string{
+		".bash_profile",
+		".bash_login",
+		".zshenv",
+		".zprofile",
+		".zlogin",
+		filepath.Join(".local", "bin", "siyuan-helper"),
+		filepath.Join(".local", "share", "systemd", "user", "persist.service"),
+		filepath.Join(".mozilla", "firefox", "abc.default", "logins.json"),
+		filepath.Join(".thunderbird", "abc.default", "key4.db"),
+	} {
+		abs := filepath.Join(home, rel)
+		if !IsSensitivePath(abs) {
+			t.Errorf("IsSensitivePath(%q) = false, want true", abs)
+		}
+	}
+}
+
+// TestIsSensitiveWritePath 验证写方向额外拒绝家目录下的点条目，同时保留正常导出与工作空间内写入。
+func TestIsSensitiveWritePath(t *testing.T) {
+	home := sensitiveTestHome()
+	origHome, origWorkspace := HomeDir, WorkspaceDir
+	HomeDir, WorkspaceDir = home, filepath.Join(home, ".notes")
+	t.Cleanup(func() { HomeDir, WorkspaceDir = origHome, origWorkspace })
+
+	// 不在共用黑名单内、但不应作为写入目标的点条目。
+	for _, rel := range []string{
+		filepath.Join(".cache", "app", "data.json"),
+		filepath.Join(".vscode", "extensions", "example", "package.json"),
+		filepath.Join(".gradle", "init.gradle"),
+	} {
+		abs := filepath.Join(home, rel)
+		if IsSensitivePath(abs) {
+			t.Fatalf("precondition: IsSensitivePath(%q) = true, want false", abs)
+		}
+		if !IsSensitiveWritePath(abs) {
+			t.Errorf("IsSensitiveWritePath(%q) = false, want true", abs)
+		}
+	}
+
+	// 尚不存在的点条目同样拒绝，避免通过新建目录绕过。
+	dotPath := filepath.Join(home, ".cache-new", "nested", "new.conf")
+	if !IsSensitiveWritePath(dotPath) {
+		t.Errorf("IsSensitiveWritePath(%q) = false, want true", dotPath)
+	}
+
+	for _, rel := range []string{
+		filepath.Join("Documents", "export.md"),
+		filepath.Join("Downloads", "image.png"),
+	} {
+		abs := filepath.Join(home, rel)
+		if IsSensitiveWritePath(abs) {
+			t.Errorf("IsSensitiveWritePath(%q) = true, want false", abs)
+		}
+	}
+
+	// 工作空间本身位于家目录点目录时不误伤，但其私有目录仍然拒绝。
+	inWorkspace := filepath.Join(WorkspaceDir, "data", "assets", "copy.png")
+	if IsSensitiveWritePath(inWorkspace) {
+		t.Errorf("IsSensitiveWritePath(%q) = true, want false (workspace)", inWorkspace)
+	}
+	if !IsSensitiveWritePath(filepath.Join(WorkspaceDir, "conf", "conf.json")) {
+		t.Errorf("workspace conf must remain sensitive")
+	}
+}
+
 // TestIsSensitivePathPlatformHomeDirs 覆盖 GHSA-q768-4j87-gf3w 点名的平台应用数据目录：
-// macOS 用户资源库中的钥匙串、Windows 漫游与本地应用数据中的凭据。
+// macOS 用户资源库中的钥匙串、Windows 漫游与本地应用数据中的凭据，以及会随会话启动执行的 PowerShell 配置文件。
 func TestIsSensitivePathPlatformHomeDirs(t *testing.T) {
 	type platformCase struct {
 		name string
@@ -148,7 +267,10 @@ func TestIsSensitivePathPlatformHomeDirs(t *testing.T) {
 		home = profile
 		cases = append(cases,
 			platformCase{"Windows roaming credentials", filepath.Join("AppData", "Roaming", "gcloud", "credentials.db")},
-			platformCase{"Windows local profile data", filepath.Join("AppData", "Local", "Google", "Chrome", "User Data", "Default", "Cookies")})
+			platformCase{"Windows local profile data", filepath.Join("AppData", "Local", "Google", "Chrome", "User Data", "Default", "Cookies")},
+			platformCase{"Windows PowerShell profile", filepath.Join("Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1")},
+			platformCase{"PowerShell 7 profile", filepath.Join("Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1")},
+			platformCase{"OneDrive PowerShell profile", filepath.Join("OneDrive", "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1")})
 	}
 	if len(cases) == 0 {
 		t.Skipf("no platform-specific home entries on %s", runtime.GOOS)

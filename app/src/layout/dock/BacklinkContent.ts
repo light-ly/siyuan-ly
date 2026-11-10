@@ -51,6 +51,7 @@ import {
 import {escapeHtml} from "../../util/escape";
 import {ViewStateService} from "../../util/viewState";
 import {loadBacklinkRefFilterMenu} from "./backlinkRefFilterMenu";
+import {loadBacklinkDatabaseFilterMenu} from "./backlinkDatabaseFilter";
 import {BacklinkMentionCache, getBacklinkMentionQueryKey} from "./backlinkMentionCache";
 import {BottomBacklinkScroll} from "./bottomBacklinkScroll";
 import {
@@ -64,6 +65,7 @@ import {
     type IBacklinkReadingAnchor,
     restoreBacklinkReadingAnchor,
 } from "./backlinkReadingAnchor";
+import {BacklinkContextBatch} from "./backlinkContextBatch";
 
 interface IBacklinkItemRecord {
     revision: string,
@@ -179,6 +181,7 @@ export class BacklinkContent extends Model {
     private restoringReadingAnchors: [boolean, boolean] = [false, false];
     private readingAnchorScrollEpochs: [number, number] = [0, 0];
     private readingAnchorRenderGeneration = 0;
+    private contextBatch = new BacklinkContextBatch();
     private bottomLayoutScroll?: BottomBacklinkScroll;
     private ownerScrollListener?: () => void;
     private onlyBacklinks: boolean;
@@ -763,6 +766,9 @@ export class BacklinkContent extends Model {
 
     private setFocus() {
         /// #if !MOBILE
+        if (this.surface === "popover") {
+            return;
+        }
         if (this.type === "bottom") {
             this.setOwnerFocus();
             this.element.focus({preventScroll: true});
@@ -963,7 +969,8 @@ export class BacklinkContent extends Model {
                     countElement.textContent = total.toString();
                     countElement.classList.toggle("fn__none", total === 0 && this.type !== "bottom");
                     if (this.type === "bottom") {
-                        const hideBacklinks = total === 0 && !this.inputsElement[0].value && !this.globalList?.hasError;
+                        const hideBacklinks = total === 0 && !this.inputsElement[0].value &&
+                            !getBacklinkSourceFilterParam(this.sourceFilter) && !this.globalList?.hasError;
                         this.element.classList.toggle("sy__backlink--backlinks-empty", hideBacklinks);
                         const empty = hideBacklinks &&
                             this.element.classList.contains("sy__backlink--mentions-empty");
@@ -991,6 +998,8 @@ export class BacklinkContent extends Model {
     }
 
     private showSourceFilterMenu(target: HTMLElement) {
+        // 工具栏离开悬停后会隐藏按钮，在打开菜单前保留其位置。
+        const rect = target.getBoundingClientRect();
         toggleMenu({
             target: target,
             build: (_menu, session) => {
@@ -1117,6 +1126,24 @@ export class BacklinkContent extends Model {
                     }
                 }).element);
                 const refFilterGeneration = this.viewStateGeneration;
+                window.siyuan.menus.menu.append(new MenuItem({
+                    label: window.siyuan.languages.backlinkDatabaseFields,
+                    icon: "iconDatabase",
+                    checked: Boolean(this.sourceFilter.database),
+                    disabled: !this.blockId || window.siyuan.isPublish,
+                    loadSubmenu: () => loadBacklinkDatabaseFilterMenu({
+                        id: this.blockId,
+                        notebook: isEncryptedBox(this.notebookId) ? this.notebookId : "",
+                        keyword: this.inputsElement[0].value,
+                        filter: this.sourceFilter,
+                        target,
+                        anchorRect: rect,
+                        protyle: this.ownerProtyle || this.editors[0]?.protyle,
+                        getSelected: () => this.sourceFilter.database,
+                        isCurrent: () => !this.destroyed && refFilterGeneration === this.viewStateGeneration,
+                        apply: database => this.applySourceFilter({...this.sourceFilter, database}),
+                    }),
+                }).element);
                 let refFilterMenuElement: HTMLElement;
                 window.siyuan.menus.menu.append(new MenuItem({
                     iconHTML: "",
@@ -1151,7 +1178,6 @@ export class BacklinkContent extends Model {
                         applyFoldTypes([]);
                     }
                 }).element);
-                const rect = target.getBoundingClientRect();
                 session.show(() => window.siyuan.menus.menu.popup({x: rect.left, y: rect.bottom, h: rect.height}));
 
             },
@@ -1285,41 +1311,62 @@ export class BacklinkContent extends Model {
             }
             // 收到有效内容后再保护当前视口，等待请求期间仍允许用户正常滚动。
             finishScroll = manualBottomExpand ? this.beginBottomScroll() : undefined;
-            record.contextDirty = false;
-            record.contextRevision = response.data.revision;
-            record.editor?.protyle.element.setAttribute("data-backlink-revision", response.data.revision);
+            if (!record.editor || response.data.unchanged) {
+                record.contextDirty = false;
+                record.contextRevision = response.data.revision;
+                record.editor?.protyle.element.setAttribute("data-backlink-revision", response.data.revision);
+            }
             if (!response.data.unchanged) {
                 const backlinkData = isMention ? response.data.backmentions : response.data.backlinks;
                 if (record.editor) {
                     const editor = record.editor;
-                    const scrollAnchor = this.captureReadingAnchor(isMention);
-                    const scrollEpoch = this.getReadingAnchorScrollEpoch(isMention);
-                    const anchorQueryKey = this.renderedQueryKey;
-                    editor.protyle.options.backlinkData = backlinkData;
-                    viewPromises.push(renderBacklink(editor.protyle, backlinkData).then(() => {
-                        if (manualBottomExpand) {
-                            return;
-                        }
-                        window.requestAnimationFrame(() => {
+                    record.contextDirty = true;
+                    viewPromises.push(this.contextBatch.enqueue({
+                        key: manualBottomExpand ? 2 : this.getReadingAnchorIndex(isMention),
+                        isCurrent: () => {
                             if (this.destroyed || blockId !== this.blockId ||
                                 viewStateGeneration !== this.viewStateGeneration ||
                                 contextRequestVersion !== this.contextRequestVersions[index] ||
                                 requestGeneration !== record.requestGeneration || record.editor !== editor ||
-                                !editor.protyle.element.isConnected || editor.protyle.element.classList.contains("fn__none") ||
-                                scrollEpoch !== this.getReadingAnchorScrollEpoch(isMention) ||
-                                anchorQueryKey !== this.renderedQueryKey || anchorQueryKey !== this.listQueryKey) {
-                                return;
+                                !editor.protyle.element.isConnected || editor.protyle.element.classList.contains("fn__none")) {
+                                return false;
                             }
-                            if (scrollAnchor) {
-                                this.restoreReadingAnchor(scrollAnchor);
-                            } else {
-                                this.restorePersistedReadingAnchor(isMention, docId);
+                            if (editor.protyle.element.contains(document.activeElement) || hasAVEditorSession(editor.protyle.element)) {
+                                record.contextDirty = true;
+                                this.dirty = true;
+                                this.pendingRootIDs.add(docId);
+                                return false;
                             }
-                        });
+                            return true;
+                        },
+                        capture: () => {
+                            const scrollAnchor = manualBottomExpand ? undefined : this.captureReadingAnchor(isMention);
+                            const scrollEpoch = this.getReadingAnchorScrollEpoch(isMention);
+                            const anchorQueryKey = this.renderedQueryKey;
+                            return () => {
+                                if (manualBottomExpand || scrollEpoch !== this.getReadingAnchorScrollEpoch(isMention) ||
+                                    anchorQueryKey !== this.renderedQueryKey || anchorQueryKey !== this.listQueryKey) {
+                                    return;
+                                }
+                                if (scrollAnchor) {
+                                    this.restoreReadingAnchor(scrollAnchor);
+                                } else {
+                                    this.restorePersistedReadingAnchor(isMention);
+                                }
+                            };
+                        },
+                        render: () => {
+                            record.contextDirty = false;
+                            record.contextRevision = response.data.revision;
+                            editor.protyle.element.setAttribute("data-backlink-revision", response.data.revision);
+                            editor.protyle.options.backlinkData = backlinkData;
+                            const promise = renderBacklink(editor.protyle, backlinkData);
+                            searchMarkRender(editor.protyle, response.data.keywords, undefined, undefined, {
+                                excludeSelector: ".protyle-breadcrumb__bar[data-backlink-id]"
+                            });
+                            return promise;
+                        },
                     }));
-                    searchMarkRender(editor.protyle, response.data.keywords, undefined, undefined, {
-                        excludeSelector: ".protyle-breadcrumb__bar[data-backlink-id]"
-                    });
                 } else {
                     const editorElement = document.createElement("div");
                     editorElement.style.minHeight = "auto";
@@ -1717,6 +1764,7 @@ export class BacklinkContent extends Model {
     }
 
     private clearReadingAnchorTimers() {
+        this.contextBatch.clear();
         this.readingAnchorTimers.forEach(timer => {
             if (timer) {
                 window.clearTimeout(timer);
@@ -1821,13 +1869,13 @@ export class BacklinkContent extends Model {
     }
 
     private showLoading() {
-        if (this.type !== "bottom" && !isMobile()) {
+        if (this.type !== "bottom" && this.surface !== "popover" && !isMobile()) {
             return;
         }
         this.showingLoading = true;
         this.resetRenderedData(false);
         this.element.classList.remove("sy__backlink--backlinks-empty", "sy__backlink--mentions-empty");
-        const loadingHTML = '<div class="backlinkList__loading"><img width="32px" height="32px" src="/stage/loading-pure.svg"></div>';
+        const loadingHTML = '<div class="backlinkList__loading"><span class="b3-loading" aria-hidden="true"></span></div>';
         this.tree.element.innerHTML = loadingHTML;
         this.mTree.element.innerHTML = loadingHTML;
         this.element.querySelector(".listCount").textContent = "";
@@ -2229,7 +2277,8 @@ export class BacklinkContent extends Model {
             });
         }
         const bottomVisibility = this.type === "bottom" ?
-            getBottomBacklinkVisibility(data.linkRefsCount, data.mentionsCount, data.k, data.mk) : undefined;
+            getBottomBacklinkVisibility(data.linkRefsCount, data.mentionsCount, data.k, data.mk,
+                Boolean(getBacklinkSourceFilterParam(this.sourceFilter))) : undefined;
         if (bottomVisibility) {
             if (this.globalList?.hasError) {
                 bottomVisibility.hideBacklinks = false;
@@ -2422,7 +2471,7 @@ export class BacklinkContent extends Model {
         this.globalList?.markDirty();
         this.indexChangeVersion++;
         this.dirty = true;
-        this.pendingFull = this.pendingFull || Boolean(change.backlinkFull);
+        this.pendingFull = this.pendingFull || Boolean(change.backlinkFull) || Boolean(this.sourceFilter.database);
         change.rootIDs?.forEach(rootID => this.pendingRootIDs.add(rootID));
         this.itemRecords.forEach(records => records.forEach((record, rootID) => {
             if (this.pendingFull || this.pendingRootIDs.has(rootID)) {

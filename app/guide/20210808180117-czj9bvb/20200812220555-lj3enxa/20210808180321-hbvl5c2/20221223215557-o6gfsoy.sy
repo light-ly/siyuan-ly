@@ -7,7 +7,7 @@
 		"id": "20221223215557-o6gfsoy",
 		"title": "闪卡",
 		"type": "doc",
-		"updated": "20261009153000"
+		"updated": "20261103094358"
 	},
 	"Children": [
 		{
@@ -16,7 +16,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260614194151-5atwbsj",
-				"updated": "20260809232000"
+				"updated": "20261024161440"
 			},
 			"Children": [
 				{
@@ -30,12 +30,12 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20260614194151-4z6xzmg",
-				"updated": "20260809232000"
+				"updated": "20261024161440"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "将内容块设置为闪卡后，系统会通过间隔重复算法 FSRS (GitHub repo: open-spaced-repetition/go-fsrs) 自动安排复习，在遗忘临界点提醒复习，帮助将短期记忆转化为长期记忆。"
+					"Data": "将内容块制作为闪卡后，思源使用间隔重复算法 FSRS，根据每次复习的评分安排下次复习时间。可以直接复用笔记中的内容，无需另写一份卡片。"
 				}
 			]
 		},
@@ -45,7 +45,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260614194151-667efp1",
-				"updated": "20260803163440"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -60,7 +60,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20260614194151-l3dy84x",
-				"updated": "20261009153000"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -276,7 +276,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20260614194151-of1pv7p",
-				"updated": "20260803163440"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -290,7 +290,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -299,7 +299,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " ​ 中调整。"
+					"Data": " 中调整。"
 				}
 			]
 		},
@@ -844,12 +844,26 @@
 			]
 		},
 		{
+			"ID": "20261103094358-f7c58e0",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261103094358-f7c58e0",
+				"updated": "20261103094358"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "在移动端切换卡片、翻页、改变复习范围、提交评分以及设置到期时间、重置或移除闪卡时，会先等待当前编辑保存完成。保存失败时保留当前卡片和草稿，连接恢复后可重新执行该操作。"
+				}
+			]
+		},
+		{
 			"ID": "20260614194151-4s6qhj0",
 			"Type": "NodeHeading",
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260614194151-4s6qhj0",
-				"updated": "20260803163440"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -863,7 +877,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20260614194151-ic45461",
-				"updated": "20260803163440"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -877,7 +891,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -886,7 +900,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " ​ 中可以调整闪卡相关的全局配置，其中"
+					"Data": " 中可以调整闪卡相关的全局配置，其中"
 				},
 				{
 					"Type": "NodeTextMark",

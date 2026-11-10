@@ -1,30 +1,21 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
 import (
 	"fmt"
 
+	"github.com/siyuan-note/siyuan/kernel/conf"
 	"github.com/siyuan-note/siyuan/kernel/model"
 )
 
 var SyncTool = &Tool{
-	Name:        "sync",
-	Description: "Data sync operations. Actions: perform() (full upload+download), upload(), download(), status().",
+	Name:           "sync",
+	Description:    "Synchronize with the user's configured provider: SiYuan Cloud, S3, WebDAV or a local directory. Actions: perform() merges local and remote changes in both directions; upload() publishes local data to the target; download() applies target data locally; status() reads local configuration/status without syncing. Upload can overwrite target data and download can overwrite local data. SiYuan Cloud requires a subscription; third-party storage may charge separately. Remote providers send requests and data externally; local-directory sync uses local storage, with peer network traffic when LAN sync is enabled. Review the direction and target before proceeding.",
+	EffectScope:    EffectScopeMixed,
+	ResolveEffects: syncToolEffects,
 	InputSchema: ToolSchema{
 		Type: "object",
 		Properties: map[string]Property{
@@ -33,6 +24,29 @@ var SyncTool = &Tool{
 		Required: []string{"action"},
 	},
 	Handler: syncHandler,
+}
+
+func syncToolEffects(action string) (ToolEffects, bool) {
+	if action == "status" {
+		return ToolEffects{LocalRead: true}, true
+	}
+	if action != "perform" && action != "upload" && action != "download" {
+		return ToolEffects{}, false
+	}
+	// 上传也会更新本地仓库与同步状态；配置不可读时按可能外发和计费处理。
+	effects := ToolEffects{LocalRead: true, LocalWrite: true, DataEgress: true, ExternalCost: true}
+	if model.Conf == nil {
+		return effects, true
+	}
+	config := model.Conf.Sync.Load()
+	if config == nil {
+		return effects, true
+	}
+	if config.Provider == conf.ProviderLocal {
+		effects.DataEgress = config.LAN != nil && config.LAN.Enabled
+		effects.ExternalCost = false
+	}
+	return effects, true
 }
 
 func init() {
@@ -58,17 +72,23 @@ func syncHandler(args map[string]any) (CallToolResult, error) {
 }
 
 func syncPerform(_ map[string]any) (CallToolResult, error) {
-	model.SyncData(true)
+	if err := model.SyncData(true); err != nil {
+		return CallToolResult{Content: []ContentItem{{Type: "text", Text: "sync failed: " + err.Error()}}, IsError: true}, nil
+	}
 	return CallToolResult{Content: []ContentItem{{Type: "text", Text: "sync done: " + model.Conf.Sync.Load().Stat}}}, nil
 }
 
 func syncUpload(_ map[string]any) (CallToolResult, error) {
-	model.SyncDataUpload()
+	if err := model.SyncDataUpload(); err != nil {
+		return CallToolResult{Content: []ContentItem{{Type: "text", Text: "sync upload failed: " + err.Error()}}, IsError: true}, nil
+	}
 	return CallToolResult{Content: []ContentItem{{Type: "text", Text: "sync upload done: " + model.Conf.Sync.Load().Stat}}}, nil
 }
 
 func syncDownload(_ map[string]any) (CallToolResult, error) {
-	model.SyncDataDownload()
+	if err := model.SyncDataDownload(); err != nil {
+		return CallToolResult{Content: []ContentItem{{Type: "text", Text: "sync download failed: " + err.Error()}}, IsError: true}, nil
+	}
 	return CallToolResult{Content: []ContentItem{{Type: "text", Text: "sync download done: " + model.Conf.Sync.Load().Stat}}}, nil
 }
 

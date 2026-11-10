@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
@@ -20,12 +8,16 @@ var QuestionTool = &Tool{
 	Name:        "question",
 	Description: "Ask the user questions to clarify needs/preferences (do NOT use for plain-text option lists). questions[]: each {header, question, options[] {label, description}, multiple?, custom?}. For official plugin development use workflow.action=choose with questions=[]; the server supplies the exact Yes/No question. After successful official skill load, workflow.action=plan freezes and displays the proposed scope for confirmation. Workflow answers never authorize installation or enabling.",
 	AgentOnly:   true,
+	EffectScope: EffectScopeLocal,
+	ActionEffects: map[string]ToolEffects{
+		"": {},
+	},
 	InputSchema: ToolSchema{
 		Type: "object",
 		Properties: map[string]Property{
-			"workflow": {Type: "object", Description: "Reserved official plugin workflow; actual consent is recorded only from the user's answer", Properties: map[string]Property{
-				"action":         {Type: "string", Enum: []string{"choose", "plan", "recover", "cancel"}},
-				"taskId":         {Type: "string", Description: "Server taskId returned by choose; required for plan/cancel"},
+			"workflow": {Type: "object", Description: "Official plugin workflow; use questions=[] for server-supplied confirmations. Actual consent is recorded only from the user's answer", Properties: map[string]Property{
+				"action":         {Type: "string", Description: "choose asks whether to use the official plugin workflow; plan asks approval for a frozen proposal after loading the official skill; recover asks recovery-only approval for the most recently approved plan, allowing restore_project or the same interrupted prepare_project without authorizing new source edits; cancel pauses the task and revokes approvals without rolling back changes. Recovery requires the same loaded skill and a previously approved plan. None authorize installation or enabling", Enum: []string{"choose", "plan", "recover", "cancel"}},
+				"taskId":         {Type: "string", Description: "Server taskId returned by choose; required for plan/recover/cancel"},
 				"newTask":        {Type: "boolean", Description: "choose only: a separate plugin requested by the user"},
 				"reconsider":     {Type: "boolean", Description: "choose only: the user explicitly changed the earlier workflow choice"},
 				"proposal":       {Type: "string", Description: "Short complete proposal, at most 2000 characters"},

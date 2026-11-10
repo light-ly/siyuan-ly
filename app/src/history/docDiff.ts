@@ -1,5 +1,5 @@
+import {MobileDialog} from "../dialog/mobileDialog";
 import {Constants} from "../constants";
-import {Dialog} from "../dialog";
 import type {App} from "../index";
 import {Protyle} from "../protyle";
 import {disabledProtyle, onGet} from "../protyle/util/onGet";
@@ -105,7 +105,8 @@ export const showDocVersionDiff = (app: App, firstRef: IDocVersionRef, secondRef
         // 初次渲染前没有需要移除的监听器。
     };
 
-    const dialog = new Dialog({
+    const dialog = new MobileDialog({
+        mobileSheet: {mode: "expanded"},
         title: window.siyuan.languages.compare,
         content: `<div class="history__doc-compare fn__flex-column">
     <div class="history__action">
@@ -142,7 +143,7 @@ export const showDocVersionDiff = (app: App, firstRef: IDocVersionRef, secondRef
 </div>`,
         width: isMobile() ? "100vw" : "90vw",
         height: isMobile() ? "100dvh" : "80vh",
-        containerClassName: "b3-dialog__container--theme",
+        containerClassName: "b3-dialog__container--theme history__doc-compare-dialog",
         destroyCallback() {
             isDestroyed = true;
             requestId++;
@@ -196,7 +197,7 @@ export const showDocVersionDiff = (app: App, firstRef: IDocVersionRef, secondRef
             panel.querySelector(".history__compare-label").textContent = index === 0 ? leftRef.label : rightRef.label;
             panel.querySelector(".protyle-title__input").textContent = "";
             panel.querySelector(".history__compare-content").innerHTML =
-                '<div class="fn__loading"><img style="height: 64px;width: 64px" src="/stage/loading-pure.svg"></div>';
+                '<div class="fn__loading"><span class="b3-loading" aria-hidden="true"></span></div>';
         });
     };
 

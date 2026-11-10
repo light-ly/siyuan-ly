@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package conf
 
 import (
@@ -13,10 +17,18 @@ func NormalizeFileTree(fileTree *FileTree) *FileTree {
 	if fileTree == nil {
 		fileTree = NewFileTree()
 	}
+	if fileTree.CloseWindowOnLastTabClosed == nil {
+		fileTree.CloseWindowOnLastTabClosed = NewFileTree().CloseWindowOnLastTabClosed
+	}
 	if fileTree.MaxListCount < 1 {
 		fileTree.MaxListCount = 512
 	}
 	fileTree.MaxListCount = min(10240, fileTree.MaxListCount)
+	if fileTree.DocTreeBatchSize == nil || *fileTree.DocTreeBatchSize < 1 {
+		fileTree.DocTreeBatchSize = new(512)
+	} else {
+		fileTree.DocTreeBatchSize = new(min(10240, *fileTree.DocTreeBatchSize))
+	}
 	if fileTree.MaxOpenTabCount < 1 {
 		fileTree.MaxOpenTabCount = 8
 	}
@@ -78,8 +90,17 @@ func NormalizeEditor(editor *Editor) *Editor {
 	if editor.DatabaseAttrUseTabs == nil {
 		editor.DatabaseAttrUseTabs = defaults.DatabaseAttrUseTabs
 	}
+	if editor.DatabaseAttrLayout == nil || *editor.DatabaseAttrLayout < 0 || *editor.DatabaseAttrLayout > 2 {
+		editor.DatabaseAttrLayout = defaults.DatabaseAttrLayout
+	}
 	if editor.CheckBlockRef == nil {
 		editor.CheckBlockRef = defaults.CheckBlockRef
+	}
+	if editor.EmbedBlockBreadcrumbParentPath == nil {
+		editor.EmbedBlockBreadcrumbParentPath = defaults.EmbedBlockBreadcrumbParentPath
+	}
+	if editor.MathDelimiterCompatibility == nil {
+		editor.MathDelimiterCompatibility = defaults.MathDelimiterCompatibility
 	}
 	if editor.HashTagSearch == nil {
 		editor.HashTagSearch = defaults.HashTagSearch
@@ -160,6 +181,9 @@ func NormalizeExport(export *Export) *Export {
 	defaults := NewExport()
 	if export == nil {
 		export = defaults
+	}
+	if export.HeadingNumber == nil {
+		export.HeadingNumber = defaults.HeadingNumber
 	}
 	if export.BlockEmbedMode < 0 || export.BlockEmbedMode > 1 {
 		export.BlockEmbedMode = defaults.BlockEmbedMode
@@ -267,6 +291,9 @@ func NormalizeAppearance(appearance *Appearance, mobile bool) *Appearance {
 	}
 	if "" == appearance.CodeBlockThemeLight {
 		appearance.CodeBlockThemeLight = "github"
+	}
+	if appearance.ShowFloatingDockBar == nil {
+		appearance.ShowFloatingDockBar = new(true)
 	}
 	appearance.StatusBar = util.NormalizeStatusBar(appearance.StatusBar, mobile)
 	if appearance.PDFTheme == nil {
@@ -461,8 +488,39 @@ func NormalizeStat(stat *Stat) *Stat {
 
 // NormalizeBazaar 在集市配置缺失时使用默认值。
 func NormalizeBazaar(bazaar *Bazaar) *Bazaar {
+	defaults := NewBazaar()
 	if bazaar == nil {
-		bazaar = NewBazaar()
+		return defaults
+	}
+	if bazaar.CompatibilityFilters == nil {
+		bazaar.CompatibilityFilters = defaults.CompatibilityFilters
+	}
+	for pkgType := range bazaar.CompatibilityFilters {
+		if _, known := defaults.CompatibilityFilters[pkgType]; !known {
+			delete(bazaar.CompatibilityFilters, pkgType)
+		}
+	}
+	for pkgType, filter := range defaults.CompatibilityFilters {
+		if bazaar.CompatibilityFilters[pkgType] == nil {
+			bazaar.CompatibilityFilters[pkgType] = filter
+		}
+	}
+	if bazaar.BatchUpdateExcluded == nil {
+		bazaar.BatchUpdateExcluded = defaults.BatchUpdateExcluded
+	}
+	for pkgType := range bazaar.BatchUpdateExcluded {
+		if _, known := defaults.BatchUpdateExcluded[pkgType]; !known {
+			delete(bazaar.BatchUpdateExcluded, pkgType)
+		}
+	}
+	for pkgType := range defaults.BatchUpdateExcluded {
+		names := make(map[string]bool)
+		for name, excluded := range bazaar.BatchUpdateExcluded[pkgType] {
+			if strings.TrimSpace(name) != "" && excluded {
+				names[name] = true
+			}
+		}
+		bazaar.BatchUpdateExcluded[pkgType] = names
 	}
 	return bazaar
 }

@@ -5,6 +5,63 @@ import {runInNewContext} from "node:vm";
 import {ModuleKind, ScriptTarget, transpileModule} from "typescript";
 import {ContractFormData} from "../../util/contractFormData";
 
+test("wallpaper settings require password or OIDC authentication on desktop, web and mobile", () => {
+    const compiled = transpileModule(readFileSync("src/config/tabs/accessTab.ts", "utf8") +
+        "\nexport {registerAccessAuthGroup};", {
+        compilerOptions: {module: ModuleKind.CommonJS, target: ScriptTarget.ES2021},
+    }).outputText;
+    for (const browser of [false, true]) {
+        for (const mobile of [false, true]) {
+            for (const readonly of [false, true]) {
+                for (const password of ["", "password"]) {
+                    for (const oidc of [false, true]) {
+                        const slots: string[] = [];
+                        const appearance = {lockScreenWallpaper: true};
+                        const exports = {} as {registerAccessAuthGroup: (tab: unknown) => void};
+                        runInNewContext(compiled, {exports, require: () => ({
+                            isBrowser: () => browser, isInMobileApp: () => mobile,
+                            getHostCapabilities: () => ({oidcAuthentication: true}),
+                        }), window: {siyuan: {config: {readonly, accessAuthCode: password,
+                            oidc: {enabled: oidc}, api: {token: "token"}, appearance}, languages: {about14: "${token}"}}}});
+                        exports.registerAccessAuthGroup({group: () => ({
+                            button: () => {}, switch: () => {}, text: () => {},
+                            slot: (spec: {key: string}) => slots.push(spec.key),
+                        })});
+                        assert.equal(slots.includes("lockScreenWallpaper"), !readonly && Boolean(password || oidc),
+                            JSON.stringify({browser, mobile, readonly, password: Boolean(password), oidc}));
+                        assert.equal(appearance.lockScreenWallpaper, true, "hiding the setting preserves the wallpaper");
+                    }
+                }
+            }
+        }
+    }
+});
+
+test("OIDC activation refreshes the wallpaper setting without waiting for its configuration notification", () => {
+    const compiled = transpileModule(readFileSync("src/config/tabs/accessTab.ts", "utf8") +
+        "\nexport {registerAccessAuthGroup, applyActivatedOIDC};", {
+        compilerOptions: {module: ModuleKind.CommonJS, target: ScriptTarget.ES2021},
+    }).outputText;
+    const config = {readonly: false, accessAuthCode: "", oidc: {enabled: false}, api: {token: "token"}};
+    const slots: string[] = [];
+    const tab = {group: () => ({button: () => {}, switch: () => {}, text: () => {},
+        slot: (spec: {key: string}) => slots.push(spec.key)})};
+    const exports = {} as {registerAccessAuthGroup: (tab: unknown) => void; applyActivatedOIDC: (config: unknown) => void};
+    runInNewContext(compiled, {exports, window: {siyuan: {config, languages: {about14: "${token}"}}}, require: () => ({
+        isBrowser: () => false, isInMobileApp: () => false,
+        getHostCapabilities: () => ({oidcAuthentication: true}),
+        remountOpenSettingTab: (id: string) => {
+            assert.equal(id, "access");
+            exports.registerAccessAuthGroup(tab);
+        },
+    })});
+    exports.registerAccessAuthGroup(tab);
+    assert.equal(slots.includes("lockScreenWallpaper"), false);
+    exports.applyActivatedOIDC({enabled: true});
+    assert.equal(config.oidc.enabled, true);
+    assert.equal(slots.includes("lockScreenWallpaper"), true);
+});
+
 test("encrypted notebook system lock is offered only for supported local desktop kernels", () => {
     const compiled = transpileModule(readFileSync("src/config/tabs/accessTab.ts", "utf8") +
         "\nexport {registerEncryptedNotebookGroup};", {
@@ -77,7 +134,7 @@ test("crypto backup import trims passwords and rejects whitespace-only input", a
     };
     const file = new Blob(["backup"], {type: "application/json"});
     const input = {files: [file], onchange: (): void => undefined, click() { this.onchange(); }};
-    let confirm: (value: string, dialog: {destroy: () => void}) => void;
+    let confirm: (value: string, dialog: {destroy: () => void}) => Promise<void>;
     const requests: FormData[] = [];
     let destroyed = 0;
     const dependencies = {
@@ -89,7 +146,10 @@ test("crypto backup import trims passwords and rejects whitespace-only input", a
             requests.push(data);
             return {code: 0};
         },
-        openInputDialog: (options: {onConfirm: typeof confirm}) => { confirm = options.onConfirm; },
+        mobileInputDialog: (options: {awaitConfirm: boolean, onConfirm: (value: string) => Promise<boolean>}) => {
+            assert.equal(options.awaitConfirm, true);
+            confirm = (value, dialog) => options.onConfirm(value).then(success => { if (success) dialog.destroy(); });
+        },
         showMessage: (): void => undefined,
     };
     const exports = {} as {mountEncryptedNotebook: (element: typeof root) => void};
@@ -102,13 +162,12 @@ test("crypto backup import trims passwords and rejects whitespace-only input", a
     exports.mountEncryptedNotebook(root);
     listeners.get("#importCryptoBackupBtn")();
     const dialog = {destroy: () => { destroyed++; }};
-    confirm("", dialog);
-    confirm("   ", dialog);
-    confirm("\t\u00a0\u3000\n", dialog);
+    await confirm("", dialog);
+    await confirm("   ", dialog);
+    await confirm("\t\u00a0\u3000\n", dialog);
     assert.equal(requests.length, 0);
     for (const password of [" password ", "\tpassword\n", "\u00a0password\u3000"]) {
-        confirm(password, dialog);
-        await Promise.resolve();
+        await confirm(password, dialog);
         assert.equal(requests[requests.length - 1].get("password"), password.trim());
         assert.ok(requests[requests.length - 1].get("file") instanceof Blob);
     }

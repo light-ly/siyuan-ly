@@ -7,7 +7,7 @@
 		"id": "20210808180303-axh6q1d",
 		"title": "Custom Appearance",
 		"type": "doc",
-		"updated": "20261013113128"
+		"updated": "20261021001451"
 	},
 	"Children": [
 		{
@@ -50,7 +50,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20261013113128-1if2gvn",
-				"updated": "20261013113128"
+				"updated": "20261021001451"
 			},
 			"Children": [
 				{
@@ -64,7 +64,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20261013113128-l0hhnte",
-				"updated": "20261013113128"
+				"updated": "20261021001451"
 			},
 			"Children": [
 				{
@@ -105,7 +105,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " to reduce spacing in desktop toolbars, tabs, navigation lists, menus and dialogs. The change takes effect immediately and is off by default. Editor text size, document and database content, exports and the mobile interface are unchanged."
+					"Data": " to reduce spacing in desktop toolbars, tabs, navigation lists, menus and dialogs, including when using the desktop interface in the tablet app. The change takes effect immediately and is off by default. Editor text size, document and database content, exports and the mobile interface are unchanged."
 				}
 			]
 		},
@@ -120,6 +120,71 @@
 				{
 					"Type": "NodeText",
 					"Data": "Built-in light and dark themes support compact mode. With community themes, the effect depends on the theme's layout styles; some areas may retain their original spacing."
+				}
+			]
+		},
+		{
+			"ID": "20261105114500-55128df",
+			"Type": "NodeHeading",
+			"HeadingLevel": 2,
+			"Properties": {
+				"id": "20261105114500-55128df",
+				"updated": "20261105114500"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Floating status bar"
+				}
+			]
+		},
+		{
+			"ID": "20261105114500-5b60db9",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261105114500-5b60db9",
+				"updated": "20261105114500"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "After hiding the bottom status bar, enable "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Settings"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Appearance"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Interface"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Show hidden status bar on hover in the bottom-right corner of the window"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " to show it temporarily by moving the mouse to the bottom-right corner. It stays open while the pointer is over the bar and hides when the pointer leaves. This desktop option is off by default and takes effect immediately."
 				}
 			]
 		}

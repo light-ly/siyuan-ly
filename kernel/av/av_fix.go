@@ -1,22 +1,11 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package av
 
 import (
+	"fmt"
 	"slices"
 	"time"
 
@@ -28,7 +17,7 @@ import (
 )
 
 const (
-	CurrentSpec   = 13
+	CurrentSpec   = 14
 	PlainTextSpec = 8
 	RichTextSpec  = 9
 	// 单一 WGS84 位置使用独立版本，防止其他格式的内核重写坐标含义。
@@ -55,6 +44,9 @@ func UpgradeSpec(av *AttributeView) {
 	if av.Spec < LocationSpec && av.HasLocation() {
 		av.Spec = LocationSpec
 	}
+	if av.HasSubItems() && av.Spec < SubItemsSpec {
+		av.Spec = SubItemsSpec
+	}
 }
 
 // upgradeSpec10 仅为包含列表或日历配置的数据库升级，保留其他数据库的旧版兼容性。
@@ -79,6 +71,9 @@ func upgradeSpec10(av *AttributeView) {
 }
 
 func CheckSpec(av *AttributeView) (err error) {
+	if av.HasSubItems() && av.Spec < SubItemsSpec {
+		return fmt.Errorf("database sub-items require format %d", SubItemsSpec)
+	}
 	if CurrentSpec < av.Spec {
 		logging.LogErrorf("attribute view [%s] spec [%d] is newer than current [%d]", av.ID, av.Spec, CurrentSpec)
 		err = ErrSpecTooNew

@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package ocr
 
 import (
@@ -18,6 +22,7 @@ var (
 	ErrUnknownProvider  = errors.New("unknown OCR provider")
 	ErrUnavailable      = errors.New("OCR provider is unavailable")
 	ErrUnsupportedImage = errors.New("unsupported OCR image format")
+	ErrPermanent        = errors.New("OCR image cannot be recognized without changes")
 )
 
 // Provider 只负责识别，结果存储和搜索索引由调用方统一维护。

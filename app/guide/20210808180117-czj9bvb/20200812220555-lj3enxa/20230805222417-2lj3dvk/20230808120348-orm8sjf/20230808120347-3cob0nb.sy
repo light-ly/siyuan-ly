@@ -6,7 +6,7 @@
 		"id": "20230808120347-3cob0nb",
 		"title": "数据同步",
 		"type": "doc",
-		"updated": "20261016111950"
+		"updated": "20261105042900"
 	},
 	"Children": [
 		{
@@ -48,157 +48,16 @@
 			]
 		},
 		{
-			"ID": "20260905184908-5o1vhpi",
-			"Type": "NodeHeading",
-			"HeadingLevel": 2,
-			"Properties": {
-				"id": "20260905184908-5o1vhpi",
-				"updated": "20260905191024"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "资源文件下载"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-hlr159c",
+			"ID": "20261102100000-1riy9u5",
 			"Type": "NodeParagraph",
 			"Properties": {
-				"id": "20260905184908-hlr159c",
-				"updated": "20260905184908"
+				"id": "20261102100000-1riy9u5",
+				"updated": "20261102100000"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "可在 "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "设置"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " - "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "账号与同步"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " - "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "资源文件下载"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " 中选择全部下载或按需下载，设置仅作用于当前设备。"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-9m2nksl",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-9m2nksl",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "全部下载是默认模式。按需下载仍会完整同步文档、数据库定义和资源文件清单，在展示图片、音视频、PDF 等内容或打开资源链接时下载所需资源文件。加密笔记本资源仍需解锁后访问。"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-88bc5es",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-88bc5es",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "已下载的资源文件会保留在本机，并在后续同步时继续更新。启用按需下载不会清理已有文件，也不会立即释放已有占用。"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-k9wkzqk",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-k9wkzqk",
-				"updated": "20260905191024"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "未下载的资源文件离线不可用，无法获取时会报错。切换为全部下载会先补齐当前资源文件及所有保留的本地快照所需内容，因此也可能下载历史版本；下载失败时保留原模式，可以恢复连接后重试。"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-cv88hsn",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-cv88hsn",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "按需模式的本地快照可能依赖云端，不能视为完整离线备份。完整快照下载，以及需要资源文件内容的导出和恢复操作，会先补齐对应资源文件，无法取得时明确报错。"
-				}
-			]
-		},
-		{
-			"ID": "20260905184908-84gaare",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260905184908-84gaare",
-				"updated": "20260905184908"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "更换同步目标、重置数据仓库或使用旧版本打开此工作空间前，请先切换为全部下载并完成下载，避免失去未下载资源文件的获取途径。"
-				}
-			]
-		},
-		{
-			"ID": "20261012014537-e8z1u63",
-			"Type": "NodeHeading",
-			"Properties": {
-				"id": "20261012014537-e8z1u63",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "主题和图标"
-				}
-			],
-			"HeadingLevel": 2
-		},
-		{
-			"ID": "20260917190844-x6jwutu",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260917190844-x6jwutu",
-				"updated": "20260918195936"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "主题和图标包的文件、更新和卸载会在设备间同步，各设备独立选择使用的主题和图标。包内图片、字体等资源始终完整下载。同步、删除和冲突与插件、挂件、模板共用文件级规则。恢复的快照中没有某个包时，该包会被删除。"
+					"Data": "同步会按原始格式传输文档，即使当前版本无法读取该格式。不支持的文档不能打开或编辑，也不进入本地内容索引；请升级到支持该格式的版本后读取。其他兼容文档仍可正常同步。这不代表新旧客户端可以安全混用：旧版本的编辑缓存仍可能覆盖新版内容。"
 				}
 			]
 		},
@@ -208,7 +67,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20230808120347-qbr56bx",
-				"updated": "20261016111950"
+				"updated": "20261103163507"
 			},
 			"Children": [
 				{
@@ -222,9 +81,13 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20230808120347-2p4bc49",
-				"updated": "20220821170632"
+				"updated": "20261024161816"
 			},
 			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "先 "
+				},
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "block-ref",
@@ -234,7 +97,30 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "后如果一切正常就已经配置好同步了。如果你不太熟悉同步配置，建议通过点击同步按钮打开同步配置向导，通过向导进行配置会更简便一些。"
+					"Data": "，再选择云端存储、配置同步目标并启用同步。不熟悉配置时，可点击同步按钮打开向导，按提示完成设置。"
+				}
+			]
+		},
+		{
+			"ID": "20261103104841-074cd66",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261103104841-074cd66",
+				"updated": "20261103110957"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "新建、切换或删除云端同步目录失败时，会保留目录列表，可重新执行该操作。目录列表读取失败时，可点击 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "重试"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 重新加载。同步向导中启用同步或提交同步方向失败时，会保留当前页面和选择，可重新提交。"
 				}
 			]
 		},
@@ -360,7 +246,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20230808120347-y41kxh2",
-				"updated": "20261016111950"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -400,7 +286,7 @@
 					},
 					"Properties": {
 						"id": "20230808120347-3l72g5v",
-						"updated": "20261016111950"
+						"updated": "20261024163013"
 					},
 					"Children": [
 						{
@@ -408,7 +294,7 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20230808120347-4mlag9e",
-								"updated": "20261016111950"
+								"updated": "20261024163013"
 							},
 							"Children": [
 								{
@@ -449,7 +335,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 导出数据包，传输到新设备后，在该设备的同一设置页面使用 "
+									"Data": " 导出数据包，传输到新设备后，在该设备的同一设置页面使用 "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -472,7 +358,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20261011151543-be59rg9",
-				"updated": "20261016111431"
+				"updated": "20261103163507"
 			},
 			"Children": [
 				{
@@ -523,6 +409,57 @@
 			]
 		},
 		{
+			"ID": "20261020224352-ftr760i",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261020224352-ftr760i",
+				"updated": "20261020224352"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "保存前可点击 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "测试连接"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 检查当前 S3、WebDAV 或本地文件系统配置草稿，测试不会保存配置。WebDAV 会检查建目录和探针读写权限，本地文件系统会检查目录读写权限，结束后尽力清理探针。测试失败时可根据提示修改后重试，已保存的配置会保留。"
+				}
+			]
+		},
+		{
+			"ID": "20261102160000-699d624",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102160000-699d624",
+				"updated": "20261102160000"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "S3 和 WebDAV 的端点地址省略协议时，含点的主机名默认使用 HTTPS；IP 地址、localhost 和单标签主机名默认使用 HTTP。含点的主机名对应的服务若只支持 HTTP，请显式填写 http://。显式填写的 http:// 和 https:// 地址保持原样，已保存的配置也不会自动改换协议。"
+				}
+			]
+		},
+		{
+			"ID": "20261102113000-1530bce",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102113000-1530bce",
+				"updated": "20261103163507"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "更改同步服务商、端点或目录前，思源会保存已打开的编辑器并为当前数据创建完整快照。新来源非空时，自动合并会停止。点击同步可预览两边文件数、来源时间和设备，以及上传、覆盖或删除的文件数量，然后选择以本地上传或以来源恢复，两种方向均不默认选中。上传会将当前本地快照发布到来源，但不删除来源中多余的存储对象；恢复会按来源替换本地数据。空来源直接接收本地数据。首轮同步在保存可恢复进度或完成数据提交前失败时，仍需重新预览并确认来源。已有可恢复进度时会继续按已选方向处理；数据提交后的资源下载失败可直接重试。切换前的快照可在数据历史中恢复。"
+				}
+			]
+		},
+		{
 			"ID": "20261011151543-p38jv4a",
 			"Type": "NodeParagraph",
 			"Properties": {
@@ -560,12 +497,226 @@
 			]
 		},
 		{
+			"ID": "20261020231029-gzbucu8",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261020231029-gzbucu8",
+				"updated": "20261101195843"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "自动同步通常在后台进行，不会弹出面板或打断编辑。点击同步图标可查看当前文件、已写入字节数、速度和预计剩余时间。文件写入完成后的索引恢复期间，展开和收起视图都会显示当前索引状态，进度条持续运行，直到索引恢复完成。"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "收起详情"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 可收起进度详情，点击 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "同步"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 可重新展开。仅在应用本地改动、恢复索引及刷新相关文档期间暂停编辑；取消后的恢复也需完成后才能继续编辑。点击 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "取消"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 可请求取消准备、网络传输或文件恢复。"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "同步图标会保留最近一次完成的结果：对勾表示成功，错误标记表示失败或自动同步暂停，普通云朵表示结果未知。重启后仍保留该结果，下一次同步完成后更新。同步进行中图标保持旋转，禁用同步时显示禁用图标。"
+				}
+			]
+		},
+		{
+			"ID": "20261020231029-obrohrp",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261020231029-obrohrp",
+				"updated": "20261020231029"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "取消后会保留已完成的文件并清理当前临时文件，可以再次同步以完成剩余内容。空间不足时，请释放空间后重试。启动或恢复文件前会清理可确认归属的中断同步临时文件，并提示释放的容量。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-5o1vhpi",
+			"Type": "NodeHeading",
+			"HeadingLevel": 2,
+			"Properties": {
+				"id": "20260905184908-5o1vhpi",
+				"updated": "20261105042900"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "资源文件下载"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-hlr159c",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-hlr159c",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "可在 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "设置"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "账号与同步"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "资源文件下载"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 中选择全部下载或按需下载，设置仅作用于当前设备。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-9m2nksl",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-9m2nksl",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "全部下载是默认模式。按需下载仍会完整同步文档、数据库定义和资源文件清单，在展示图片、音视频、PDF 等内容或打开资源链接时下载所需资源文件。加密笔记本资源仍需解锁后访问。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-88bc5es",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-88bc5es",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "已下载的资源文件会保留在本机，并在后续同步时继续更新。启用按需下载不会清理已有文件，也不会立即释放已有占用。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-k9wkzqk",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-k9wkzqk",
+				"updated": "20260905191024"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "未下载的资源文件离线不可用，无法获取时会报错。切换为全部下载会先补齐当前资源文件及所有保留的本地快照所需内容，因此也可能下载历史版本；下载失败时保留原模式，可以恢复连接后重试。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-cv88hsn",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-cv88hsn",
+				"updated": "20260905184908"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "按需模式的本地快照可能依赖云端，不能视为完整离线备份。完整快照下载，以及需要资源文件内容的导出和恢复操作，会先补齐对应资源文件，无法取得时明确报错。"
+				}
+			]
+		},
+		{
+			"ID": "20260905184908-84gaare",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260905184908-84gaare",
+				"updated": "20261105042900"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "更换同步目标、重置数据仓库或使用旧版本打开此工作空间前，请先切换为全部下载并完成下载，避免失去未下载资源文件的获取途径。退出登录后，如果仅选错账号或云区域且其他同步设置未变，请在原云区域重新登录原账号，再切换为全部下载。下载状态有效，且当前资源和保留快照所需分块已全部在本机时，也可在未登录或禁用同步时完成切换。如果云目录、仓库密钥已变动，或资源下载状态丢失、损坏，请保留工作空间和原备份，不要删除状态文件或仓库标记来绕过检查；重新登录本身不能修复这些状态。"
+				}
+			]
+		},
+		{
+			"ID": "20261012014537-e8z1u63",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261012014537-e8z1u63",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "主题和图标"
+				}
+			],
+			"HeadingLevel": 2
+		},
+		{
+			"ID": "20260917190844-x6jwutu",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260917190844-x6jwutu",
+				"updated": "20260918195936"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "主题和图标包的文件、更新和卸载会在设备间同步，各设备独立选择使用的主题和图标。包内图片、字体等资源始终完整下载。同步、删除和冲突与插件、挂件、模板共用文件级规则。恢复的快照中没有某个包时，该包会被删除。"
+				}
+			]
+		},
+		{
 			"ID": "20230808120347-buiv5yn",
 			"Type": "NodeHeading",
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20230808120347-buiv5yn",
-				"updated": "20261016111431"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -579,7 +730,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20230808120347-fwrmpx3",
-				"updated": "20261016111431"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -593,7 +744,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -602,7 +753,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -611,7 +762,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ 中支持三种同步模式："
+					"Data": " 中支持三种同步模式："
 				}
 			]
 		},
@@ -839,6 +990,20 @@
 							]
 						}
 					]
+				}
+			]
+		},
+		{
+			"ID": "20261026111206-4b3zwsx",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261026111206-4b3zwsx",
+				"updated": "20261026115057"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "退出等待期间，退出框会显示收到的状态栏消息，便于查看当前同步状态。退出等待超过 12 秒时，可以选择「跳过同步并退出」，确认后取消同步并完成退出。未同步的更改会保留在本机；取消确认则继续等待同步完成。"
 				}
 			]
 		},
@@ -1197,7 +1362,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 优先从局域网内可达、使用相同仓库密钥和云端同步目标的设备下载加密数据对象。云端存储仍是同步权威来源，局域网传输不可用时会回退到云端，因此不能替代为完全离线的点对点同步。Docker 内核不提供局域网加速；局域网通知仅在自动模式下触发同步。"
+					"Data": " 优先从局域网内可达、使用相同仓库密钥和云端同步目标的设备下载加密数据对象。使用 S3 时，两端的 Endpoint、Bucket 和 Region 配置必须一致；即使 auto 和显式 Region 都能访问同一云端仓库，局域网发现也不会匹配，请将两端 Region 设置为相同的值。云端存储仍是同步权威来源，局域网传输不可用时会回退到云端，因此不能替代为完全离线的点对点同步。Docker 内核不提供局域网加速；局域网通知仅在自动模式下触发同步。"
 				}
 			]
 		},

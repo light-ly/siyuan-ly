@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package apicontract
 
 import (
@@ -6,6 +10,143 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestAVAutomaticTemplateRefreshContract(t *testing.T) {
+	for _, test := range []struct {
+		body      string
+		automatic bool
+	}{
+		{`{"id":"database"}`, false}, {`{"id":"database","automaticRefresh":null}`, false},
+		{`{"id":"database","automaticRefresh":false}`, false}, {`{"id":"database","automaticRefresh":true}`, true},
+	} {
+		render, err := RenderAttributeView.Decode(strings.NewReader(test.body))
+		if err != nil || render.AutomaticRefresh != test.automatic {
+			t.Fatal(render, err)
+		}
+		keys, err := GetAttributeViewKeys.Decode(strings.NewReader(test.body))
+		if err != nil || keys.AutomaticRefresh != test.automatic {
+			t.Fatal(keys, err)
+		}
+	}
+	for _, value := range []string{`"true"`, `1`, `{}`} {
+		body := `{"id":"database","automaticRefresh":` + value + `}`
+		if _, err := RenderAttributeView.Decode(strings.NewReader(body)); err == nil {
+			t.Fatal("invalid render refresh accepted", body)
+		}
+		if _, err := GetAttributeViewKeys.Decode(strings.NewReader(body)); err == nil {
+			t.Fatal("invalid keys refresh accepted", body)
+		}
+	}
+}
+
+func TestAVNewItemTemplateOpenAfterCreateContract(t *testing.T) {
+	endpoint := Endpoint[AVNewItemTemplate, Null]{definition: Definition{Path: "/test", Body: JSONBody}}
+	for _, test := range []struct {
+		body string
+		want *bool
+	}{
+		{`{}`, nil}, {`{"openAfterCreate":null}`, nil},
+		{`{"openAfterCreate":false}`, new(false)}, {`{"openAfterCreate":true}`, new(true)},
+	} {
+		value, err := endpoint.Decode(strings.NewReader(test.body))
+		if err != nil || (value.OpenAfterCreate == nil) != (test.want == nil) ||
+			test.want != nil && *value.OpenAfterCreate != *test.want {
+			t.Fatalf("opening preference %s: %+v %v", test.body, value, err)
+		}
+		raw, _ := json.Marshal(value)
+		var output map[string]json.RawMessage
+		if err = json.Unmarshal(raw, &output); err != nil || (output["openAfterCreate"] != nil) != (test.want != nil) {
+			t.Fatalf("opening preference presence lost: %s %v", raw, err)
+		}
+	}
+	for _, body := range []string{`{"openAfterCreate":0}`, `{"openAfterCreate":"false"}`, `{"openAfterCreate":[]}`} {
+		if _, err := endpoint.Decode(strings.NewReader(body)); err == nil {
+			t.Fatalf("invalid opening preference accepted: %s", body)
+		}
+	}
+}
+
+func TestAVAutomationDocumentDepthContract(t *testing.T) {
+	endpoint := Endpoint[AVAutomationBlockSource, Null]{definition: Definition{Path: "/test", Body: JSONBody}}
+	for _, test := range []struct {
+		body  string
+		depth *int
+	}{
+		{`{}`, nil}, {`{"documentDepth":null}`, nil}, {`{"documentDepth":0}`, new(0)},
+		{`{"documentDepth":1}`, new(1)}, {`{"documentDepth":12}`, new(12)},
+	} {
+		value, err := endpoint.Decode(strings.NewReader(test.body))
+		if err != nil || (value.DocumentDepth == nil) != (test.depth == nil) ||
+			value.DocumentDepth != nil && *value.DocumentDepth != *test.depth {
+			t.Fatalf("depth input %s: %+v %v", test.body, value, err)
+		}
+		raw, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var output map[string]json.RawMessage
+		if err = json.Unmarshal(raw, &output); err != nil {
+			t.Fatal(err)
+		}
+		if (output["documentDepth"] != nil) != (test.depth != nil) {
+			t.Fatalf("depth presence lost: %s", raw)
+		}
+	}
+	for _, body := range []string{`{"documentDepth":1.5}`, `{"documentDepth":"1"}`, `{"documentDepth":true}`} {
+		if _, err := endpoint.Decode(strings.NewReader(body)); err == nil {
+			t.Fatalf("invalid depth type accepted: %s", body)
+		}
+	}
+}
+
+func TestAVAutomationSelectedDocumentsContract(t *testing.T) {
+	endpoint := Endpoint[AVAutomationBlockSource, Null]{definition: Definition{Path: "/test", Body: JSONBody}}
+	for _, test := range []struct {
+		body    string
+		include *bool
+	}{
+		{`{}`, nil}, {`{"includeSelectedDocuments":null}`, nil},
+		{`{"includeSelectedDocuments":true}`, new(true)}, {`{"includeSelectedDocuments":false}`, new(false)},
+	} {
+		value, err := endpoint.Decode(strings.NewReader(test.body))
+		if err != nil || (value.IncludeSelectedDocuments == nil) != (test.include == nil) ||
+			value.IncludeSelectedDocuments != nil && *value.IncludeSelectedDocuments != *test.include {
+			t.Fatalf("include selected documents %s: %+v %v", test.body, value, err)
+		}
+		raw, _ := json.Marshal(value)
+		var output map[string]json.RawMessage
+		if err = json.Unmarshal(raw, &output); err != nil ||
+			(output["includeSelectedDocuments"] != nil) != (test.include != nil) {
+			t.Fatalf("include selected documents presence lost: %s %v", raw, err)
+		}
+	}
+	for _, body := range []string{`{"includeSelectedDocuments":0}`, `{"includeSelectedDocuments":"false"}`, `{"includeSelectedDocuments":[]}`} {
+		if _, err := endpoint.Decode(strings.NewReader(body)); err == nil {
+			t.Fatalf("invalid inclusion type accepted: %s", body)
+		}
+	}
+}
+
+func TestAVAutomationAttributeNameContract(t *testing.T) {
+	endpoint := Endpoint[AVAutomationBlockAttribute, Null]{definition: Definition{Path: "/test", Body: JSONBody}}
+	for _, mode := range []string{"", "equals", "contains", "regex"} {
+		raw, _ := json.Marshal(map[string]string{"name": "custom-state", "nameOperator": mode, "operator": "exists"})
+		value, err := endpoint.Decode(strings.NewReader(string(raw)))
+		if err != nil || value.NameOperator != mode {
+			t.Fatalf("name operator %q: %+v %v", mode, value, err)
+		}
+	}
+	value, err := endpoint.Decode(strings.NewReader(`{"name":"custom-state","operator":"exists"}`))
+	if err != nil || value.NameOperator != "" {
+		t.Fatalf("legacy exact default: %+v %v", value, err)
+	}
+	for _, raw := range []string{`{"name":"state","nameOperator":"glob","operator":"exists"}`,
+		`{"name":"state","nameOperator":1,"operator":"exists"}`} {
+		if _, err := endpoint.Decode(strings.NewReader(raw)); err == nil {
+			t.Fatalf("invalid name operator accepted: %s", raw)
+		}
+	}
+}
 
 func TestAVRequestCompatibility(t *testing.T) {
 	group, err := SetAttrViewGroup.Decode(strings.NewReader(`{"avID":" av ","blockID":" block ","group":{"FIELD":"key","method":2,"unknown":true},"ignoreRows":"ignored"}`))
@@ -208,6 +349,46 @@ func TestAVResponseSchemas(t *testing.T) {
 	}
 }
 
+func TestDocumentSelectionResponseSchemas(t *testing.T) {
+	bundle, err := BuildBundle()
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure := DocumentSelectionFailure{Notebook: "notebook", Ambiguity: DocumentAncestorAmbiguity{
+		Index: 1, Title: "Repeated", Candidates: []DocumentPath{}, Time: "2026-10-31T00:00:00+08:00", TargetRevision: "revision",
+	}}
+	item, err := json.Marshal(CreateAttributeViewItem.FailureWithData(-1, "ambiguous", NewAVCreateItemSelectionFailure(failure)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, err := json.Marshal(CreateAttributeViewItemDocs.FailureWithData(-1, "ambiguous", NewAVCreateItemDocsSelectionFailure(failure)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	daily, err := json.Marshal(CreateDailyNote.FailureWithData(-1, "ambiguous", NewDailyNoteSelectionFailure(failure)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		path string
+		body []byte
+	}{
+		{"/api/av/createAttributeViewItem", item},
+		{"/api/av/createAttributeViewItemWithMarkdown", item},
+		{"/api/av/createAttributeViewRelationItem", item},
+		{"/api/av/createAttributeViewItemDocs", docs},
+		{"/api/filetree/createDailyNote", daily},
+	} {
+		if err = bundle.ValidateResponse("POST", test.path, test.body); err != nil {
+			t.Fatalf("%s selection response: %s %v", test.path, test.body, err)
+		}
+		var decoded struct{ Data DocumentSelectionFailure }
+		if err = json.Unmarshal(test.body, &decoded); err != nil || !reflect.DeepEqual(decoded.Data, failure) {
+			t.Fatalf("%s selection lost: %s %v", test.path, test.body, err)
+		}
+	}
+}
+
 func TestAVRelationItemInputContract(t *testing.T) {
 	valid := `{"avID":" av ","blockID":"block","keyID":"key","cells":[{"itemID":"item","relatedItemIDs":[]}],"preview":{"templateID":"","primaryKey":"Task","createdAt":123}}`
 	request, err := CreateAttributeViewRelationItem.Decode(strings.NewReader(valid))
@@ -246,6 +427,22 @@ func TestAVParsedRequestErrors(t *testing.T) {
 	keys, err := GetAttributeViewKeysByID.Decode(strings.NewReader(`{"avID":"av","keyIDs":[null]}`))
 	if err != nil || keys.KeyIDsError == nil {
 		t.Fatalf("key ID validation was not deferred: %+v %v", keys, err)
+	}
+}
+
+func TestAVContractHTTPPreviewRequest(t *testing.T) {
+	for _, fields := range []string{"", `,"deferHTTPTemplates":null,"preserveHTTPResults":null`, `,"deferHTTPTemplates":false,"preserveHTTPResults":false`, `,"deferHTTPTemplates":true,"preserveHTTPResults":true,"automaticRefresh":true`} {
+		request, err := RenderAttributeView.Decode(strings.NewReader(`{"id":"database"` + fields + `}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := strings.Contains(fields, ":true")
+		if request.DeferHTTPTemplates != expected || request.PreserveHTTPResults != expected {
+			t.Fatalf("incorrect preview decoding: %+v", request)
+		}
+	}
+	if _, err := RenderAttributeView.Decode(strings.NewReader(`{"id":"database","deferHTTPTemplates":"yes"}`)); err == nil {
+		t.Fatal("invalid preview flag accepted")
 	}
 }
 

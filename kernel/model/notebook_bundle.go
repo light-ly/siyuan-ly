@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -30,7 +18,6 @@ import (
 
 	"github.com/88250/gulu"
 	"github.com/88250/lute/ast"
-	"github.com/siyuan-note/dataparser"
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/conf"
@@ -116,7 +103,7 @@ func exportNotebooksSYBundle(ids []string) (zipPath string) {
 		archiveName := boxPaths[box.ID] + ".sy.zip"
 		archivePath := path.Join("notebooks", archiveName)
 		stagedPath := filepath.Join(workDir, archiveName)
-		if err = filelock.Copy(innerPath, stagedPath); nil != err {
+		if err = util.CopyUserFile(innerPath, stagedPath); nil != err {
 			logging.LogErrorf("stage exported notebook archive failed: %s", err)
 			return ""
 		}
@@ -334,12 +321,15 @@ func inspectSYNotebookArchive(zipPath string) (ret *inspectedSYNotebook, err err
 		return nil, errors.New(Conf.Language(199))
 	}
 	rootPath := filepath.Join(unzipPath, entries[0].Name())
+	if err = checkImportedDocumentAddressing(rootPath); err != nil {
+		return nil, err
+	}
 	ret = &inspectedSYNotebook{archivePath: zipPath, name: entries[0].Name()}
 	confPath := filepath.Join(rootPath, ".siyuan", "conf.json")
 	hasNotebookMetadata := filelock.IsExist(confPath)
 	if hasNotebookMetadata {
 		boxConf := conf.NewBoxConf()
-		confData, readConfErr := filelock.ReadFile(confPath)
+		confData, readConfErr := util.ReadUserFile(confPath)
 		if nil != readConfErr || gulu.JSON.UnmarshalJSON(confData, boxConf) != nil {
 			return nil, errors.New(Conf.Language(199))
 		}
@@ -351,7 +341,7 @@ func inspectSYNotebookArchive(zipPath string) (ret *inspectedSYNotebook, err err
 	if filelock.IsExist(boxDocPath) {
 		hasNotebookMetadata = true
 		meta := &boxDocMeta{}
-		metaData, readMetaErr := filelock.ReadFile(boxDocPath)
+		metaData, readMetaErr := util.ReadUserFile(boxDocPath)
 		if nil != readMetaErr || gulu.JSON.UnmarshalJSON(metaData, meta) != nil || meta.Spec != boxDocMetaSpec || !ast.IsNodeIDPattern(meta.BoxDocID) {
 			return nil, errors.New(Conf.Language(199))
 		}
@@ -369,14 +359,14 @@ func inspectSYNotebookArchive(zipPath string) (ret *inspectedSYNotebook, err err
 			return nil
 		}
 		syCount++
-		data, readTreeErr := filelock.ReadFile(currentPath)
+		data, readTreeErr := util.ReadUserFile(currentPath)
 		if nil != readTreeErr {
 			return readTreeErr
 		}
 		if specErr := treenode.CheckSpecJSON(data); nil != specErr {
 			return specErr
 		}
-		tree, _, parseErr := dataparser.ParseJSON(data, luteEngine.ParseOptions)
+		tree, _, parseErr := treenode.ParseJSON(data, luteEngine.ParseOptions)
 		if nil != parseErr {
 			return parseErr
 		}

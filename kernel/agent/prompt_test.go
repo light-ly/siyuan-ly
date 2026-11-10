@@ -1,10 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package agent
 
@@ -22,6 +18,21 @@ import (
 func TestSystemPromptIncludesFrontendPluginDevelopment(t *testing.T) {
 	if !strings.Contains(systemPrompt, "create or modify SiYuan frontend plugins through the tools provided") {
 		t.Fatal("system prompt does not describe frontend plugin development")
+	}
+}
+
+func TestSystemPromptDailyNoteCreationMatchesTools(t *testing.T) {
+	for _, prompt := range []string{systemPrompt, buildSystemPrompt("English", nil)} {
+		for _, want := range []string{"dailynote.append/prepend directly", "create today's note automatically", "without adding content"} {
+			if !strings.Contains(prompt, want) {
+				t.Fatalf("daily-note instructions are missing %q", want)
+			}
+		}
+		for _, obsolete := range []string{"then dailynote.append/prepend", "write or create this, use dailynote.create"} {
+			if strings.Contains(prompt, obsolete) {
+				t.Fatalf("daily-note instructions require a redundant create call: %q", obsolete)
+			}
+		}
 	}
 }
 
@@ -103,18 +114,45 @@ func TestSystemPromptPreservesNativeStructure(t *testing.T) {
 		{registrations: map[string]*capabilityRegistration{}},
 	} {
 		prompt := filterSystemPromptByCapabilities(systemPrompt, capabilities)
-		if !strings.Contains(prompt, "preserve existing structure, block IDs, and metadata") {
+		var nativeStructure string
+		for _, line := range strings.Split(prompt, "\n") {
+			if strings.HasPrefix(line, "- Native structured blocks:") {
+				nativeStructure = line
+				break
+			}
+		}
+		if !strings.Contains(nativeStructure, "preserve existing structure, block IDs, and metadata") {
 			t.Fatal("native structure protection was removed by capability filtering")
+		}
+		// parentID 同时用于文档寻址，只在原生块结构说明中排除该参数细节。
+		if strings.Contains(nativeStructure, "parentID") {
+			t.Fatal("block-specific parentID detail belongs in the tool description, not the native structure instruction")
 		}
 		for _, detail := range []string{
 			"NodeTabs", "NodeTabItem", "NodeMindmap", "NodeMindmapItem", "::: tabs", "@tab", "tabs-position", "tabs-active-id",
-			"{{{col", "{{{row", "first paragraph", "second paragraph", "data-sb-layout", "NodeList", "previousID", "parentID",
+			"{{{col", "{{{row", "first paragraph", "second paragraph", "data-sb-layout", "NodeList", "previousID",
 			"((<blockID>", "[[<blockID>]]", `data-type="text`, `data-type="u"`, `data-type="sup"`, `data-type="sub"`,
 			`data-type="kbd"`, "font-size", "font-weight", "<ruby>", "NodeHTMLBlock", "NodeCodeBlock",
 		} {
 			if strings.Contains(prompt, detail) {
 				t.Fatalf("block-specific detail %q belongs in the tool description, not the system prompt", detail)
 			}
+		}
+	}
+}
+
+func TestSystemPromptDocumentsStructuredDocumentAddressing(t *testing.T) {
+	for _, instruction := range []string{
+		"Never split an hPath or use it to recover identity",
+		"Document create/list/move and inbox.convert use notebook + parentID",
+		`parentID="" explicitly selects the notebook root`,
+		`Legacy path=hPath resolves only unambiguous ancestor chains with non-empty titles and no literal "/"`,
+		"unsupported or ambiguous candidates and unavailable indexes return explicit errors",
+		"document.list (notebook + parentID, omitted parentID lists the notebook root)",
+		"document.create (notebook + parentID + independent literal title)",
+	} {
+		if !strings.Contains(systemPrompt, instruction) {
+			t.Fatalf("missing structured document addressing instruction %q", instruction)
 		}
 	}
 }

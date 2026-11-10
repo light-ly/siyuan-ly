@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package apicontract
 
 import (
@@ -49,6 +53,11 @@ func TestTransactionFiniteActionSchemas(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, fixture := range []struct{ action, data string }{
+		{"setAttrViewSubItems", `{"enabled":true,"parentName":"Parent","childrenName":"Children"}`},
+		{"setAttrViewSubItemsDisplay", `"nested"`},
+		{"reparentAttrViewItems", `null`},
+		{"promoteAttrViewItems", `null`},
+		{"duplicateAttrViewSubtree", `null`},
 		{"setAttrViewColAttributePanelVisibility", `"hide-empty"`},
 		{"update", `"<div>content</div>"`},
 		{"append", `"<div>content</div>"`},

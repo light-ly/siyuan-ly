@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package api
 
 import (
@@ -26,6 +30,50 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/treenode"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
+
+func TestSortAttributeViewViewKeyContract(t *testing.T) {
+	setupAssetContractWorkspace(t)
+	const id = "20261101000000-avorder"
+	attrView := &av.AttributeView{ID: id, Spec: av.PlainTextSpec}
+	attrView.Views = []*av.View{}
+	for _, viewID := range []string{"20261101000001-viewone", "20261101000002-viewtwo"} {
+		attrView.Views = append(attrView.Views, &av.View{ID: viewID, LayoutType: av.LayoutTypeTable, Table: &av.LayoutTable{Columns: []*av.ViewTableColumn{
+			{BaseField: &av.BaseField{ID: "primary"}}, {BaseField: &av.BaseField{ID: "last"}},
+		}}})
+	}
+	if err := av.SaveAttributeView(attrView); err != nil {
+		t.Fatal(err)
+	}
+	engine := gin.New()
+	const path = "/api/av/sortAttributeViewViewKey"
+	engine.POST(path, sortAttributeViewViewKey)
+	for _, tc := range []struct {
+		body string
+		code int
+	}{
+		{`{"avID":"` + id + `","viewID":"20261101000002-viewtwo","keyID":"primary","previousKeyID":"last"}`, 0},
+		{`{"avID":"` + id + `","keyID":"primary","previousKeyID":"last"}`, 0},
+		{`{"avID":"` + id + `","viewID":null,"keyID":"primary","previousKeyID":""}`, 0},
+		{`{"avID":"` + id + `","viewID":"missing","keyID":"primary","previousKeyID":""}`, -1},
+		{`{"avID":"` + id + `","viewID":"20261101000002-viewtwo","keyID":"missing","previousKeyID":""}`, -1},
+		{`{"avID":"` + id + `","viewID":"20261101000002-viewtwo","keyID":"primary","previousKeyID":"missing"}`, -1},
+	} {
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest("POST", path, strings.NewReader(tc.body)))
+		requireAPIContract(t, "POST", path, recorder)
+		var response struct{ Code int }
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil || response.Code != tc.code {
+			t.Fatalf("%s: %s %v", tc.body, recorder.Body.String(), err)
+		}
+	}
+	stored, err := av.ParseAttributeView(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Views[0].Table.Columns[0].ID != "primary" || stored.Views[1].Table.Columns[0].ID != "last" {
+		t.Fatal("wrong view was reordered")
+	}
+}
 
 func TestUnusedAttributeViewScanFailureContract(t *testing.T) {
 	setupAssetContractWorkspace(t)
@@ -244,6 +292,15 @@ func assertAVContractJSONEqual(t *testing.T, want, got any) {
 }
 
 func TestAVContractTransportMapping(t *testing.T) {
+	for _, preference := range []*bool{nil, new(false), new(true)} {
+		for _, target := range []av.NewItemTargetType{av.NewItemTargetDetached, av.NewItemTargetDocument} {
+			template := &av.NewItemTemplate{ID: "template", Name: "Entry", TargetType: target, OpenAfterCreate: preference, OpenInCurrentTab: true}
+			assertAVContractJSONEqual(t, template, toContractAVNewItemTemplate(template))
+			result := &model.CreateAttributeViewItemResult{ItemID: "item", BlockID: "block", Content: "Entry",
+				IsDetached: target == av.NewItemTargetDetached, OpenAfterCreate: preference, OpenInCurrentTab: true}
+			assertAVContractJSONEqual(t, result, toContractAVCreateAttributeViewItemResult(result))
+		}
+	}
 	for _, visibility := range []string{"", "always", "hide-empty", "hide"} {
 		key := &av.Key{ID: "key", Type: av.KeyTypeText, AttributePanelVisibility: visibility}
 		assertAVContractJSONEqual(t, key, toContractAVKey(key))

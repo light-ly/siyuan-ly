@@ -1,7 +1,7 @@
 import {describe, it} from "node:test";
 import * as assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {join} from "node:path";
+import {join, posix} from "node:path";
 import {runInNewContext} from "node:vm";
 import {ModuleKind, ScriptTarget, transpileModule} from "typescript";
 import {DOMFixture, DOMElement} from "./testDOM";
@@ -9,6 +9,7 @@ import * as insertPosition from "../../upload/insertPosition";
 import * as uploadResult from "../../upload/uploadResult";
 import * as fetchAppId from "../../../util/fetchAppId";
 import * as viewType from "./viewType";
+import * as host from "./host";
 
 const compile = (file: string) => transpileModule(readFileSync(join(__dirname, file), "utf8"), {
     compilerOptions: {module: ModuleKind.CommonJS, target: ScriptTarget.ES2022},
@@ -31,7 +32,7 @@ const createHarness = (standalone = true) => {
     ]};
     const render = () => {
         const next = document.createElement("div");
-        next.innerHTML = `<div data-av-id="database" data-node-id="carrier" data-attribute-id="row" data-av-type="table">
+        next.innerHTML = `<div data-type="NodeAttributeView" data-av-id="database" data-node-id="carrier" data-attribute-id="row" data-av-type="table">
 <div class="custom-attr__avvalue" data-av-id="database" data-row-id="row" data-col-id="assets" data-id="value" data-type="mAsset"></div>
 </div>`;
         if (block) {
@@ -86,6 +87,7 @@ const createHarness = (standalone = true) => {
         }
     }
     const mocks: Record<string, unknown> = {
+        "./host": host,
         "./insertPosition": insertPosition,
         "../../upload/insertPosition": insertPosition,
         "./uploadResult": uploadResult,
@@ -99,8 +101,7 @@ const createHarness = (standalone = true) => {
         "./col": {getColId: (item: HTMLElement) => item.dataset.colId},
         "./row": {getFieldIdByCellElement: (item: HTMLElement) => item.dataset.rowId},
         "./batchValue": {getAVBatchEditMode: () => "replace"},
-        "../../../util/pathName": {getAssetExtension: (name: string) => name.slice(name.lastIndexOf("."))},
-        "../../util/hasClosest": {hasClosestBlock: (item: HTMLElement) => item.parentElement},
+        "../../../util/pathName": {pathPosix: () => posix},
         "../../wysiwyg/transaction": {transaction: (_p: unknown, ops: IOperation[]) => operations.push(...ops)},
         "./action": {updateAttrViewCellAnimation() {}},
         "./cell": {
@@ -115,6 +116,13 @@ const createHarness = (standalone = true) => {
         "dayjs": () => ({format: () => "20261014070000"}),
         "../../util/escape": {escapeHtml: (text: string) => text},
         "../../dialog/confirmDialog": {confirmDialog: (_title: string, _message: string, yes: () => void) => {
+            if (delayConfirmation) {
+                confirmations.push(yes);
+            } else {
+                yes();
+            }
+        }},
+        "../../dialog/mobileConfirmDialog": {mobileConfirmDialog: (_title: string, _message: string, yes: () => void) => {
             if (delayConfirmation) {
                 confirmations.push(yes);
             } else {

@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package api
 
@@ -78,10 +66,7 @@ func agentChatContract(c *gin.Context, request apicontract.AIAgentChatRequest) a
 		selectedProvider, selectedModel = confAISnapshot.GetAgentModel()
 	}
 	if nil == selectedProvider || nil == selectedModel {
-		ret := gulu.Ret.NewResult()
-		ret.Code = -1
-		ret.Msg = model.Conf.Language(193)
-		return contractFailure[apicontract.Null](ret)
+		return apicontract.Failure[apicontract.Null](-1, model.Conf.Language(193))
 	}
 	client := model.NewAIProviderClient(selectedProvider, selectedModel.Name)
 
@@ -105,12 +90,9 @@ func agentChatContract(c *gin.Context, request apicontract.AIAgentChatRequest) a
 	sessionsMu.Lock()
 	if _, ok := runningSessions[req.SessionID]; ok {
 		sessionsMu.Unlock()
-		ret := gulu.Ret.NewResult()
-		ret.Code = -1
-		ret.Msg = "session is busy in another instance"
-		return apicontract.AIAgentChat.WithHTTPStatus(contractFailure[apicontract.Null](ret), http.StatusConflict)
+		return apicontract.AIAgentChat.WithHTTPStatus(apicontract.Failure[apicontract.Null](-1, "session is busy in another instance"), http.StatusConflict)
 	}
-	ctx, cancel := context.WithCancel(c.Request.Context())
+	ctx, cancel := context.WithCancelCause(c.Request.Context())
 	ctx = util.ContextWithOpenAIResponsesBaseURL(ctx, selectedProvider.BaseURL)
 	running := &runningSession{app: app}
 	runningSessions[req.SessionID] = running
@@ -128,7 +110,7 @@ func agentChatContract(c *gin.Context, request apicontract.AIAgentChatRequest) a
 			contextLimit, req.SessionID, req.UserEntryID, contentRevision, req.Message, req.BlockHTML, req.Language,
 			req.References, req.EditorContext, req.FrontendCapabilities, req.Regenerate, confirmTimeout, maxRetries,
 			req.ReasoningEffort, requestTimeout, streamIdleTimeout)
-		defer cancel()
+		defer cancel(nil)
 		streamClosed := false
 		defer func() {
 			if streamClosed {
@@ -145,11 +127,6 @@ func agentChatContract(c *gin.Context, request apicontract.AIAgentChatRequest) a
 		c.Header("Content-Type", "text/event-stream")
 		c.Header("Cache-Control", "no-cache")
 		c.Header("Connection", "keep-alive")
-
-		flusher, ok := c.Writer.(http.Flusher)
-		if !ok {
-			return
-		}
 
 		deadlineTimer, deadline := newAgentSessionDeadline(model.Conf.AI.Load().Agent.SessionTimeout)
 		if deadlineTimer != nil {
@@ -168,16 +145,14 @@ func agentChatContract(c *gin.Context, request apicontract.AIAgentChatRequest) a
 					return
 				}
 				recordRunningEvent(req.SessionID, running, event)
-				if err := writeSSE(c, event); err != nil {
+				if err := writeAgentSSE(c, event); err != nil {
 					return
 				}
-				flusher.Flush()
 			case <-c.Request.Context().Done():
 				return
 			case <-deadline:
-				writeSSEInterrupted(c, model.Conf.Language(379))
-				flusher.Flush()
-				return
+				cancel(agent.ErrSessionTimeout)
+				deadline = nil
 			}
 		}
 	})
@@ -219,7 +194,7 @@ func recordRunningEvent(sessionID string, running *runningSession, event agent.A
 	if event.Type == "turn" {
 		running.turnID = event.TurnID
 	}
-	if event.Type == "done" || event.Type == "error" {
+	if event.Type == "done" || event.Type == "error" || event.Type == "interrupted" {
 		running.terminal = true
 	}
 	sessionsMu.Unlock()
@@ -250,29 +225,33 @@ func finishRunningSession(sessionID string, running *runningSession) {
 var agentChatConfirm = contractHandler(apicontract.AIAgentConfirm, agentChatConfirmContract)
 
 func agentChatConfirmContract(c *gin.Context, req apicontract.AIConfirmRequest) apicontract.Response[apicontract.Null] {
-	ret := gulu.Ret.NewResult()
 	accepted, err := agent.ConfirmSession(req.ConfirmID, req.Approved, req.Always)
 	if err != nil {
-		ret.Code = -1
-		ret.Msg = err.Error()
-		return contractFailure[apicontract.Null](ret)
+		return apicontract.Failure[apicontract.Null](-1, err.Error())
 	}
 	if !accepted {
-		ret.Code = -1
-		ret.Msg = "agent confirmation expired"
-		return apicontract.AIAgentConfirm.WithHTTPStatus(contractFailure[apicontract.Null](ret), http.StatusConflict)
+		return apicontract.AIAgentConfirm.WithHTTPStatus(apicontract.Failure[apicontract.Null](-1, "agent confirmation expired"), http.StatusConflict)
 	}
-	return contractFailure[apicontract.Null](ret)
+	return apicontract.SuccessWithoutData[apicontract.Null]()
 }
 
 var setAgentSessionPermission = contractHandler(apicontract.AIAgentSetPermission, setAgentSessionPermissionContract)
 
+var setAgentSessionPinned = contractHandler(apicontract.AISetSessionPinned, setAgentSessionPinnedContract)
+
+func setAgentSessionPinnedContract(c *gin.Context, req apicontract.AISessionPinnedRequest) apicontract.Response[apicontract.AISessionPinnedData] {
+	pinnedAt, err := agent.SetSessionPinned(req.ID, req.Pinned)
+	if err != nil {
+		return apicontract.Failure[apicontract.AISessionPinnedData](-1, err.Error())
+	}
+	return apicontract.WithAfterWrite(apicontract.Success(apicontract.AISessionPinnedData{PinnedAt: pinnedAt}), func() {
+		broadcastAgentSessionChanged(c.GetHeader("X-SiYuan-App-ID"), req.ID, "pin")
+	})
+}
+
 func setAgentSessionPermissionContract(c *gin.Context, req apicontract.AIPermissionRequest) apicontract.Response[apicontract.AIPermissionData] {
-	ret := gulu.Ret.NewResult()
 	if err := agent.SetSessionPermissionMode(req.SessionID, req.PermissionMode); err != nil {
-		ret.Code = -1
-		ret.Msg = err.Error()
-		return contractFailure[apicontract.AIPermissionData](ret)
+		return apicontract.Failure[apicontract.AIPermissionData](-1, err.Error())
 	}
 	return apicontract.WithAfterWrite(apicontract.Success(apicontract.AIPermissionData{PermissionMode: req.PermissionMode}), func() {
 		broadcastAgentSessionChanged(c.GetHeader("X-SiYuan-App-ID"), req.SessionID, "permission")
@@ -282,25 +261,19 @@ func setAgentSessionPermissionContract(c *gin.Context, req apicontract.AIPermiss
 var agentChatQuestion = contractHandler(apicontract.AIAgentQuestion, agentChatQuestionContract)
 
 func agentChatQuestionContract(c *gin.Context, req apicontract.AIQuestionRequest) apicontract.Response[apicontract.Null] {
-	ret := gulu.Ret.NewResult()
 	if !agent.AnswerQuestion(req.QuestionID, req.Answers) {
-		ret.Code = -1
-		ret.Msg = "agent question expired"
-		return apicontract.AIAgentQuestion.WithHTTPStatus(contractFailure[apicontract.Null](ret), http.StatusConflict)
+		return apicontract.AIAgentQuestion.WithHTTPStatus(apicontract.Failure[apicontract.Null](-1, "agent question expired"), http.StatusConflict)
 	}
-	return contractFailure[apicontract.Null](ret)
+	return apicontract.SuccessWithoutData[apicontract.Null]()
 }
 
 var agentChatBrowserCapabilityResult = contractHandler(apicontract.AIAgentBrowserCapabilityResult, agentChatBrowserCapabilityResultContract)
 
 func agentChatBrowserCapabilityResultContract(c *gin.Context, req apicontract.AIBrowserCapabilityResultRequest) apicontract.Response[apicontract.Null] {
-	ret := gulu.Ret.NewResult()
 	if !agent.BrowserCapabilityResult(req.CallID, req.Result, req.StructuredContent, req.StructuredContentSet, req.IsError) {
-		ret.Code = -1
-		ret.Msg = "agent browser capability call expired"
-		return apicontract.AIAgentBrowserCapabilityResult.WithHTTPStatus(contractFailure[apicontract.Null](ret), http.StatusConflict)
+		return apicontract.AIAgentBrowserCapabilityResult.WithHTTPStatus(apicontract.Failure[apicontract.Null](-1, "agent browser capability call expired"), http.StatusConflict)
 	}
-	return contractFailure[apicontract.Null](ret)
+	return apicontract.SuccessWithoutData[apicontract.Null]()
 }
 
 var lsCapabilities = contractHandler(apicontract.AIListCapabilities, lsCapabilitiesContract)
@@ -323,11 +296,8 @@ func agentChatTitleContract(c *gin.Context, req apicontract.AITitleRequest) apic
 		selectedProvider, selectedModel = confAISnapshot.GetAgentModel()
 	}
 	if nil == selectedProvider || nil == selectedModel {
-		ret := gulu.Ret.NewResult()
-		ret.Code = -1
 		// 与 AI 接口准入一致，返回可本地化的未配置提示。
-		ret.Msg = model.Conf.Language(193)
-		return contractFailure[string](ret)
+		return apicontract.Failure[string](-1, model.Conf.Language(193))
 	}
 	client := model.NewAIProviderClient(selectedProvider, selectedModel.Name)
 
@@ -358,10 +328,7 @@ func getSessionContract(c *gin.Context, req apicontract.AISessionIDRequest) apic
 	if !running {
 		if err := agent.FinalizeOrphanedTurn(req.ID); err != nil {
 			sessionsMu.Unlock()
-			ret := gulu.Ret.NewResult()
-			ret.Code = -1
-			ret.Msg = err.Error()
-			return apicontract.AIGetSession.WithHTTPStatus(contractFailure[*apicontract.AISession](ret), http.StatusInternalServerError)
+			return apicontract.AIGetSession.WithHTTPStatus(apicontract.Failure[*apicontract.AISession](-1, err.Error()), http.StatusInternalServerError)
 		}
 	}
 	session, err := agent.GetSessionState(req.ID, !running)
@@ -370,10 +337,7 @@ func getSessionContract(c *gin.Context, req apicontract.AISessionIDRequest) apic
 	}
 	sessionsMu.Unlock()
 	if err != nil {
-		ret := gulu.Ret.NewResult()
-		ret.Code = -1
-		ret.Msg = err.Error()
-		return contractFailure[*apicontract.AISession](ret)
+		return apicontract.Failure[*apicontract.AISession](-1, err.Error())
 	}
 
 	payload, err := aiSessionContract(session)
@@ -391,23 +355,16 @@ func removeSessionContract(c *gin.Context, req apicontract.AISessionIDRequest) a
 	_, running := runningSessions[req.ID]
 	if running {
 		sessionsMu.Unlock()
-		ret := gulu.Ret.NewResult()
-		ret.Code = -1
-		ret.Msg = "session is running"
-		return apicontract.AIRemoveSession.WithHTTPStatus(contractFailure[apicontract.Null](ret), http.StatusConflict)
+		return apicontract.AIRemoveSession.WithHTTPStatus(apicontract.Failure[apicontract.Null](-1, "session is running"), http.StatusConflict)
 	}
 	err := agent.DeleteSession(req.ID)
 	sessionsMu.Unlock()
 	if err != nil {
-		ret := gulu.Ret.NewResult()
-		ret.Code = -1
-		ret.Msg = err.Error()
-		return apicontract.AIRemoveSession.WithHTTPStatus(contractFailure[apicontract.Null](ret), http.StatusInternalServerError)
+		return apicontract.AIRemoveSession.WithHTTPStatus(apicontract.Failure[apicontract.Null](-1, err.Error()), http.StatusInternalServerError)
 	}
 	// 通知其他实例：会话已删除，刷新列表；若为当前会话则清空视图。
 	broadcastAgentSessionChanged(c.GetHeader("X-SiYuan-App-ID"), req.ID, "delete")
-	ret := gulu.Ret.NewResult()
-	return contractFailure[apicontract.Null](ret)
+	return apicontract.SuccessWithoutData[apicontract.Null]()
 }
 
 var saveSession = contractHandler(apicontract.AISaveSession, saveSessionContract)
@@ -417,19 +374,13 @@ func saveSessionContract(c *gin.Context, req apicontract.AISession) apicontract.
 	var err error
 	var meta sessionMeta
 	if gulu.JSON.UnmarshalJSON(body, &meta) != nil || meta.ID == "" {
-		ret := gulu.Ret.NewResult()
-		ret.Code = -1
-		ret.Msg = "invalid session data"
-		return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusBadRequest)
+		return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, "invalid session data"), http.StatusBadRequest)
 	}
 	sessionsMu.Lock()
 	running := runningSessions[meta.ID]
 	if running != nil && running.app != c.GetHeader("X-SiYuan-App-ID") {
 		sessionsMu.Unlock()
-		ret := gulu.Ret.NewResult()
-		ret.Code = -1
-		ret.Msg = "session is running in another instance"
-		return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusConflict)
+		return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, "session is running in another instance"), http.StatusConflict)
 	}
 	commitTurnID := meta.CommitTurnID
 	if commitTurnID == "" {
@@ -439,57 +390,39 @@ func saveSessionContract(c *gin.Context, req apicontract.AISession) apicontract.
 		var payload map[string]any
 		if err := gulu.JSON.UnmarshalJSON(body, &payload); err != nil {
 			sessionsMu.Unlock()
-			ret := gulu.Ret.NewResult()
-			ret.Code = -1
-			ret.Msg = err.Error()
-			return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusBadRequest)
+			return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, err.Error()), http.StatusBadRequest)
 		}
 		payload["commitTurnID"] = running.turnID
 		body, err = gulu.JSON.MarshalJSON(payload)
 		if err != nil {
 			sessionsMu.Unlock()
-			ret := gulu.Ret.NewResult()
-			ret.Code = -1
-			ret.Msg = err.Error()
-			return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusInternalServerError)
+			return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, err.Error()), http.StatusInternalServerError)
 		}
 		commitTurnID = running.turnID
 	}
 	if running == nil {
 		if runtimeErr := agent.FinalizeOrphanedTurn(meta.ID); runtimeErr != nil {
 			sessionsMu.Unlock()
-			ret := gulu.Ret.NewResult()
-			ret.Code = -1
-			ret.Msg = runtimeErr.Error()
-			return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusInternalServerError)
+			return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, runtimeErr.Error()), http.StatusInternalServerError)
 		}
 		// 未携带 commitTurnID 的前端在流结束后从终止检查点补出提交标识。
 		if commitTurnID == "" && c.GetHeader("X-SiYuan-Agent-Checkpoint") != "2" {
 			recoverableTurnID, runtimeErr := agent.RecoverableTurnID(meta.ID)
 			if runtimeErr != nil {
 				sessionsMu.Unlock()
-				ret := gulu.Ret.NewResult()
-				ret.Code = -1
-				ret.Msg = runtimeErr.Error()
-				return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusInternalServerError)
+				return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, runtimeErr.Error()), http.StatusInternalServerError)
 			}
 			if recoverableTurnID != "" {
 				var payload map[string]any
 				if err := gulu.JSON.UnmarshalJSON(body, &payload); err != nil {
 					sessionsMu.Unlock()
-					ret := gulu.Ret.NewResult()
-					ret.Code = -1
-					ret.Msg = err.Error()
-					return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusBadRequest)
+					return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, err.Error()), http.StatusBadRequest)
 				}
 				payload["commitTurnID"] = recoverableTurnID
 				body, err = gulu.JSON.MarshalJSON(payload)
 				if err != nil {
 					sessionsMu.Unlock()
-					ret := gulu.Ret.NewResult()
-					ret.Code = -1
-					ret.Msg = err.Error()
-					return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusInternalServerError)
+					return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, err.Error()), http.StatusInternalServerError)
 				}
 				commitTurnID = recoverableTurnID
 			}
@@ -501,17 +434,11 @@ func saveSessionContract(c *gin.Context, req apicontract.AISession) apicontract.
 		uncommitted, runtimeErr := agent.HasUncommittedTurn(meta.ID)
 		if runtimeErr != nil {
 			sessionsMu.Unlock()
-			ret := gulu.Ret.NewResult()
-			ret.Code = -1
-			ret.Msg = runtimeErr.Error()
-			return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusInternalServerError)
+			return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, runtimeErr.Error()), http.StatusInternalServerError)
 		}
 		if uncommitted {
 			sessionsMu.Unlock()
-			ret := gulu.Ret.NewResult()
-			ret.Code = -1
-			ret.Msg = "session has an uncommitted turn"
-			return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusConflict)
+			return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, "session has an uncommitted turn"), http.StatusConflict)
 		}
 	}
 
@@ -526,13 +453,10 @@ func saveSessionContract(c *gin.Context, req apicontract.AISession) apicontract.
 	}
 	sessionsMu.Unlock()
 	if err != nil {
-		ret := gulu.Ret.NewResult()
-		ret.Code = -1
-		ret.Msg = err.Error()
 		if errors.Is(err, agent.ErrSessionConflict) || errors.Is(err, agent.ErrRuntimeNotFinalized) {
-			return apicontract.AISaveSession.WithHTTPStatus(apicontract.AISaveSession.FailureWithData(-1, ret.Msg, apicontract.AISessionSaveData{Revision: revision}), http.StatusConflict)
+			return apicontract.AISaveSession.WithHTTPStatus(apicontract.AISaveSession.FailureWithData(-1, err.Error(), apicontract.AISessionSaveData{Revision: revision}), http.StatusConflict)
 		}
-		return apicontract.AISaveSession.WithHTTPStatus(contractFailure[apicontract.AISessionSaveData](ret), http.StatusInternalServerError)
+		return apicontract.AISaveSession.WithHTTPStatus(apicontract.Failure[apicontract.AISessionSaveData](-1, err.Error()), http.StatusInternalServerError)
 	}
 	// 从 body 解出 sessionID 用于广播。update 仅触发其他实例刷新会话列表元数据，
 	// 不触发当前视图重绘（重绘由 streamEnd 负责），回避流式中途半截数据的时序问题。
@@ -614,6 +538,8 @@ func writeSSE(c *gin.Context, event agent.AgentEvent) error {
 		})
 	case "error":
 		return writeSSEEvent(c, "error", apicontract.AISSEMessage{Message: event.Error})
+	case "interrupted":
+		return writeSSEEvent(c, "interrupted", apicontract.AISSEMessage{Message: event.Error})
 	case "usage":
 		return writeSSEEvent(c, "usage", apicontract.AISSEUsage{
 			PromptTokens:     event.PromptTokens,
@@ -666,8 +592,23 @@ func writeSSEError(c *gin.Context, message string) error {
 	return writeSSEEvent(c, "error", apicontract.AISSEMessage{Message: message})
 }
 
-func writeSSEInterrupted(c *gin.Context, message string) error {
-	return writeSSEEvent(c, "interrupted", apicontract.AISSEMessage{Message: message})
+func writeAgentSSE(c *gin.Context, event agent.AgentEvent) error {
+	writer := http.ResponseWriter(c.Writer)
+	if unwrapper, ok := writer.(interface{ Unwrap() http.ResponseWriter }); ok {
+		// Gin 的 Flush 不返回底层错误，使用原始 writer 的 FlushError 识别断流。
+		writer = unwrapper.Unwrap()
+	}
+	controller := http.NewResponseController(writer)
+	if err := controller.SetWriteDeadline(time.Now().Add(agent.EventDeliveryTimeout)); err != nil &&
+		!errors.Is(err, http.ErrNotSupported) {
+		return err
+	}
+	defer controller.SetWriteDeadline(time.Time{})
+	if err := writeSSE(c, event); err != nil {
+		return err
+	}
+	c.Writer.WriteHeaderNow()
+	return controller.Flush()
 }
 
 var lsSkills = contractHandler(apicontract.AIListSkills, lsSkillsContract)
@@ -692,17 +633,13 @@ func lsUserSkillsContract(c *gin.Context, req apicontract.EmptyRequest) apicontr
 var getSkill = contractHandler(apicontract.AIGetSkill, getSkillContract)
 
 func getSkillContract(c *gin.Context, req apicontract.AISkillNameRequest) apicontract.Response[apicontract.AISkillData] {
-	ret := gulu.Ret.NewResult()
 	if req.Source != "" {
-		ret.Code, ret.Msg = -1, "official skill content requires a confirmed agent workflow"
-		return contractFailure[apicontract.AISkillData](ret)
+		return apicontract.Failure[apicontract.AISkillData](-1, "official skill content requires a confirmed agent workflow")
 	}
 
 	content, err := util.ReadSkill(req.Name, model.EnabledUserSkills())
 	if err != nil {
-		ret.Code = -1
-		ret.Msg = err.Error()
-		return contractFailure[apicontract.AISkillData](ret)
+		return apicontract.Failure[apicontract.AISkillData](-1, err.Error())
 	}
 
 	return apicontract.Success(apicontract.AISkillData{Name: req.Name, Content: content})
@@ -711,50 +648,38 @@ func getSkillContract(c *gin.Context, req apicontract.AISkillNameRequest) apicon
 var saveSkill = contractHandler(apicontract.AISaveSkill, saveSkillContract)
 
 func saveSkillContract(c *gin.Context, req apicontract.AISkillSaveRequest) apicontract.Response[apicontract.Null] {
-	ret := gulu.Ret.NewResult()
 	if req.Source != "" {
-		ret.Code, ret.Msg = -1, "only workspace skills can be modified"
-		return contractFailure[apicontract.Null](ret)
+		return apicontract.Failure[apicontract.Null](-1, "only workspace skills can be modified")
 	}
 
 	if err := util.SaveSkill(req.Name, req.Content); err != nil {
-		ret.Code = -1
-		ret.Msg = err.Error()
-		return contractFailure[apicontract.Null](ret)
+		return apicontract.Failure[apicontract.Null](-1, err.Error())
 	}
-	return contractFailure[apicontract.Null](ret)
+	return apicontract.SuccessWithoutData[apicontract.Null]()
 }
 
 var removeSkill = contractHandler(apicontract.AIRemoveSkill, removeSkillContract)
 
 func removeSkillContract(c *gin.Context, req apicontract.AISkillNameRequest) apicontract.Response[apicontract.Null] {
-	ret := gulu.Ret.NewResult()
 	if req.Source != "" {
-		ret.Code, ret.Msg = -1, "only workspace skills can be modified"
-		return contractFailure[apicontract.Null](ret)
+		return apicontract.Failure[apicontract.Null](-1, "only workspace skills can be modified")
 	}
 
 	if err := util.RemoveSkill(req.Name); err != nil {
-		ret.Code = -1
-		ret.Msg = err.Error()
-		return contractFailure[apicontract.Null](ret)
+		return apicontract.Failure[apicontract.Null](-1, err.Error())
 	}
-	return contractFailure[apicontract.Null](ret)
+	return apicontract.SuccessWithoutData[apicontract.Null]()
 }
 
 var renameSkill = contractHandler(apicontract.AIRenameSkill, renameSkillContract)
 
 func renameSkillContract(c *gin.Context, req apicontract.AISkillRenameRequest) apicontract.Response[apicontract.Null] {
-	ret := gulu.Ret.NewResult()
 	if req.Source != "" {
-		ret.Code, ret.Msg = -1, "only workspace skills can be modified"
-		return contractFailure[apicontract.Null](ret)
+		return apicontract.Failure[apicontract.Null](-1, "only workspace skills can be modified")
 	}
 
 	if err := util.RenameSkill(req.OldName, req.NewName); err != nil {
-		ret.Code = -1
-		ret.Msg = err.Error()
-		return contractFailure[apicontract.Null](ret)
+		return apicontract.Failure[apicontract.Null](-1, err.Error())
 	}
-	return contractFailure[apicontract.Null](ret)
+	return apicontract.SuccessWithoutData[apicontract.Null]()
 }

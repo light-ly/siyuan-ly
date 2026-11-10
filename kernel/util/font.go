@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package util
 
@@ -20,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"os"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -49,15 +38,20 @@ func LoadSysFonts() []*Font {
 	}
 
 	start := time.Now()
-	sysFonts = loadFonts()
+	sysFonts = ReadSysFonts()
 	sysFontsLang = Lang
-
-	sort.Slice(sysFonts, func(i, j int) bool {
-		return sysFonts[i].DisplayName < sysFonts[j].DisplayName
-	})
 
 	logging.LogInfof("loaded system fonts [%d] in [%dms]", len(sysFonts), time.Since(start).Milliseconds())
 	return sysFonts
+}
+
+// 独立桌面工具与工作空间共用字体枚举、名称解析和排序，不依赖工作空间配置。
+func ReadSysFonts() []*Font {
+	fonts := loadFonts()
+	sort.Slice(fonts, func(i, j int) bool {
+		return fonts[i].DisplayName < fonts[j].DisplayName
+	})
+	return fonts
 }
 
 type Font struct {
@@ -114,6 +108,12 @@ var macFontLanguageIDs = map[string]sfnt.PlatformLanguageID{
 
 func loadFonts() (ret []*Font) {
 	ret = []*Font{}
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+		for _, font := range loadPlatformFonts() {
+			ret = addFont(ret, font)
+		}
+		return
+	}
 	for _, fontPath := range findfont.List() {
 		if strings.HasSuffix(strings.ToLower(fontPath), ".ttc") {
 			families := parseTTCFontFamily(fontPath)

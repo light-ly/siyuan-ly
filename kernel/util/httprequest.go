@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package util
 
@@ -27,8 +15,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -361,14 +347,9 @@ func HTTPRequest(method, rawURL string, headers map[string]string, body string) 
 
 	// 二进制响应落盘，返回文件路径，供智能体按需进一步处理。
 	if !isTextContentType(contentType) {
-		importDir := filepath.Join(TempDir, "import")
-		if merr := os.MkdirAll(importDir, 0755); merr != nil {
-			return statusCode, contentType, "", errors.New("create import dir failed: " + merr.Error())
-		}
-		filename := extractFilename(rawURL, contentType)
-		filePath := filepath.Join(importDir, filename)
-		if werr := os.WriteFile(filePath, respBody, 0644); werr != nil {
-			return statusCode, contentType, "", errors.New("write file failed: " + werr.Error())
+		filePath, werr := saveImportedFile(rawURL, contentType, respBody)
+		if werr != nil {
+			return statusCode, contentType, "", werr
 		}
 		return statusCode, contentType, fmt.Sprintf("Saved to: %s (%d bytes)", filePath, len(respBody)), nil
 	}

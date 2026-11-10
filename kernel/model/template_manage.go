@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -48,9 +36,10 @@ type TemplateFileRequest struct {
 }
 
 type TemplateFileEntry struct {
-	Path      string `json:"path"`
-	IsDir     bool   `json:"isDir"`
-	IsPackage bool   `json:"isPackage,omitempty"`
+	Path           string `json:"path"`
+	IsDir          bool   `json:"isDir"`
+	IsPackage      bool   `json:"isPackage,omitempty"`
+	HTTPPermission bool   `json:"httpPermission"`
 }
 
 // 访问已有模板只校验目录边界，不对文件名进行清理或改写。
@@ -189,6 +178,10 @@ func writeTemplateSource(root *os.Root, p, content string, create bool) error {
 	if !utf8.ValidString(content) {
 		return errors.New("invalid template source")
 	}
+	// 托管写入即使内容相同也不能继承旧许可。
+	if err := InvalidateTemplateHTTPFilePath(filepath.Join(root.Name(), filepath.FromSlash(p))); err != nil {
+		return err
+	}
 	if create {
 		file, err := root.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 		if err != nil {
@@ -249,7 +242,15 @@ func ManageTemplateFiles(request TemplateFileRequest) (ret any, err error) {
 				return nil
 			}
 			if entry.IsDir() || strings.EqualFold(path.Ext(p), ".md") {
-				entries = append(entries, TemplateFileEntry{Path: p, IsDir: entry.IsDir(), IsPackage: entry.IsDir() && isManagedTemplatePackage(root, p)})
+				item := TemplateFileEntry{Path: p, IsDir: entry.IsDir(), IsPackage: entry.IsDir() && isManagedTemplatePackage(root, p)}
+				if !entry.IsDir() {
+					var permissionErr error
+					item.HTTPPermission, permissionErr = GetTemplateHTTPFilePermission(p)
+					if permissionErr != nil {
+						return permissionErr
+					}
+				}
+				entries = append(entries, item)
 			}
 			return nil
 		})
@@ -331,8 +332,17 @@ func ManageTemplateFiles(request TemplateFileRequest) (ret any, err error) {
 		if _, err = root.Stat(request.Target); !errors.Is(err, os.ErrNotExist) {
 			return nil, errors.New("template destination already exists or is inaccessible")
 		}
+		if err = InvalidateTemplateHTTPFilePath(abs); err != nil {
+			return nil, err
+		}
+		if err = InvalidateTemplateHTTPFilePath(filepath.Join(root.Name(), filepath.FromSlash(request.Target))); err != nil {
+			return nil, err
+		}
 		return nil, root.Rename(request.Path, request.Target)
 	case "remove":
+		if err = InvalidateTemplateHTTPFilePath(abs); err != nil {
+			return nil, err
+		}
 		// 路径边界和版本校验完成后，直接删除选中项目及其内容。
 		if info.IsDir() {
 			return nil, root.RemoveAll(request.Path)

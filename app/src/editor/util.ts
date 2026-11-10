@@ -7,7 +7,15 @@ import {getInstanceById, getWndByLayout, newModelByInitData, pdfIsLoading, setPa
 import {getDockByType} from "../layout/tabUtil";
 import {getAllModels, getAllTabs} from "../layout/getAll";
 import {highlightById, scrollCenter} from "../util/highlightById";
-import {getAssetExtension, getDisplayName, getDocDisplayName, isEncryptedBox, useShell} from "../util/pathName";
+import {
+    getAssetExtension,
+    getAssetPathWithoutFragment,
+    getAssetPathWithoutQuery,
+    getDisplayName,
+    getDocDisplayName,
+    isEncryptedBox,
+    useShell
+} from "../util/pathName";
 import {Constants} from "../constants";
 import {Files} from "../layout/dock/Files";
 import {fetchPost, fetchSyncPost} from "../util/fetch";
@@ -46,13 +54,16 @@ import {confirmDialog} from "../dialog/confirmDialog";
 import {shouldCheckOtherWindows} from "./openFileWindow";
 import {getContenteditableElement} from "../protyle/wysiwyg/getBlock";
 import type {Outline} from "../layout/dock/Outline";
+import {isSameDatabaseRowDomain} from "../protyle/render/av/databaseRowIdentity";
 
 const isSameCustomTab = (type: string, data: any, options: IOpenFileOptions) => {
     if (!options.custom || (options.custom.id && options.custom.id !== type)) {
         return false;
     }
     if (type === "siyuan-database-row") {
-        return data?.avID === options.custom.data?.avID && data?.itemID === options.custom.data?.itemID;
+        return data?.avID === options.custom.data?.avID && data?.itemID === options.custom.data?.itemID &&
+            isSameDatabaseRowDomain(data?.notebookId || data?.notebookID,
+                options.custom.data?.notebookId || options.custom.data?.notebookID);
     }
     return objEquals(data, options.custom.data);
 };
@@ -75,19 +86,19 @@ export const openFileById = async (options: {
     retryOnUnavailable?: number
 }): Promise<Tab | void> => {
     const response = await fetchSyncPost("/api/block/getBlockInfo", {id: options.id, notebook: options.notebookId});
-    if (response.code === -1) {
+    if (response.code === -1 || response.code === 3) {
         const retryOnUnavailable = options.retryOnUnavailable || 0;
         if (retryOnUnavailable > 0) {
-            await new Promise(resolve => window.setTimeout(resolve, Constants.TIMEOUT_TRANSITION));
+            await new Promise(resolve => window.setTimeout(resolve,
+                response.code === 3 ? 1000 : Constants.TIMEOUT_TRANSITION));
             return openFileById({
                 ...options,
                 retryOnUnavailable: retryOnUnavailable - 1,
             });
         }
-        return;
-    }
-    if (response.code === 3) {
-        showMessage(response.msg);
+        if (response.code === 3) {
+            showMessage(response.msg);
+        }
         return;
     }
     if (response.code !== 0) {
@@ -622,7 +633,7 @@ export const newTab = (options: IOpenFileOptions, afterInitProtyle?: Constructor
             }
             tab = new Tab({
                 icon,
-                title: getDisplayName(options.assetPath),
+                title: getDisplayName(getAssetPathWithoutQuery(options.assetPath)),
                 callback(tab) {
                     tab.addModel(new Asset({
                         app: options.app,
@@ -649,6 +660,7 @@ export const newTab = (options: IOpenFileOptions, afterInitProtyle?: Constructor
                     });
                     if (model) {
                         tab.addModel(model);
+                        tab.headElement.removeAttribute("data-initdata");
                     }
                 } else {
                     // plugin 0.8.3 历史兼容
@@ -756,9 +768,9 @@ export const updatePanelByEditor = (options: {
         if (window.siyuan.config.fileTree.alwaysSelectOpenedFile && options.protyle) {
             const fileModel = getDockByType("file")?.data.file;
             if (fileModel instanceof Files) {
-                const target = fileModel.element.querySelector(`li[data-path="${options.protyle.path}"]`);
-                if (!target || (target && !target.classList.contains("b3-list-item--focus"))) {
-                    fileModel.selectItem(options.protyle.notebookId, options.protyle.path);
+                const selected = fileModel.docTree.getSelectedItems();
+                if (!selected.some(item => item.notebookId === options.protyle.notebookId && item.path === options.protyle.path)) {
+                    void fileModel.selectItem(options.protyle.notebookId, options.protyle.path, undefined, true, true, true);
                 }
             }
         }
@@ -943,7 +955,10 @@ export const openBy = (url: string, type: "folder" | "app") => {
     /// #if !BROWSER
     if (url.startsWith("assets/")) {
         const open = () => {
-            fetchPost("/api/asset/resolveAssetPath", {path: url.replace(/\.pdf\?page=\d{1,}$/, ".pdf")}, (response) => {
+            // 内核按文件名解析资源，需先去掉片段；查询中的 box 参数用于定位加密笔记本中的资源
+            fetchPost("/api/asset/resolveAssetPath", {
+                path: getAssetPathWithoutFragment(url).replace(/\.pdf\?page=\d{1,}$/, ".pdf")
+            }, (response) => {
                 if (type === "app") {
                     useShell("openPath", response.data);
                 } else if (type === "folder") {

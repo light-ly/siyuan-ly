@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
@@ -39,7 +27,7 @@ var ImageTool = &Tool{
 	Name:  "image",
 	Title: "Document images",
 	Description: "List and understand local images referenced by a SiYuan document, or generate an image asset. " +
-		"Use list before analyze. analyze attaches the selected image to the current Agent model. " +
+		"Use list before analyze. analyze only attaches the selected image to the current Agent model; it does not return a separate analysis. Answer the user's image question after inspecting the attachment. " +
 		"generate creates a reusable image asset in the target document's notebook.",
 	InputSchema: ToolSchema{
 		Type: "object",
@@ -47,8 +35,7 @@ var ImageTool = &Tool{
 			"action":       {Type: "string", Enum: []string{"list", "analyze", "generate"}},
 			"documentID":   {Type: "string", Description: "Document or descendant block ID used to resolve the target document and notebook"},
 			"assetPath":    {Type: "string", Description: "Local assets/... path returned by list; required for analyze"},
-			"question":     {Type: "string", Description: "Question for the current Agent model about the attached image"},
-			"detail":       {Type: "string", Enum: []string{"auto", "low", "high"}},
+			"detail":       {Type: "string", Description: "analyze only: image detail requested from the current Agent model; auto lets the provider choose, low requests lower detail, high requests higher detail. Omitted defaults to auto; actual support and token cost depend on the provider", Enum: []string{"auto", "low", "high"}},
 			"prompt":       {Type: "string", Description: "Prompt describing the image to generate"},
 			"size":         {Type: "string", Description: "Provider-supported image size, such as 1024x1024"},
 			"quality":      {Type: "string", Description: "Provider-supported image quality"},
@@ -57,6 +44,9 @@ var ImageTool = &Tool{
 		Required: []string{"action", "documentID"},
 	},
 	EffectScope: EffectScopeMixed,
+	ResolveEffects: deferredAssetEffects(map[string]ToolEffects{
+		"analyze": {LocalRead: true, DataEgress: true, ExternalCost: true},
+	}),
 	ActionEffects: map[string]ToolEffects{
 		"list":     {LocalRead: true},
 		"analyze":  {LocalRead: true, DataEgress: true, ExternalCost: true},

@@ -1,22 +1,11 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -136,6 +125,34 @@ func TestSelectDocumentAndHeadingBacklinkParentRef(t *testing.T) {
 	}
 }
 
+func TestBacklinkParentMappingsPreserveTitleReferenceSource(t *testing.T) {
+	document := &Block{ID: "document", RootID: "document", Type: "NodeDocument"}
+	paragraph := &Block{ID: "paragraph", RootID: document.ID, ParentID: document.ID, Type: "NodeParagraph"}
+	for _, titleReference := range []bool{false, true} {
+		t.Run(fmt.Sprint("title reference ", titleReference), func(t *testing.T) {
+			refs := []*Block{nil, paragraph}
+			if titleReference {
+				refs = append(refs, document)
+			}
+			mappings := buildBacklinkParentMappingsForSources(refs,
+				map[string][]*Block{document.ID: {paragraph}}, []*Block{document}, true,
+				func(parent *Block, candidates []*Block) *Block { return candidates[0] },
+				func(parent *Block) map[string]bool {
+					t.Fatal("document grouping must not inspect heading coverage")
+					return nil
+				})
+			if titleReference {
+				if len(mappings) != 0 {
+					t.Fatal("body references must not be grouped into an independent title reference")
+				}
+			} else if len(mappings) != 1 || mappings[0].parent != document ||
+				mappings[0].refBlock != paragraph || !mappings[0].coveredRefIDs[paragraph.ID] {
+				t.Fatal("body-only references must retain document grouping")
+			}
+		})
+	}
+}
+
 func TestSelectListItemBacklinkParentRefPrefersFirstLeaf(t *testing.T) {
 	luteEngine := util.NewLute()
 	firstLeaf := &Block{
@@ -186,11 +203,17 @@ func TestRenderBacklinkDocument(t *testing.T) {
 	paragraph := &ast.Node{Type: ast.NodeParagraph, ID: "paragraph"}
 	paragraph.AppendChild(&ast.Node{Type: ast.NodeText, Tokens: []byte("document content")})
 	document.AppendChild(paragraph)
+	document.SetIALAttr("title", "Document title")
 
-	nodes, _ := getBacklinkRenderNodes(document, nil)
+	nodes, _ := getBacklinkRenderNodes(document, map[string]string{document.ID: paragraph.ID})
 	dom := renderVisibleBlockDOMByNodes(nodes, util.NewLute())
 	if !strings.Contains(dom, "document content") {
 		t.Fatalf("rendered document backlink does not contain its content: %s", dom)
+	}
+	nodes, expand := getBacklinkRenderNodes(document, nil)
+	dom = renderVisibleBlockDOMByNodes(nodes, util.NewLute())
+	if expand || !strings.Contains(dom, "Document title") || strings.Contains(dom, "document content") {
+		t.Fatalf("title backlink must render its title independently of body references: %s", dom)
 	}
 }
 

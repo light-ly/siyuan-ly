@@ -15,6 +15,7 @@ export class Model {
     public ws: WebSocket;
     public reqId: number;
     private socketDisposed = false;
+    private socketType: TWS;
     private reconnectTimer: ReturnType<typeof setTimeout>;
     private mainMessageQueue: {
         data: string,
@@ -60,16 +61,24 @@ export class Model {
             }
         });
         if (!this.socketDisposed && window.siyuan.isReady) {
+            this.send("ready", {});
             const {refreshSettingConfig}: typeof import("../config/setting/sync") = require("../config/setting/sync");
             void refreshSettingConfig();
+            const {reconcileSyncCheckout}: typeof import("../sync/checkoutProgress") = require("../sync/checkoutProgress");
+            void reconcileSyncCheckout(new URL(this.ws.url).searchParams.get("id"));
         }
     }
 
     public connect(options: IConnectOptions) {
         if (this.socketDisposed) return;
+        if (this.ws && this.socketType === "main") {
+            const {cancelTemplateHTTPExecutions}: typeof import("../template/http") = require("../template/http");
+            cancelTemplateHTTPExecutions();
+        }
+        this.socketType = options.type;
         clearTimeout(this.reconnectTimer);
         const websocketURL = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
-        const ws = new WebSocket(`${websocketURL}?app=${Constants.SIYUAN_APPID}&id=${options.id}${options.type ? "&type=" + options.type : ""}`);
+        const ws = new WebSocket(`${websocketURL}?app=${Constants.SIYUAN_APPID}&id=${options.id}${options.type === "main" ? "&ready=false" : ""}${options.type ? "&type=" + options.type : ""}`);
         ws.onopen = () => {
             if (this.socketDisposed || this.ws !== ws) return;
             if (options.type === "main") {
@@ -77,6 +86,9 @@ export class Model {
                 markKernelConnectionAlive();
             }
             if (options.type === "main" && window.siyuan.isReady) {
+                this.send("ready", {});
+                const {reconcileSyncCheckout}: typeof import("../sync/checkoutProgress") = require("../sync/checkoutProgress");
+                void reconcileSyncCheckout(options.id, true);
                 const {reloadSettingsResetOnReconnect}: typeof import("../config/setting/reset") = require("../config/setting/reset");
                 if (reloadSettingsResetOnReconnect()) return;
                 const {resetSettingTaskRevision}: typeof import("../config/setting/taskBlocker") = require("../config/setting/taskBlocker");
@@ -118,6 +130,10 @@ export class Model {
         };
         ws.onclose = (ev) => {
             if (this.socketDisposed || this.ws !== ws) return;
+            if (options.type === "main") {
+                const {cancelTemplateHTTPExecutions}: typeof import("../template/http") = require("../template/http");
+                cancelTemplateHTTPExecutions();
+            }
             if (0 <= ev.reason.indexOf("unauthenticated")) {
                 return;
             }
@@ -145,6 +161,7 @@ export class Model {
 
     public send(cmd: string, param: Record<string, unknown>, process = false) {
         if (this.socketDisposed || !this.ws ||
+            this.ws.readyState === WebSocket.CONNECTING ||
             this.ws.readyState === WebSocket.CLOSING ||
             this.ws.readyState === WebSocket.CLOSED) { // Inbox 无 WebSocket，关闭中的连接不能继续发送
             return;
@@ -170,6 +187,10 @@ export class Model {
         clearTimeout(this.reconnectTimer);
         this.mainMessageQueue.length = 0;
         if (this.ws) {
+            if (this.socketType === "main") {
+                const {cancelTemplateHTTPExecutions}: typeof import("../template/http") = require("../template/http");
+                cancelTemplateHTTPExecutions();
+            }
             this.ws.onopen = null;
             this.ws.onmessage = null;
             this.ws.onclose = null;

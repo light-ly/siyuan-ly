@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
@@ -226,6 +230,49 @@ func TestAssetDownloadUsesLocalSnapshotChunksWhileLoggedOut(t *testing.T) {
 	data, err := os.ReadFile(assetPath)
 	if err != nil || !bytes.Equal(data, []byte("version one")) {
 		t.Fatalf("offline materialization changed content: %q, %v", data, err)
+	}
+}
+
+func TestAssetDownloadFullModeWhileLoggedOut(t *testing.T) {
+	for _, available := range []bool{false, true} {
+		t.Run(map[bool]string{false: "missing-chunks", true: "local-chunks"}[available], func(t *testing.T) {
+			_, partial, _ := prepareAssetDownloadRepoTest(t)
+			files, err := DeferredSyncAssets()
+			if err != nil || len(files) != 1 {
+				t.Fatalf("expected deferred resource: %v", err)
+			}
+			if available {
+				if err = partial.EnsureFileChunks(files[0], nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			Conf.Sync.Load().Enabled = false
+			Conf.SetUser(nil)
+			if err = SetSyncAssetDownloadMode(0); (err == nil) != available {
+				t.Fatalf("unexpected offline completion result: %v", err)
+			}
+			if Conf.GetUser() != nil || Conf.Sync.Load().Enabled {
+				t.Fatal("offline completion changed the session or enabled sync")
+			}
+			if !available {
+				if Conf.Sync.Load().AssetDownloadMode != 1 {
+					t.Fatal("failed offline completion changed the download mode")
+				}
+				if remaining, readErr := DeferredSyncAssets(); readErr != nil || len(remaining) != 1 || remaining[0].ID != files[0].ID {
+					t.Fatal("failed offline completion changed deferred resources")
+				}
+				return
+			}
+			if Conf.Sync.Load().AssetDownloadMode != 0 {
+				t.Fatal("local chunks did not allow full download mode")
+			}
+			if err = requireCompleteAssetDownloads(); err != nil {
+				t.Fatalf("offline completion left incomplete recovery data: %v", err)
+			}
+			if data, readErr := os.ReadFile(filepath.Join(util.DataDir, "assets", "file.bin")); readErr != nil || string(data) != "version one" {
+				t.Fatalf("offline completion changed resource content: %q, %v", data, readErr)
+			}
+		})
 	}
 }
 

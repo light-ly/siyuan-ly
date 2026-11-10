@@ -6,7 +6,7 @@
 		"id": "20210615211733-v6rzowm",
 		"title": "数据历史",
 		"type": "doc",
-		"updated": "20261016112108"
+		"updated": "20261102161000"
 	},
 	"Children": [
 		{
@@ -651,6 +651,19 @@
 			]
 		},
 		{
+			"ID": "20261109120000-hist00a",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261109120000-hist00a"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "每个时间分组右侧显示符合当前搜索和筛选条件的文件历史条数，并非文字改动量。展开分组后，滚动到底部会自动加载后续记录。"
+				}
+			]
+		},
+		{
 			"ID": "20210104090742-hjfornp",
 			"Type": "NodeHeading",
 			"HeadingLevel": 3,
@@ -1144,7 +1157,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20220615112531-5yos96d",
-				"updated": "20261016111710"
+				"updated": "20261024203645"
 			},
 			"Children": [
 				{
@@ -1357,7 +1370,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20220615112535-k8n73hd",
-				"updated": "20261016111431"
+				"updated": "20261024203645"
 			},
 			"Children": [
 				{
@@ -1529,6 +1542,47 @@
 				{
 					"Type": "NodeText",
 					"Data": "填写详细备注便于以后识别快照，但备注不会阻止清理。需要长期保留的快照应添加标记，并另行独立备份。"
+				}
+			]
+		},
+		{
+			"ID": "20261024203645-jje7alu",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024203645-jje7alu",
+				"updated": "20261024203645"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "如果外部程序修改内容却保留文件大小和修改时间，可在 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "数据历史"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "数据快照"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "完整校验"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 中填写备注并确认。该操作读取快照范围内所有本地已落盘文件，发现变化时创建快照；未下载的资源保留原版本，不会为校验主动下载。大型工作空间可能耗时较长。"
 				}
 			]
 		},
@@ -1894,6 +1948,20 @@
 				{
 					"Type": "NodeText",
 					"Data": "在快照时间列表条目右侧都有一个回滚按钮，点击以后将弹出确认对话框，如果确认回滚的话将使用快照数据完全替换现有数据。"
+				}
+			]
+		},
+		{
+			"ID": "20261102161000-033bee9",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102161000-033bee9",
+				"updated": "20261102161000"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "回滚快照会暂停同步。若失败前能确认尚未改写文件，将恢复原同步开关，并跳过全量索引重建；若可能已有文件变更，则保持暂停，错误提示会说明重新开启同步的方法，请先核对恢复后的数据。错误信息同时显示失败阶段和可用的对象详情。回滚前创建的备份快照会保留。"
 				}
 			]
 		},

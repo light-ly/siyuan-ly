@@ -1,8 +1,8 @@
 import * as assert from "node:assert/strict";
-import {readFileSync} from "node:fs";
 import {test} from "node:test";
-import {runInNewContext} from "node:vm";
-import {ModuleKind, ScriptTarget, transpileModule} from "typescript";
+import {ScriptTarget} from "typescript";
+import {loadModule} from "../../testSupport/loadModule";
+import {withStartupErrorSuppressed} from "../../boot/startupError";
 
 const fixture = () => {
     const elements = new Map<string, {id: string; tagName: string; textContent?: string; text?: string; nonce?: string}>();
@@ -11,10 +11,8 @@ const fixture = () => {
     let measurements = 0;
     const executed: string[] = [];
     const config = {snippet: {enabledCSS: true, enabledJS: true}};
-    const exports = {} as typeof import("./snippets");
-    runInNewContext(transpileModule(readFileSync("src/config/util/snippets.ts", "utf8"), {
-        compilerOptions: {module: ModuleKind.CommonJS, target: ScriptTarget.ES2021},
-    }).outputText, {exports, AbortController, window: {siyuan: {config}, setTimeout, clearTimeout},
+    const exports = loadModule<typeof import("./snippets")>("src/config/util/snippets.ts", {
+        AbortController, window: {siyuan: {config}, setTimeout, clearTimeout},
         document: {
             getElementById: (id: string) => elements.get(id),
             querySelectorAll: () => [...elements.values()],
@@ -26,12 +24,14 @@ const fixture = () => {
                 if (element.tagName === "SCRIPT") executed.push(element.text);
             }},
         }, require: () => ({
+            withStartupErrorSuppressed,
             getHostCapabilities: () => ({customAppearance: allowed}), getExtensionScriptNonce: () => "extension-nonce",
             refreshHeadingNumberMeasurements: () => { measurements++; },
             fetchPost: (_url: string, _data: unknown, callback: (response: unknown) => void) => new Promise<void>(resolve => {
                 requests.push({complete: snippets => { callback({data: {snippets}}); resolve(); }});
             }),
-        })});
+        }),
+    }, ScriptTarget.ES2021);
     const render = async (snippets: unknown[], active = () => true) => {
         const pending = exports.renderSnippet(0, active);
         requests.at(-1).complete(snippets);

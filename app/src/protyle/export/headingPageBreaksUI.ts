@@ -1,5 +1,5 @@
+import {MobileDialog} from "../../dialog/mobileDialog";
 import {Constants} from "../../constants";
-import {Dialog} from "../../dialog";
 import {setStorageVal} from "../util/compatibility";
 import {normalizeHeadingPageBreakLevels} from "./headingPageBreaks";
 
@@ -13,10 +13,10 @@ export const headingPageBreakControls = (levels: unknown) => {
 
 export const openHeadingPageBreakDialog = (onConfirm: () => void) => {
     const localData = window.siyuan.storage[Constants.LOCAL_EXPORTPDF];
-    const dialog = new Dialog({
+    const dialog = new MobileDialog({
         title: window.siyuan.languages.print,
         content: `<div class="b3-dialog__content">
-    <label class="fn__flex b3-label">
+    <label class="fn__flex b3-label b3-label--inner">
         <div class="fn__flex-1">${window.siyuan.languages.exportTitleImage}</div>
         <span class="fn__space"></span>
         <input id="titleImage" type="checkbox" class="b3-switch fn__flex-center" ${localData.titleImage !== false ? "checked" : ""}>

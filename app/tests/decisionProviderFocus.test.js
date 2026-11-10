@@ -25,10 +25,11 @@ const runCases = async (sources, languages, reproduceUnsafeFocus = false) => {
         "config/tabs/ai/aiRuntime": {AI_CONFIG_CHANGED_EVENT: "siyuan-ai-config-changed", aiConfigApi: {
             patch: unexpected, waitForSave: async () => true,
         }},
-        "dialog/confirmDialog": {confirmDialog: unexpected},
+        "dialog/mobileConfirmDialog": {mobileConfirmDialog: unexpected},
         "dialog/message": {showMessage: unexpected},
         "util/fetch": {fetchPost: unexpected},
         "plugin/Menu": {Menu: unexpected},
+        "menus/Menu": {markMenuInnerScroll: unexpected},
         "util/upDownHint": {upDownHint: unexpected},
         "config/tabs/ai/chatGPTAccount": {genChatGPTAccountHTML: unexpected, mountChatGPTAccount: unexpected},
     };
@@ -176,7 +177,7 @@ const runCases = async (sources, languages, reproduceUnsafeFocus = false) => {
                 for (const row of groups[0].querySelectorAll(".config-item")) {
                     assert.equal(row.querySelector(".b3-label__text"), null, "Provider rows keep the original compact layout");
                 }
-                assert.ok(groups[0].textContent.includes(provider === "typesafe" ? "TypeSafe System One" : "OpenAI Decisions API (Beta)"));
+                assert.ok(groups[0].textContent.includes(provider === "typesafe" ? "TypeSafe System One" : "OpenAI Decisions API"));
                 assert.ok(groups[0].textContent.includes(provider === "typesafe" ? languages.decisionEndpointTip : languages.decisionOpenAIEndpointTip));
                 const modelRow = groups[1].querySelector(".config-items > .config-ai-provider__model");
                 const modelInput = modelRow.querySelector("[data-decision-field='name']");
@@ -280,6 +281,7 @@ const runCases = async (sources, languages, reproduceUnsafeFocus = false) => {
         // 原生输入会在目标与祖先监听器间执行微任务，不能只用 dispatchEvent 验证保存顺序。
         const savedSwitches = [];
         let pendingSave = Promise.resolve(true);
+        let resolveSwitchSave;
         mocks["config/tabs/ai/aiRuntime"].aiConfigApi.waitForSave = () => pendingSave;
         root.addEventListener("change", event => {
             if (event.target !== enabledInput) { return; }
@@ -287,11 +289,22 @@ const runCases = async (sources, languages, reproduceUnsafeFocus = false) => {
             const enabled = enabledInput.checked;
             savedSwitches.push(enabled);
             pendingSave = wait(20).then(() => { refreshConfig(enabled); return true; });
+            pendingSave.then(resolveSwitchSave);
         });
         for (const enabled of [false, true]) {
+            let saveTimeout;
+            const switchSaved = new Promise((resolve, reject) => {
+                resolveSwitchSave = resolve;
+                saveTimeout = setTimeout(() => reject(new Error("Native switch change did not finish saving")), 2000);
+            });
             enabledInput.focus({preventScroll: true});
-            await require("electron").ipcRenderer.invoke("decision-test-toggle");
-            await wait(60);
+            try {
+                await require("electron").ipcRenderer.invoke("decision-test-toggle");
+                await switchSaved;
+            } finally {
+                clearTimeout(saveTimeout);
+            }
+            await wait(0);
             assert.equal(enabledInput.checked, enabled, "Native switch input survives delegated save ordering");
             assert.equal(decision.enabled, enabled);
             assert.equal(getComputedStyle(providerBlock).display === "none", !enabled);

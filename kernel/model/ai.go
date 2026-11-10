@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -189,6 +177,10 @@ func NewAIEditorChatStream(ctx context.Context, ids []string, input, action stri
 	}
 
 	messages := buildAIEditorMessages(prompt, history, editing.MaxHistoryMessages)
+	memoryContext, memoryErr := BuildAIMemoryContext(ctx, prompt, ids, 6000)
+	if memoryErr == nil && memoryContext != "" {
+		messages = append(messages[:1], append([]openai.ChatCompletionMessage{{Role: openai.ChatMessageRoleUser, Content: memoryContext}}, messages[1:]...)...)
+	}
 
 	req := openai.ChatCompletionRequest{
 		Model:               m.Name,
@@ -199,6 +191,7 @@ func NewAIEditorChatStream(ctx context.Context, ids []string, input, action stri
 	}
 	streamCtx, cancel := context.WithCancel(ctx)
 	streamCtx = util.ContextWithOpenAIResponsesBaseURL(streamCtx, prov.BaseURL)
+	streamCtx = util.ContextWithOpenAIChatTemperature(streamCtx, req.Temperature)
 	requestTimeout := time.Duration(prov.RequestTimeout) * time.Second
 	requestTimer, requestTimerDone := startAIEditorCancelTimer(requestTimeout, cancel)
 	client := NewAIProviderClient(prov, m.Name)

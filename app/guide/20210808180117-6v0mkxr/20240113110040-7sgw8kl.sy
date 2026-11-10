@@ -7,7 +7,7 @@
 		"id": "20240113110040-7sgw8kl",
 		"title": "Mobile App",
 		"type": "doc",
-		"updated": "20261012014930"
+		"updated": "20261105161700"
 	},
 	"Children": [
 		{
@@ -54,76 +54,6 @@
 				{
 					"Type": "NodeText",
 					"Data": "​ in the app store."
-				}
-			]
-		},
-		{
-			"ID": "20261012014537-535lvyo",
-			"Type": "NodeHeading",
-			"Properties": {
-				"id": "20261012014537-535lvyo",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Interface navigation"
-				}
-			],
-			"HeadingLevel": 2
-		},
-		{
-			"ID": "20260921090531-lx0v0bv",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260921090531-lx0v0bv",
-				"updated": "20260921210136"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Swipe right in the editor to open the left sidebar, or swipe left to open the right sidebar. After starting the app, each sidebar initially opens its first visible feature. Subsequent openings restore the last used feature on that side. Change the feature order in "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Settings"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " - "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Appearance"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " - "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Left and right layout"
-				},
-				{
-					"Type": "NodeText",
-					"Data": "."
-				}
-			]
-		},
-		{
-			"ID": "20261010114821-igdube1",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20261010114821-igdube1",
-				"updated": "20261010114821"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "When using desktop layout on Android, the system Back button first closes the topmost dialog, menu, editing overlay, image preview or floating drawer. Each press closes one layer and preserves the browsing state underneath. With no dismissible layer open, Back performs the original page navigation."
 				}
 			]
 		},
@@ -412,6 +342,118 @@
 			]
 		},
 		{
+			"ID": "20261012014537-535lvyo",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261012014537-535lvyo",
+				"updated": "20261105161700"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Interface navigation"
+				}
+			],
+			"HeadingLevel": 2
+		},
+		{
+			"ID": "20260921090531-lx0v0bv",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260921090531-lx0v0bv",
+				"updated": "20260921210136"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Swipe right in the editor to open the left sidebar, or swipe left to open the right sidebar. After starting the app, each sidebar initially opens its first visible feature. Subsequent openings restore the last used feature on that side. Change the feature order in "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Settings"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Appearance"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Left and right layout"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "."
+				}
+			]
+		},
+		{
+			"ID": "20261103014800-u8mtv2k",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261103014800-u8mtv2k",
+				"updated": "20261105161700"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Bottom sheets have no X icon, Close, Fullscreen or Restore buttons. Confirmation and cancellation buttons appear below the content when needed. Ordinary sheets open at their content height, capped at 56% of the screen height. Drag the top grip up or down to adjust the height continuously without affecting scrolling or text selection in the content. The keyboard temporarily limits the height, which is restored when the keyboard closes. The chosen height is kept only until the sheet closes. To dismiss, use Back, tap outside the sheet, or drag the grip to the minimum height and continue pulling down without lifting your finger. Dismissal still follows the usual cancellation and saving rules. Saving and mandatory prompts may prevent dismissal; follow the available actions."
+				}
+			]
+		},
+		{
+			"ID": "20261103083411-ef2f36b",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261103083411-ef2f36b",
+				"updated": "20261103083411"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "When you edit reference content, backlinks, or flashcard content in a mobile sheet, closing waits for saving to finish. If saving fails, the editor keeps your draft. After the connection recovers, close the sheet again to retry the failed text changes; you do not need to type another character."
+				}
+			]
+		},
+		{
+			"ID": "20261010114821-igdube1",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261010114821-igdube1",
+				"updated": "20261024164212"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "When using desktop layout on Android, the system Back button first closes the topmost dialog, menu, editing overlay, image preview or floating drawer. Each press closes one layer and preserves the browsing state underneath."
+				}
+			]
+		},
+		{
+			"ID": "20261024164212-hm1vwrd",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024164212-hm1vwrd",
+				"updated": "20261024164212"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "With no dismissible layer open, Back follows the app's document history without reloading the interface. At the start of the history, a prompt appears; press Back again while the prompt is visible to return to the system home screen."
+				}
+			]
+		},
+		{
 			"ID": "20240113110114-ekanw3f",
 			"Type": "NodeHeading",
 			"HeadingLevel": 2,
@@ -478,7 +520,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20240113110114-3h7r74i",
-				"updated": "20260829104731"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -498,7 +540,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20240113110114-7cvpqyg",
-				"updated": "20260829104731"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -510,7 +552,7 @@
 					},
 					"Properties": {
 						"id": "20240113110114-erqy4o6",
-						"updated": "20240113110114"
+						"updated": "20261024162311"
 					},
 					"Children": [
 						{
@@ -518,12 +560,12 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20240113110114-eheouiq",
-								"updated": "20240113110114"
+								"updated": "20261024162311"
 							},
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "Uninstalling the App will cause local data to be completely deleted and cannot be recovered"
+									"Data": "Uninstalling the app removes local data. Finish syncing and save a recoverable backup outside the app before uninstalling; data without a backup may be unrecoverable"
 								}
 							]
 						}
@@ -538,7 +580,7 @@
 					},
 					"Properties": {
 						"id": "20240113110114-fn3cur4",
-						"updated": "20260829104731"
+						"updated": "20261024163013"
 					},
 					"Children": [
 						{
@@ -546,7 +588,7 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20240113110114-z7ij7u2",
-								"updated": "20260829104731"
+								"updated": "20261024163013"
 							},
 							"Children": [
 								{
@@ -569,7 +611,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​. Swiping away directly will force the application to end, resulting in data synchronization not being executed"
+									"Data": ". Swiping away directly will force the application to end, resulting in data synchronization not being executed"
 								}
 							]
 						}
@@ -849,7 +891,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260613174243-53h143k",
-				"updated": "20261004052629"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -878,7 +920,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20260613174243-r1hbexb",
-				"updated": "20261004052629"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -893,7 +935,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20260613174243-hwdpey5",
-				"updated": "20260613174243"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -938,7 +980,7 @@
 					},
 					"Properties": {
 						"id": "20260613174243-tk2xinl",
-						"updated": "20260613174243"
+						"updated": "20261024162311"
 					},
 					"Children": [
 						{
@@ -946,17 +988,12 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20260613174243-fnm4km4",
-								"updated": "20260613174243"
+								"updated": "20261024162311"
 							},
 							"Children": [
 								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "strong",
-									"TextMarkTextContent": "Auto-import"
-								},
-								{
 									"Type": "NodeText",
-									"Data": ": After a shorthand is created, the system checks the local shorthand directory every 7 seconds and automatically moves new shorthands to the configured target location in the doc tree"
+									"Data": "Automatic import: While SiYuan is running, it checks the local shorthand folder every 7 seconds and imports new notes to the configured destination"
 								}
 							]
 						}
@@ -1043,7 +1080,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20260613174243-tm05xft",
-				"updated": "20260803171606"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -1057,7 +1094,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20260613174243-2fim9a2",
-				"updated": "20260803171606"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -1071,7 +1108,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -1080,7 +1117,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -1089,7 +1126,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​ - "
+					"Data": " - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -1098,7 +1135,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​:"
+					"Data": ":"
 				}
 			]
 		},

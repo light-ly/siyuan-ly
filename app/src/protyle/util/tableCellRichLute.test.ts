@@ -24,6 +24,26 @@ const browserCases = async (source: string, enterSource: string, hintSource: str
     const base = api.configureAVRichTextLute(api.getAgentLute({emojiSite: "/emojis", emojis: {},
         headingAnchor: false, listStyle: false, paragraphBeginningSpace: true, sanitize: true}));
     const lute = api.getTableCellEditorLute(base);
+    for (const style of ["background-color: var(--b3-font-background5);", "color: var(--b3-font-color5);", "font-size: 2em;"]) {
+        const holder = document.createElement("div");
+        holder.innerHTML = base.Md2BlockDOM("note");
+        holder.querySelector('[contenteditable="true"]').innerHTML =
+            '<span data-type="text">（1）before</span>' +
+            `<span data-type="text" style="${style}">marked</span>` +
+            '<span data-type="text">after;（2）</span>';
+        const cell = document.createElement("td");
+        for (let round = 0; round < 3; round++) {
+            const value = api.serializeTableCellRich(holder.innerHTML);
+            api.updateTableCellEditingValue(cell, value);
+            holder.innerHTML = api.getTableCellRichBlockDOM(cell);
+            api.renderTableCellRich(cell);
+            for (const root of [holder, cell]) {
+                check.deepEqual(Array.from(root.querySelectorAll("span[style]")).map(span => span.textContent),
+                    ["marked"], `saving and reopening a cell must preserve inline style boundaries: ${style}, round ${round}`);
+            }
+            check.equal(api.getTableCellPlainText(cell), "（1）beforemarkedafter;（2）");
+        }
+    }
     for (const content of ["&lt;a", "vector&lt;T&gt;", "&amp;lt;a", "&lt;img src=x onerror=alert(1)&gt;"]) {
         const holder = document.createElement("div");
         holder.innerHTML = base.Md2BlockDOM("note");
@@ -324,6 +344,7 @@ const browserCases = async (source: string, enterSource: string, hintSource: str
     const fill = Hint.prototype.fill;
     const fragment = {wysiwyg, protyle, hintElement, getBlockHTML: () => wysiwyg.innerHTML};
     const keyDependencies = {...dependencies, host, cell, table: cell.closest("table"), fragment, owner: protyle, signal: new AbortController().signal,
+        addEditorEventListener: host.addEventListener.bind(host),
         captureBeforeChange: () => {}, composing: false, matchHotKey: () => false, finish: () => {},
         fixTable: () => { calls.navigated++; }};
     new Function(...Object.keys(keyDependencies), keydownSource)(...Object.values(keyDependencies));
@@ -825,8 +846,9 @@ test("table cells insert code through slash and Enter without losing soft breaks
     const hintSource = compile(read("../../block/superBlock.ts") +
         "\nconst isProtyleListItemFragment = () => false; class Hint {" + fill + "}");
     const editor = read("../render/tableCellRichEditor.ts");
-    const start = editor.indexOf('host.addEventListener("keydown", event => {');
+    const start = editor.indexOf('addEditorEventListener("keydown", event => {');
     const end = editor.indexOf("}, {capture: true, signal});", start) + "}, {capture: true, signal});".length;
+    assert.ok(start >= 0 && end > start);
     const keydownSource = compile(editor.substring(start, end));
     const copySource = ["../../menus/menuToggle.ts", "normalizeText.ts", "../wysiwyg/codeBlockUtil.ts", "../wysiwyg/codeBlock.ts", "../lite/codeActions.ts"]
         .map(file => compile(read(file))).join("\n") +

@@ -19,12 +19,14 @@ const sources = () => {
     return {
         functions: [
             extract("block/util.ts", ["genEmptyElement", "genSBElement", "refreshSbResize", "rebalanceSbWidth", "refreshSbAndPersistWidth"]),
+            extract("block/headingLevel.ts", ["getHeadingLevel"]),
             extract("block/superBlock.ts", ["getSuperBlockCommand", "getSuperBlockCommandLayout", "getSuperBlockTailHeadings"]),
             extract("block/insertSuperBlock.ts", ["genEmptySuperBlock", "focusInsertedBlock", "insertSuperBlockChild", "createSuperBlockColumn"]),
             extract("protyle/wysiwyg/transaction.ts", ["turnsIntoOneTransaction"]),
             (extract("protyle/util/selectionOffsets.ts", ["focusByRange"]) +
         extract("protyle/util/selection.ts", ["focusByWbr"])),
             extract("protyle/wysiwyg/getBlock.ts", ["getContenteditableElement", "getParentBlock"]),
+            extract("protyle/hint/titleSlash.ts", ["isTitleSlashContext"]),
             extract("mobile/util/keyboardToolbar.ts", ["getSlashItem", "renderSlashMenu"]),
         ].join("\n"),
         hint: compile(readFileSync(path.join(__dirname, "../src/protyle/hint/index.ts"), "utf8")),

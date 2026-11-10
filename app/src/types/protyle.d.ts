@@ -121,6 +121,7 @@ interface ILuteRender {
 interface IBreadcrumb {
     id: string,
     name: string,
+    documentTitle?: string,
     type: string,
     subType: string,
     children: IBreadcrumb[],
@@ -251,6 +252,7 @@ declare class Lute {
     public SetTag(enable: boolean): void;
 
     public SetInlineMath(enable: boolean): void;
+    public SetLatexMath(enable: boolean): void;
 
     public SetGFMStrikethrough(enable: boolean): void;
 
@@ -293,6 +295,7 @@ declare class Lute {
     public PutEmojis(emojis: IObject): void;
 
     public SpinBlockDOM(html: string): string;
+    public SpinInlineBlockDOM(html: string): string;
 
     public Md2BlockDOM(html: string): string;
 

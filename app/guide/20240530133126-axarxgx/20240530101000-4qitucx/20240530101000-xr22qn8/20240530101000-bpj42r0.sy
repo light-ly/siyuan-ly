@@ -7,7 +7,7 @@
 		"id": "20240530101000-bpj42r0",
 		"title": "テーマ",
 		"type": "doc",
-		"updated": "20261016202856"
+		"updated": "20261107142118"
 	},
 	"Children": [
 		{
@@ -120,7 +120,7 @@
 			"Properties": {
 				"ID": "20240530101000-qlk99nz",
 				"id": "20240530101000-jscq707",
-				"updated": "20261016202856"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -130,239 +130,19 @@
 			]
 		},
 		{
-			"ID": "20240530101000-xcqie6f",
-			"Type": "NodeList",
-			"ListData": {
-				"Typ": 1
-			},
+			"ID": "20261024162311-ebyrbt6",
+			"Type": "NodeHeading",
 			"Properties": {
-				"id": "20240530101000-xcqie6f",
-				"updated": "20261016202856"
+				"id": "20261024162311-ebyrbt6",
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
-					"ID": "20240530101000-4wzco4a",
-					"Type": "NodeListItem",
-					"ListData": {
-						"Typ": 1,
-						"Delimiter": 46,
-						"Marker": "MS4=",
-						"Num": 1
-					},
-					"Properties": {
-						"id": "20240530101000-4wzco4a",
-						"updated": "20261016202856"
-					},
-					"Children": [
-						{
-							"ID": "20240530101000-m6yns9u",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20240530101000-m6yns9u",
-								"updated": "20261016202856"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": ""
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "設定"
-								},
-								{
-									"Type": "NodeText",
-									"Data": " - "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "スタイル"
-								},
-								{
-									"Type": "NodeText",
-									"Data": " - "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "コードスニペット"
-								},
-								{
-									"Type": "NodeText",
-									"Data": " - "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "設定"
-								},
-								{
-									"Type": "NodeText",
-									"Data": " を開き、CSS タブを選択します"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20240530101000-8fjf4cb",
-					"Type": "NodeListItem",
-					"ListData": {
-						"Typ": 1,
-						"Delimiter": 46,
-						"Marker": "Mi4=",
-						"Num": 2
-					},
-					"Properties": {
-						"id": "20240530101000-8fjf4cb",
-						"updated": "20240530101000"
-					},
-					"Children": [
-						{
-							"ID": "20240530101000-orpozhw",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20240530101000-orpozhw",
-								"updated": "20240530101000"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "スニペットのタイトルを入力します"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20240530101000-bjxyn1f",
-					"Type": "NodeListItem",
-					"ListData": {
-						"Typ": 1,
-						"Delimiter": 46,
-						"Marker": "My4=",
-						"Num": 3
-					},
-					"Properties": {
-						"id": "20240530101000-bjxyn1f",
-						"updated": "20240530101000"
-					},
-					"Children": [
-						{
-							"ID": "20240530101000-lqv9vdg",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20240530101000-lqv9vdg",
-								"updated": "20240530101000"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "テーマと "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "code",
-									"TextMarkTextContent": "theme.css"
-								},
-								{
-									"Type": "NodeText",
-									"Data": "​ の変数を参照し、以下の形式で記述したコードをコードスニペットに入力します"
-								}
-							]
-						},
-						{
-							"ID": "20240530101000-tdmmpe4",
-							"Type": "NodeCodeBlock",
-							"IsFencedCodeBlock": true,
-							"Properties": {
-								"id": "20240530101000-tdmmpe4",
-								"updated": "20240530101000"
-							},
-							"Children": [
-								{
-									"Type": "NodeCodeBlockFenceOpenMarker",
-									"Data": "```"
-								},
-								{
-									"Type": "NodeCodeBlockFenceInfoMarker",
-									"CodeBlockInfo": "Y3Nz"
-								},
-								{
-									"Type": "NodeCodeBlockCode",
-									"Data": "html[data-light-theme=\"daylight\"][data-theme-mode=\"light\"] {\n    --b3-theme-primary: red;\n}\n\nhtml[data-light-theme=\"daylight\"][data-theme-mode=\"dark\"] {\n    --b3-theme-primary: blue;\n}\n"
-								},
-								{
-									"Type": "NodeCodeBlockFenceCloseMarker",
-									"Data": "```"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20240530101000-ti1p2s6",
-					"Type": "NodeListItem",
-					"ListData": {
-						"Typ": 1,
-						"Delimiter": 46,
-						"Marker": "NC4=",
-						"Num": 4
-					},
-					"Properties": {
-						"id": "20240530101000-ti1p2s6",
-						"updated": "20240530101000"
-					},
-					"Children": [
-						{
-							"ID": "20240530101000-9ujjfze",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20240530101000-9ujjfze",
-								"updated": "20240530101000"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "コードスニペットを有効にします"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20240530101000-m3elc2w",
-					"Type": "NodeListItem",
-					"ListData": {
-						"Typ": 1,
-						"Delimiter": 46,
-						"Marker": "NS4=",
-						"Num": 5
-					},
-					"Properties": {
-						"id": "20240530101000-m3elc2w",
-						"updated": "20240530101000"
-					},
-					"Children": [
-						{
-							"ID": "20240530101000-n6kyto7",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20240530101000-n6kyto7",
-								"updated": "20240530101000"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "確認ボタンをクリックします"
-								}
-							]
-						}
-					]
+					"Type": "NodeText",
+					"Data": "種類と管理"
 				}
-			]
+			],
+			"HeadingLevel": 3
 		},
 		{
 			"ID": "20260614110343-mwu2dgv",
@@ -452,6 +232,20 @@
 							]
 						}
 					]
+				}
+			]
+		},
+		{
+			"ID": "20261103081326-e5d1163",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261103081326-e5d1163",
+				"updated": "20261103081326"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "モバイルで変更済みのコードスニペットを閉じると、保存の確認が表示されます。確認すると変更を保存し、キャンセルすると変更を破棄してエディターを閉じます。確認画面で戻る操作、下方向へのスワイプ、または画面の外側のタップを行うと、確認だけが閉じ、下書きを保持して編集を続けられます。保存に失敗した場合も、下書きを保持して再試行できます。"
 				}
 			]
 		},
@@ -652,12 +446,280 @@
 			"Properties": {
 				"ID": "20240530101000-75geurh",
 				"id": "20240530101000-e1rqa5t",
-				"updated": "20261016202856"
+				"updated": "20261107023948"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
 					"Data": "テーマパック"
+				}
+			]
+		},
+		{
+			"ID": "20261024162311-zujc9ex",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024162311-zujc9ex",
+				"updated": "20261024163429"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "CSS スニペットを無効にするとスタイルが取り除かれます。JS スニペットが実行済みの操作は、無効にしても自動では元に戻りません。実行中の効果を解除するには、無効にして画面を再読み込みしてください。"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " スニペットが書き込んだデータは、別途復元する必要があります。"
+				}
+			]
+		},
+		{
+			"ID": "20261024162311-jtlcdws",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261024162311-jtlcdws",
+				"updated": "20261024162311"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "CSS スニペットの作成"
+				}
+			],
+			"HeadingLevel": 3
+		},
+		{
+			"ID": "20240530101000-xcqie6f",
+			"Type": "NodeList",
+			"ListData": {
+				"Typ": 1
+			},
+			"Properties": {
+				"id": "20240530101000-xcqie6f",
+				"updated": "20261024160716"
+			},
+			"Children": [
+				{
+					"ID": "20240530101000-4wzco4a",
+					"Type": "NodeListItem",
+					"ListData": {
+						"Typ": 1,
+						"Delimiter": 46,
+						"Marker": "MS4=",
+						"Num": 1
+					},
+					"Properties": {
+						"id": "20240530101000-4wzco4a",
+						"updated": "20261016202856"
+					},
+					"Children": [
+						{
+							"ID": "20240530101000-m6yns9u",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20240530101000-m6yns9u",
+								"updated": "20261016202856"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": ""
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "設定"
+								},
+								{
+									"Type": "NodeText",
+									"Data": " - "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "スタイル"
+								},
+								{
+									"Type": "NodeText",
+									"Data": " - "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "コードスニペット"
+								},
+								{
+									"Type": "NodeText",
+									"Data": " - "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "設定"
+								},
+								{
+									"Type": "NodeText",
+									"Data": " を開き、CSS タブを選択します"
+								}
+							]
+						}
+					]
+				},
+				{
+					"ID": "20240530101000-8fjf4cb",
+					"Type": "NodeListItem",
+					"ListData": {
+						"Typ": 1,
+						"Delimiter": 46,
+						"Marker": "Mi4=",
+						"Num": 2
+					},
+					"Properties": {
+						"id": "20240530101000-8fjf4cb",
+						"updated": "20240530101000"
+					},
+					"Children": [
+						{
+							"ID": "20240530101000-orpozhw",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20240530101000-orpozhw",
+								"updated": "20240530101000"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "スニペットのタイトルを入力します"
+								}
+							]
+						}
+					]
+				},
+				{
+					"ID": "20240530101000-bjxyn1f",
+					"Type": "NodeListItem",
+					"ListData": {
+						"Typ": 1,
+						"Delimiter": 46,
+						"Marker": "My4=",
+						"Num": 3
+					},
+					"Properties": {
+						"id": "20240530101000-bjxyn1f",
+						"updated": "20261024160716"
+					},
+					"Children": [
+						{
+							"ID": "20240530101000-lqv9vdg",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20240530101000-lqv9vdg",
+								"updated": "20240530101000"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "テーマと "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "code",
+									"TextMarkTextContent": "theme.css"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​ の変数を参照し、以下の形式で記述したコードをコードスニペットに入力します"
+								}
+							]
+						},
+						{
+							"ID": "20240530101000-tdmmpe4",
+							"Type": "NodeCodeBlock",
+							"IsFencedCodeBlock": true,
+							"Properties": {
+								"id": "20240530101000-tdmmpe4",
+								"updated": "20261024160716"
+							},
+							"Children": [
+								{
+									"Type": "NodeCodeBlockFenceOpenMarker",
+									"Data": "```"
+								},
+								{
+									"Type": "NodeCodeBlockFenceInfoMarker",
+									"CodeBlockInfo": "Y3Nz"
+								},
+								{
+									"Type": "NodeCodeBlockCode",
+									"Data": "html[data-light-theme=\"daylight\"][data-theme-mode=\"light\"] {\n    --b3-theme-primary: red;\n}\n\nhtml[data-dark-theme=\"midnight\"][data-theme-mode=\"dark\"] {\n    --b3-theme-primary: blue;\n}\n"
+								},
+								{
+									"Type": "NodeCodeBlockFenceCloseMarker",
+									"Data": "```"
+								}
+							]
+						}
+					]
+				},
+				{
+					"ID": "20240530101000-ti1p2s6",
+					"Type": "NodeListItem",
+					"ListData": {
+						"Typ": 1,
+						"Delimiter": 46,
+						"Marker": "NC4=",
+						"Num": 4
+					},
+					"Properties": {
+						"id": "20240530101000-ti1p2s6",
+						"updated": "20240530101000"
+					},
+					"Children": [
+						{
+							"ID": "20240530101000-9ujjfze",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20240530101000-9ujjfze",
+								"updated": "20240530101000"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "コードスニペットを有効にします"
+								}
+							]
+						}
+					]
+				},
+				{
+					"ID": "20240530101000-m3elc2w",
+					"Type": "NodeListItem",
+					"ListData": {
+						"Typ": 1,
+						"Delimiter": 46,
+						"Marker": "NS4=",
+						"Num": 5
+					},
+					"Properties": {
+						"id": "20240530101000-m3elc2w",
+						"updated": "20240530101000"
+					},
+					"Children": [
+						{
+							"ID": "20240530101000-n6kyto7",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20240530101000-n6kyto7",
+								"updated": "20240530101000"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "確認ボタンをクリックします"
+								}
+							]
+						}
+					]
 				}
 			]
 		},
@@ -683,7 +745,7 @@
 			"Properties": {
 				"ID": "20240530101000-pj2qt5j",
 				"id": "20240530101000-foh7a5f",
-				"updated": "20261016202856"
+				"updated": "20261107142118"
 			},
 			"Children": [
 				{
@@ -802,13 +864,73 @@
 			]
 		},
 		{
+			"ID": "20261107023948-l706i82",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261107023948-l706i82",
+				"updated": "20261107142118"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "オンラインのプラグイン、テーマ、アイコン、テンプレート、ウィジェット一覧では、検索欄の左にあるフィルターアイコンをクリックしてメニューを開き、"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "新しいアプリバージョンが必要なパッケージを非表示"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " と "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "プラットフォームに非対応のパッケージを非表示"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " を個別に、または同時に有効にできます。どちらも初期状態では無効で、選択はパッケージの種類ごとに保存されます。ダウンロード済み一覧と更新一覧には影響しません。"
+				}
+			]
+		},
+		{
+			"ID": "20261107023948-5adgukx",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261107023948-5adgukx",
+				"updated": "20261107023948"
+			},
+			"Children": [
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "公開日時 (新しい順)"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " または "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "公開日時 (古い順)"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " を選ぶと、マーケットプレイスに記録された初回掲載日時で並べ替えられます。日時が欠けているか無効なパッケージは末尾に表示されます。"
+				}
+			]
+		},
+		{
 			"ID": "20240530101000-ei4f29x",
 			"Type": "NodeHeading",
-			"HeadingLevel": 2,
+			"HeadingLevel": 3,
 			"Properties": {
 				"ID": "20240530101000-1gm1l6d",
 				"id": "20240530101000-ei4f29x",
-				"updated": "20260803170332"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -832,7 +954,7 @@
 			"Properties": {
 				"ID": "20240530101000-p5bs87t",
 				"id": "20240530101000-yenj3fj",
-				"updated": "20260803170332"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -887,7 +1009,7 @@
 					"Properties": {
 						"ID": "20240530101000-ybolo9o",
 						"id": "20240530101000-2fp34g8",
-						"updated": "20260803163402"
+						"updated": "20261024163013"
 					},
 					"Children": [
 						{
@@ -896,12 +1018,12 @@
 							"Properties": {
 								"ID": "20240530101000-7lu4j3i",
 								"id": "20240530101000-n82uhqw",
-								"updated": "20260803163402"
+								"updated": "20261024163013"
 							},
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "​ "
+									"Data": ""
 								},
 								{
 									"Type": "NodeTextMark",
@@ -910,7 +1032,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ - "
+									"Data": " - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -919,7 +1041,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ - "
+									"Data": " - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -928,7 +1050,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ - "
+									"Data": " - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -937,7 +1059,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": " ​ を選択します"
+									"Data": " を選択します"
 								}
 							]
 						}
@@ -995,7 +1117,7 @@
 					"Properties": {
 						"ID": "20240530101000-p0arthv",
 						"id": "20240530101000-s7kf4bl",
-						"updated": "20260803170332"
+						"updated": "20261024163013"
 					},
 					"Children": [
 						{
@@ -1004,7 +1126,7 @@
 							"Properties": {
 								"ID": "20240530101000-rkjqmwo",
 								"id": "20240530101000-96amlnm",
-								"updated": "20260803170332"
+								"updated": "20261024163013"
 							},
 							"Children": [
 								{
@@ -1018,7 +1140,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ - "
+									"Data": " - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1027,7 +1149,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ - "
+									"Data": " - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1036,7 +1158,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": " ​ からインストールしたテーマを選択します"
+									"Data": " からインストールしたテーマを選択します"
 								}
 							]
 						}
@@ -1051,7 +1173,7 @@
 			"Properties": {
 				"ID": "20240530101000-m92cdqb",
 				"id": "20240530101000-dik7qz7",
-				"updated": "20261016202856"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -1067,7 +1189,7 @@
 			"Properties": {
 				"ID": "20240530101000-6pz8s9i",
 				"id": "20240530101000-9nkaihq",
-				"updated": "20260810230450"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -1090,7 +1212,7 @@
 			"Properties": {
 				"ID": "20240530101000-w4ueh95",
 				"id": "20240530101000-bo6l8c1",
-				"updated": "20260810230450"
+				"updated": "20261024163013"
 			},
 			"Children": [
 				{
@@ -1153,7 +1275,7 @@
 					"Properties": {
 						"ID": "20240530101000-90dqhxu",
 						"id": "20240530101000-wqqdogy",
-						"updated": "20260803163402"
+						"updated": "20261024163013"
 					},
 					"Children": [
 						{
@@ -1162,12 +1284,12 @@
 							"Properties": {
 								"ID": "20240530101000-xnvfvs5",
 								"id": "20240530101000-tru6zje",
-								"updated": "20260803163402"
+								"updated": "20261024163013"
 							},
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "​ "
+									"Data": ""
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1176,7 +1298,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ - "
+									"Data": " - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1185,7 +1307,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ - "
+									"Data": " - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1194,7 +1316,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ - "
+									"Data": " - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1203,7 +1325,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": " ​ を選択します"
+									"Data": " を選択します"
 								}
 							]
 						}
@@ -1361,7 +1483,7 @@
 					"Properties": {
 						"ID": "20240530101000-6b7a4gm",
 						"id": "20240530101000-dnbmqqq",
-						"updated": "20260803170332"
+						"updated": "20261024163013"
 					},
 					"Children": [
 						{
@@ -1370,7 +1492,7 @@
 							"Properties": {
 								"ID": "20240530101000-8x9fb4p",
 								"id": "20240530101000-88pwd3m",
-								"updated": "20260803170332"
+								"updated": "20261024163013"
 							},
 							"Children": [
 								{
@@ -1384,7 +1506,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ - "
+									"Data": " - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1393,7 +1515,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ - "
+									"Data": " - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1402,7 +1524,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": " ​ からインストールしたテーマを選択します"
+									"Data": " からインストールしたテーマを選択します"
 								}
 							]
 						}

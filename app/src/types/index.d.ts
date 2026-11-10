@@ -164,6 +164,7 @@ interface Window {
     webkit: {
         nativeCallbacks: { [key: string]: (id: number) => void },
         messageHandlers: {
+            openMarkdownEditor?: { postMessage: (data: string) => void }
             finishKeyboardComposition?: { postMessage: (data: string) => Promise<boolean> }
             showTextMenu?: { postMessage: (data: string) => Promise<boolean> }
             pickPhotos?: { postMessage: (data: string) => Promise<Array<{
@@ -201,6 +202,7 @@ interface Window {
     };
     siyuan: ISiyuan;
     JSAndroid: {
+        openMarkdownEditor?(): void
         openAuthURL(url: string): void
         returnDesktop(): void
         openExternal(url: string): void
@@ -229,6 +231,7 @@ interface Window {
         logInputEvent?(details: string): void
     };
     JSHarmony: {
+        openMarkdownEditor?(): void
         getSystemFonts?(): Promise<string>
         openAuthURL(url: string): void
         showKeyboard(): void
@@ -392,7 +395,10 @@ interface IRefDefs {
 
 interface IFilesPath {
     notebookId: string,
-    openPaths: string[]
+    openPaths: string[],
+    version?: 2,
+    expandedIDs?: {id: string, kind: "document" | "notebook"}[],
+    scrollAnchor?: {id: string, offset: number},
 }
 
 interface IPosition {
@@ -561,6 +567,7 @@ interface INotebook {
 }
 
 interface ISiyuan {
+    /** 当前内核的只读文档标题能力，普通构建默认为 2，不持久化为用户设置。 */
     zIndex: number
     isReady?: boolean
     storage?: {
@@ -777,6 +784,7 @@ interface ICommand {
     execute?: (context: ICommandContext) => void | Promise<void>
     callback?: (context?: ICommandContext) => void   // 其余回调存在时将不会触发
     globalCallback?: (context?: ICommandContext) => void // 焦点不在应用内时执行的回调
+    /** 文档树命令接收 Files 实例；通过 getSelectedItems() 获取完整选择，避免通过可视区 DOM 枚举。 */
     fileTreeCallback?: (
         file: import("../layout/dock/Files").Files,
         context?: ICommandContext
@@ -921,6 +929,9 @@ interface IFile {
     path: string;
     name: string;
     titleEmpty?: boolean;
+    titleFormat?: "plain" | "inline-ast";
+    titleRevision?: string;
+    specTooNew?: boolean;
     hMtime: string;
     hCtime: string;
     hSize: string;
@@ -1072,6 +1083,7 @@ interface IBazaarItem {
     stars: number;
     author: string;
     updated: string;
+    created?: string;
     downloads: number;
     ratingAvailable?: boolean;
     rating?: IBazaarRating;
@@ -1100,6 +1112,7 @@ interface IBazaarItem {
     invalidReason?: TBazaarPackageInvalidReason;
     installedIncompatible?: boolean; // 仅插件/主题
     bazaarIncompatible?: boolean; // 仅插件/主题
+    bazaarVersionUnsupported?: boolean;
     enabled?: boolean; // 仅 plugin
     userDisabledInPublish?: boolean; // 仅 plugin
     hasStorageData?: boolean; // 仅插件
@@ -1131,7 +1144,32 @@ interface IAVCustomColor extends IAVColor {
     hidden?: boolean;
 }
 
+interface IAVSubItemsConfig {
+    enabled: boolean;
+    parentKeyID: string;
+    childrenKeyID: string;
+}
+
+interface IAVNestedResult {
+    page: number;
+    pageSize: number;
+    rootCount: number;
+    rootLoaded: number;
+    matchedCount: number;
+    childPaging: Record<string, {page: number; pageSize: number; total: number; loaded: number}>;
+}
+
+interface IAVItemHierarchy {
+    parentID?: string;
+    depth: number;
+    childCount: number;
+    context: boolean;
+    expanded: boolean;
+}
+
 interface IAV {
+    pendingHTTPTemplates?: string[];
+    subItems?: IAVSubItemsConfig;
     id: string;
     name: string;
     view: IAVTable | IAVGallery;
@@ -1165,6 +1203,7 @@ interface IAVContextFilterField {
 }
 
 interface IAVRenderTarget {
+    ancestorIDs?: string[];
     status: "visible" | "filtered" | "itemNotFound" | "groupHidden";
     itemID: string;
     groupID?: string;
@@ -1197,6 +1236,10 @@ interface IAVNewItemTemplate {
     saveLocation?: IAVNewItemSaveLocation;
     contentTemplatePath?: string;
     hideInFileTree?: boolean;
+    /** 创建后打开条目；省略时仅日历自动打开，false 表示不打开。 */
+    openAfterCreate?: boolean;
+    /** 自动打开时使用当前分屏；省略或 false 时向右分屏打开。 */
+    openInCurrentTab?: boolean;
 }
 
 /** 单字段条件颜色规则按顺序匹配，默认背景同样占据优先级。 */
@@ -1215,6 +1258,8 @@ interface IAVItemConditionalColors {
 }
 
 interface IAVView {
+    subItemsDisplay?: "flat" | "nested";
+    nested?: IAVNestedResult;
     conditionalColors?: IAVConditionalColorRule[];
     name?: string;
     desc?: string;
@@ -1267,6 +1312,8 @@ interface IAVCalendarSettings {
     weekStart: number;
     /** 月视图折叠前的条目行数：3、5、10 或 -1（全部）；省略或 0 使用 3，周视图显示全部，不影响查询范围。 */
     rowLimit?: number;
+    /** 在日历条目中显示非主键字段的名称，默认关闭；按视图保存，支持撤销和重做。 */
+    displayFieldName?: boolean;
 }
 
 /**
@@ -1426,6 +1473,7 @@ interface IAVColumn {
 }
 
 interface IAVRow {
+    hierarchy?: IAVItemHierarchy;
     conditionalColors?: IAVItemConditionalColors;
     id: string,
     cells: IAVCell[]
@@ -1551,6 +1599,11 @@ interface IAVCellAssetValue {
 }
 
 interface IAVColumnRelation {
+    detailView?: {
+        spec: number;
+        enabled: boolean;
+        viewID: string;
+    };
     avID?: string;
     backKeyID?: string;
     isTwoWay?: boolean;

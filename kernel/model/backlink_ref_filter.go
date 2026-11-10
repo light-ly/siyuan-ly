@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
@@ -29,11 +33,15 @@ func normalizeBacklinkRefDefIDs(ids []string) (ret []string) {
 }
 
 // backlinkEntryBlockIDs 使用完整渲染范围，折叠状态不改变筛选语义。
-func backlinkEntryBlockIDs(node *ast.Node) (ret []string) {
+func backlinkEntryBlockIDs(node *ast.Node, documentContext ...bool) (ret []string) {
 	if nil == node {
 		return
 	}
-	nodes, _ := getBacklinkRenderNodes(node, nil)
+	var originalRefBlockIDs map[string]string
+	if len(documentContext) > 0 && documentContext[0] && node.Type == ast.NodeDocument {
+		originalRefBlockIDs = map[string]string{node.ID: node.ID}
+	}
+	nodes, _ := getBacklinkRenderNodes(node, originalRefBlockIDs)
 	for _, root := range nodes {
 		ast.Walk(root, func(n *ast.Node, entering bool) ast.WalkStatus {
 			if entering && n.IsBlock() && "" != n.ID {
@@ -62,7 +70,7 @@ func backlinkEntryRefDefs(entries []*Block, boxID string) (ret map[string]map[st
 		if nil == tree {
 			continue
 		}
-		ids := backlinkEntryBlockIDs(treenode.GetNodeInTree(tree, entry.ID))
+		ids := backlinkEntryBlockIDs(treenode.GetNodeInTree(tree, entry.ID), entry.backlinkDocumentContext)
 		entryBlocks[entry.ID] = ids
 		blockIDs = append(blockIDs, ids...)
 	}
@@ -125,7 +133,7 @@ func GetBacklinkRefDefs(id, keyword string, containChildren bool, boxID string, 
 	if keyword = strings.TrimSpace(keyword); "" != keyword {
 		keywords = strings.Split(keyword, " ")
 	}
-	entries, _, _, _ := buildLinkRefsInBox(block.RootID, refs, keywords, boxID)
+	entries, _, _, _ := buildLinkRefsInBox(block.RootID, refs, keywords, boxID, filter)
 	entries = filterBacklinkSourcesInBox(entries, block.RootID, boxID, filter)
 	entryRefs, err := backlinkEntryRefDefs(entries, boxID)
 	if nil != err {

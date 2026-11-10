@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -20,7 +8,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
+	"io"
+	"maps"
 	"strings"
 	"text/template"
 	templateparse "text/template/parse"
@@ -29,14 +18,15 @@ import (
 	"github.com/88250/lute/parse"
 	"github.com/siyuan-note/siyuan/kernel/av"
 	"github.com/siyuan-note/siyuan/kernel/sql"
+	"github.com/siyuan-note/siyuan/kernel/templatehttp"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
 func renderTemplateDocTreeNodes(collector *templateDocTreeCollector, rootTemplate *template.Template,
-	funcs template.FuncMap) error {
+	funcs template.FuncMap, executions ...*templatehttp.Execution) error {
 	for _, node := range flattenTemplateDocTreeNodes0(collector.nodes) {
-		content, err := renderTemplateDocTreeNodeContent(collector, rootTemplate, funcs, node)
+		content, err := renderTemplateDocTreeNodeContent(collector, rootTemplate, funcs, node, executions...)
 		if nil != err {
 			return err
 		}
@@ -54,7 +44,26 @@ func renderTemplateDocTreeNodes(collector *templateDocTreeCollector, rootTemplat
 }
 
 func renderTemplateDocTreeNodeContent(collector *templateDocTreeCollector, rootTemplate *template.Template,
-	funcs template.FuncMap, node *TemplateDocTreeNode) ([]byte, error) {
+	funcs template.FuncMap, node *TemplateDocTreeNode, executions ...*templatehttp.Execution) (output []byte, retErr error) {
+	var execution *templatehttp.Execution
+	if len(executions) > 0 {
+		execution = executions[0]
+	}
+	if execution != nil {
+		if collector.httpSources == nil {
+			collector.httpSources = &templateHTTPSourceSnapshot{execution: managedTemplateHTTPExecution(execution), files: map[string][]byte{}}
+		}
+		if execution.Err() != nil {
+			return nil, execution.Err()
+		}
+		defer func() {
+			if execution.Err() != nil {
+				output, retErr = nil, execution.Err()
+			} else if retErr != nil {
+				retErr = errors.New("HTTP child template evaluation failed")
+			}
+		}()
+	}
 	if "" == node.Template && "" == node.Define {
 		return nil, nil
 	}
@@ -67,6 +76,10 @@ func renderTemplateDocTreeNodeContent(collector *templateDocTreeCollector, rootT
 
 	buf := &bytes.Buffer{}
 	buf.Grow(4096)
+	var writer io.Writer = buf
+	if execution != nil {
+		writer = execution.Writer(buf)
+	}
 	dataModel := templateDocTreeDataModel(node)
 	if "" != node.Define {
 		if nil == rootTemplate.Lookup(node.Define) {
@@ -75,7 +88,7 @@ func renderTemplateDocTreeNodeContent(collector *templateDocTreeCollector, rootT
 		if err := validateTemplateCallGraph(rootTemplate, node.Define); nil != err {
 			return nil, err
 		}
-		if err := rootTemplate.ExecuteTemplate(buf, node.Define, dataModel); nil != err {
+		if err := rootTemplate.ExecuteTemplate(writer, node.Define, dataModel); nil != err {
 			return nil, fmt.Errorf(Conf.Language(44), err.Error())
 		}
 		return buf.Bytes(), nil
@@ -85,19 +98,37 @@ func renderTemplateDocTreeNodeContent(collector *templateDocTreeCollector, rootT
 	if nil != err {
 		return nil, err
 	}
-	content, err := os.ReadFile(childPath)
+	content, err := collector.httpSources.read(childPath)
 	if nil != err {
 		return nil, err
+	}
+	if execution != nil {
+		scope := templateHTTPSourceScope(collector.boxID, childPath, content)
+		if managedTemplateHTTPExecution(execution) != nil {
+			source, sourceErr := collector.httpSources.source(childPath, content)
+			if sourceErr != nil {
+				return nil, sourceErr
+			}
+			scope = registerTemplateHTTPSource(execution, collector.boxID, source)
+		}
+		funcs = maps.Clone(funcs)
+		maps.Copy(funcs, execution.FuncsForScope(scope))
 	}
 	childTemplate := template.New("").Delims(".action{", "}").Funcs(funcs)
 	childTemplate, err = childTemplate.Parse(string(content))
 	if nil != err {
+		if strings.Contains(string(content), "httpGet") {
+			return nil, errors.New("HTTP child template parsing failed")
+		}
 		return nil, fmt.Errorf(Conf.Language(44), err.Error())
 	}
 	if err = validateTemplateCallGraph(childTemplate, childTemplate.Name()); nil != err {
 		return nil, err
 	}
-	if err = childTemplate.Execute(buf, dataModel); nil != err {
+	if err = childTemplate.Execute(writer, dataModel); nil != err {
+		if strings.Contains(string(content), "httpGet") {
+			return nil, errors.New("HTTP child template execution failed")
+		}
 		return nil, fmt.Errorf(Conf.Language(44), err.Error())
 	}
 	return buf.Bytes(), nil

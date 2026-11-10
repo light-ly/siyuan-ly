@@ -1,10 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -638,7 +634,7 @@ func TestOIDCSessionVersionInvalidatesOnConfigurationChange(t *testing.T) {
 		t.Fatal("OIDC WebSocket session survived an authentication configuration change")
 	}
 	Conf.AccessAuthCode = "access-code"
-	workspaceSession.AccessAuthCode = "access-code"
+	SetAccessCodeSession(workspaceSession, "access-code")
 	if !IsWorkspaceSessionAuthenticated(workspaceSession) {
 		t.Fatal("valid access-code session should remain available as an independent login method")
 	}

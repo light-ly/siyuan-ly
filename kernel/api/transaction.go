@@ -1,23 +1,12 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -48,15 +37,37 @@ var performTransactions = contractHandler(apicontract.PerformTransactions, func(
 	timestamp := int64(request.ReqID)
 	var err error
 	convertList := false
+	setDocTitle := false
+	collectionRemoval := false
 	for _, transaction := range transactions {
 		if transaction == nil {
 			continue
 		}
+		collectionRemoval = collectionRemoval || len(transaction.CollectionRemovalSourceVersions) > 0
 		for _, operation := range transaction.DoOperations {
+			if operation != nil && operation.Action == "setDocTitle" {
+				setDocTitle = true
+			}
 			if operation != nil && operation.Action == "convertList" {
 				convertList = true
 			}
+			if operation != nil && operation.Action == "cleanupAttrViewBlocks" {
+				if data, ok := operation.Data.(map[string]interface{}); ok {
+					if versions, ok := data["sourceVersions"].(map[string]interface{}); ok && len(versions) > 0 {
+						collectionRemoval = true
+					}
+				}
+			}
 		}
+	}
+	if collectionRemoval && len(transactions) != 1 {
+		return apicontract.Failure[[]*apicontract.Transaction](-1, "collection removal requires a single transaction")
+	}
+	if setDocTitle {
+		if len(transactions) != 1 || len(transactions[0].DoOperations) != 1 {
+			return apicontract.Failure[[]*apicontract.Transaction](-1, "document title requires a separate transaction")
+		}
+		model.FlushTxQueue()
 	}
 	if convertList {
 		if len(transactions) != 1 || len(transactions[0].DoOperations) != 1 {
@@ -83,11 +94,20 @@ var performTransactions = contractHandler(apicontract.PerformTransactions, func(
 	}
 	for _, transaction := range transactions {
 		transaction.Timestamp = timestamp
+		transaction.SetHTTPAutomationOwner(c.GetHeader("X-Siyuan-Template-App"), c.GetHeader("X-Siyuan-Template-Session"))
 		transaction.MarkFromAPI() // 标记来自 HTTP 入口，供全局撤销日志捕获判别
 	}
 
-	if templateDocTreeAttached || convertList {
+	if collectionRemoval {
+		// 来源版本校验失败必须返回真实错误，不能广播未提交的操作或让前端记入撤销历史。
+		if err = model.PerformTransactionSync(transactions[0]); err != nil {
+			return apicontract.Failure[[]*apicontract.Transaction](-1, util.EscapeHTML(err.Error()))
+		}
+	} else if templateDocTreeAttached || convertList || setDocTitle {
 		if err = model.PerformTxSync(transactions[0]); nil != err {
+			if errors.Is(err, model.ErrDocumentTitleConflict) {
+				return apicontract.Failure[[]*apicontract.Transaction](-409, util.EscapeHTML(err.Error()))
+			}
 			return apicontract.Failure[[]*apicontract.Transaction](-1, util.EscapeHTML(err.Error()))
 		}
 	} else {
@@ -107,6 +127,9 @@ var performTransactions = contractHandler(apicontract.PerformTransactions, func(
 	result, err := transactionContracts(transactions)
 	if err != nil {
 		return apicontract.Failure[[]*apicontract.Transaction](-1, err.Error())
+	}
+	for index, transaction := range transactions {
+		result[index].HTTPAutomationJobs = transaction.HTTPAutomationJobs()
 	}
 	return apicontract.Success(result)
 })
@@ -137,9 +160,21 @@ func holdTransactionEncryptedBoxRequests(c *gin.Context, transactions []*model.T
 		addBoxID(blockID)
 	}
 	for _, transaction := range transactions {
+		for rootID := range transaction.CollectionRemovalSourceVersions {
+			addBlockID(rootID)
+		}
 		for _, operation := range transaction.DoOperations {
 			if operation == nil {
 				continue
+			}
+			if operation.Action == "cleanupAttrViewBlocks" {
+				if data, ok := operation.Data.(map[string]interface{}); ok {
+					if versions, ok := data["sourceVersions"].(map[string]interface{}); ok {
+						for rootID := range versions {
+							addBlockID(rootID)
+						}
+					}
+				}
 			}
 			for _, id := range []string{
 				operation.ID, operation.RootID, operation.ParentID, operation.PreviousID, operation.NextID, operation.BlockID,
@@ -160,7 +195,11 @@ func holdTransactionEncryptedBoxRequests(c *gin.Context, transactions []*model.T
 			if operation.Tree != nil {
 				addBoxID(operation.Tree.Box)
 			}
-			if _, boxID := av.FindAttributeViewPath(operation.AvID); boxID != "" {
+			if boxID, scoped, err := operation.ResolveRelationDetailStorage(); err != nil {
+				return err
+			} else if scoped {
+				addBoxID(boxID)
+			} else if _, boxID := av.FindAttributeViewPath(operation.AvID); boxID != "" {
 				addBoxID(boxID)
 			}
 			for _, key := range []string{"notebook", "box", "boxID", "rootID", "blockID"} {
@@ -263,104 +302,110 @@ var undoState = contractHandler(apicontract.UndoState, func(c *gin.Context, requ
 // 跨文档撤销：发起窗口无法本地乐观应用（锚点分散），广播含发起方（Broadcast）刷新其 DOM。
 // 逆操作失败时回滚栈状态（UndoRollback）并返回 data.failed=true，前端镜像不动。
 var performUndo = contractHandler(apicontract.PerformUndo, func(c *gin.Context, request apicontract.TransactionHistoryRequest) apicontract.Response[apicontract.TransactionHistoryResult] {
-	entry := model.GlobalUndoLog.Undo(request.RootID)
-	if nil == entry {
-		// 栈空，无可撤销
-		return apicontract.Success(apicontract.EmptyTransactionHistory())
-	}
+	return model.WithTransactionHistory(func(execute func(*model.Transaction) error) apicontract.Response[apicontract.TransactionHistoryResult] {
+		entry := model.GlobalUndoLog.Undo(request.RootID)
+		if nil == entry {
+			// 栈空，无可撤销
+			return apicontract.Success(apicontract.EmptyTransactionHistory())
+		}
 
-	tx := &model.Transaction{
-		Timestamp:      time.Now().UnixMilli(),
-		DoOperations:   entry.UndoOperationsForReplay(),
-		UndoOperations: entry.DoOperationsForReplay(),
-	}
-	if err := holdBlockSwapReplayRequests(c, tx, entry.MutatedRootIDs()); err != nil {
-		model.GlobalUndoLog.UndoRollback(entry, request.RootID)
-		return apicontract.Success(apicontract.FailedTransactionHistory("undo failed: " + err.Error()))
-	}
-	tx.MarkReplay()
-	// 重放前解决剪切后粘贴造成的块 ID 冲突（已存在的 ID 换新，避免重复）
-	model.ResolveReplayDuplicateIds(tx)
+		tx := &model.Transaction{
+			Timestamp:      time.Now().UnixMilli(),
+			DoOperations:   entry.UndoOperationsForReplay(),
+			UndoOperations: entry.DoOperationsForReplay(),
+		}
+		if err := holdBlockSwapReplayRequests(c, tx, entry.MutatedRootIDs()); err != nil {
+			model.GlobalUndoLog.UndoRollback(entry, request.RootID)
+			return apicontract.Success(apicontract.FailedTransactionHistory("undo failed: " + err.Error()))
+		}
+		tx.MarkReplay()
+		// 重放前解决剪切后粘贴造成的块 ID 冲突（已存在的 ID 换新，避免重复）
+		model.ResolveReplayDuplicateIds(tx)
 
-	if err := model.PerformTxSync(tx); nil != err {
-		// 逆操作执行失败，回滚执行栈。返回 code=0 + data.failed=true（而非 code=-1），
-		// 否则前端 processMessage 拦截导致 fetchPost 回调不执行、isUndoing 永不复位。
-		model.GlobalUndoLog.UndoRollback(entry, request.RootID)
-		return apicontract.Success(apicontract.FailedTransactionHistory("undo failed: " + err.Error()))
-	}
+		if err := execute(tx); nil != err {
+			// 逆操作执行失败，回滚执行栈。返回 code=0 + data.failed=true（而非 code=-1），
+			// 否则前端 processMessage 拦截导致 fetchPost 回调不执行、isUndoing 永不复位。
+			model.GlobalUndoLog.UndoRollback(entry, request.RootID)
+			return apicontract.Success(apicontract.FailedTransactionHistory("undo failed: " + err.Error()))
+		}
 
-	// 成功：联动从其他关联栈移除该 entry
-	model.GlobalUndoLog.UndoCommit(entry, request.RootID)
+		// 成功：联动从其他关联栈移除该 entry
+		model.GlobalUndoLog.UndoCommit(entry, request.RootID)
 
-	crossDoc := len(entry.MutatedRootIDs()) > 1
-	pushUndoTransactions(request.App, request.Session, []*model.Transaction{tx}, true, crossDoc)
+		crossDoc := len(entry.MutatedRootIDs()) > 1
+		pushUndoTransactions(request.App, request.Session, []*model.Transaction{tx}, true, crossDoc)
 
-	canUndo, canRedo, _ := model.GlobalUndoLog.State(request.RootID)
-	// 返回重放后（已解决 ID 冲突）的 tx 操作，前端乐观应用与 kernel 落盘一致
-	operations, err := transactionOperationContracts(tx.DoOperations)
-	if err != nil {
-		return apicontract.Failure[apicontract.TransactionHistoryResult](-1, err.Error())
-	}
-	undoOperations, err := transactionOperationContracts(tx.UndoOperations)
-	if err != nil {
-		return apicontract.Failure[apicontract.TransactionHistoryResult](-1, err.Error())
-	}
-	return apicontract.Success(apicontract.AppliedTransactionHistory(apicontract.TransactionHistoryApplied{
-		DoOperations: operations, UndoOperations: undoOperations, MutatedRootIDs: entry.MutatedRootIDs(), CanUndo: canUndo, CanRedo: canRedo, IsUndo: true,
-	}))
+		canUndo, canRedo, _ := model.GlobalUndoLog.State(request.RootID)
+		// 返回重放后（已解决 ID 冲突）的 tx 操作，前端乐观应用与 kernel 落盘一致
+		operations, err := transactionOperationContracts(tx.DoOperations)
+		if err != nil {
+			return apicontract.Failure[apicontract.TransactionHistoryResult](-1, err.Error())
+		}
+		undoOperations, err := transactionOperationContracts(tx.UndoOperations)
+		if err != nil {
+			return apicontract.Failure[apicontract.TransactionHistoryResult](-1, err.Error())
+		}
+		return apicontract.Success(apicontract.AppliedTransactionHistory(apicontract.TransactionHistoryApplied{
+			DoOperations: operations, UndoOperations: undoOperations, MutatedRootIDs: entry.MutatedRootIDs(), CanUndo: canUndo, CanRedo: canRedo, IsUndo: true,
+		}))
+	})
 })
 
 // performRedo 重做指定文档最近一次撤销的操作。
 var performRedo = contractHandler(apicontract.PerformRedo, func(c *gin.Context, request apicontract.TransactionHistoryRequest) apicontract.Response[apicontract.TransactionHistoryResult] {
-	entry := model.GlobalUndoLog.Redo(request.RootID)
-	if nil == entry {
-		return apicontract.Success(apicontract.EmptyTransactionHistory())
-	}
+	return model.WithTransactionHistory(func(execute func(*model.Transaction) error) apicontract.Response[apicontract.TransactionHistoryResult] {
+		entry := model.GlobalUndoLog.Redo(request.RootID)
+		if nil == entry {
+			return apicontract.Success(apicontract.EmptyTransactionHistory())
+		}
 
-	tx := &model.Transaction{
-		Timestamp:      time.Now().UnixMilli(),
-		DoOperations:   entry.DoOperationsForReplay(),
-		UndoOperations: entry.UndoOperationsForReplay(),
-	}
-	if err := holdBlockSwapReplayRequests(c, tx, entry.MutatedRootIDs()); err != nil {
-		model.GlobalUndoLog.RedoRollback(entry, request.RootID)
-		return apicontract.Success(apicontract.FailedTransactionHistory("redo failed: " + err.Error()))
-	}
-	tx.MarkReplay()
-	// 重放前解决剪切后粘贴造成的块 ID 冲突（已存在的 ID 换新，避免重复）
-	model.ResolveReplayDuplicateIds(tx)
+		tx := &model.Transaction{
+			Timestamp:      time.Now().UnixMilli(),
+			DoOperations:   entry.DoOperationsForReplay(),
+			UndoOperations: entry.UndoOperationsForReplay(),
+		}
+		if err := holdBlockSwapReplayRequests(c, tx, entry.MutatedRootIDs()); err != nil {
+			model.GlobalUndoLog.RedoRollback(entry, request.RootID)
+			return apicontract.Success(apicontract.FailedTransactionHistory("redo failed: " + err.Error()))
+		}
+		tx.MarkReplay()
+		// 重放前解决剪切后粘贴造成的块 ID 冲突（已存在的 ID 换新，避免重复）
+		model.ResolveReplayDuplicateIds(tx)
 
-	if err := model.PerformTxSync(tx); nil != err {
-		// 重做失败，回滚执行栈。返回 code=0 + data.failed=true（避免前端 isUndoing 死锁）。
-		model.GlobalUndoLog.RedoRollback(entry, request.RootID)
-		return apicontract.Success(apicontract.FailedTransactionHistory("redo failed: " + err.Error()))
-	}
+		if err := execute(tx); nil != err {
+			// 重做失败，回滚执行栈。返回 code=0 + data.failed=true（避免前端 isUndoing 死锁）。
+			model.GlobalUndoLog.RedoRollback(entry, request.RootID)
+			return apicontract.Success(apicontract.FailedTransactionHistory("redo failed: " + err.Error()))
+		}
 
-	// 成功：联动把 entry 重新挂到其他关联栈
-	model.GlobalUndoLog.RedoCommit(entry, request.RootID)
+		// 成功：联动把 entry 重新挂到其他关联栈
+		model.GlobalUndoLog.RedoCommit(entry, request.RootID)
 
-	crossDoc := len(entry.MutatedRootIDs()) > 1
-	pushUndoTransactions(request.App, request.Session, []*model.Transaction{tx}, true, crossDoc)
+		crossDoc := len(entry.MutatedRootIDs()) > 1
+		pushUndoTransactions(request.App, request.Session, []*model.Transaction{tx}, true, crossDoc)
 
-	canUndo, canRedo, _ := model.GlobalUndoLog.State(request.RootID)
-	// 返回重放后（已解决 ID 冲突）的 tx 操作，前端乐观应用与 kernel 落盘一致
-	operations, err := transactionOperationContracts(tx.DoOperations)
-	if err != nil {
-		return apicontract.Failure[apicontract.TransactionHistoryResult](-1, err.Error())
-	}
-	undoOperations, err := transactionOperationContracts(tx.UndoOperations)
-	if err != nil {
-		return apicontract.Failure[apicontract.TransactionHistoryResult](-1, err.Error())
-	}
-	return apicontract.Success(apicontract.AppliedTransactionHistory(apicontract.TransactionHistoryApplied{
-		DoOperations: operations, UndoOperations: undoOperations, MutatedRootIDs: entry.MutatedRootIDs(), CanUndo: canUndo, CanRedo: canRedo, IsUndo: false,
-	}))
+		canUndo, canRedo, _ := model.GlobalUndoLog.State(request.RootID)
+		// 返回重放后（已解决 ID 冲突）的 tx 操作，前端乐观应用与 kernel 落盘一致
+		operations, err := transactionOperationContracts(tx.DoOperations)
+		if err != nil {
+			return apicontract.Failure[apicontract.TransactionHistoryResult](-1, err.Error())
+		}
+		undoOperations, err := transactionOperationContracts(tx.UndoOperations)
+		if err != nil {
+			return apicontract.Failure[apicontract.TransactionHistoryResult](-1, err.Error())
+		}
+		return apicontract.Success(apicontract.AppliedTransactionHistory(apicontract.TransactionHistoryApplied{
+			DoOperations: operations, UndoOperations: undoOperations, MutatedRootIDs: entry.MutatedRootIDs(), CanUndo: canUndo, CanRedo: canRedo, IsUndo: false,
+		}))
+	})
 })
 
 // clearHistory 清理撤销日志。rootID 非空时清该文档栈并联动移除其他栈相关条目；为空时清空全部。
 var clearHistory = contractHandler(apicontract.ClearHistory, func(c *gin.Context, request apicontract.TransactionClearHistoryRequest) apicontract.Response[apicontract.Null] {
-	model.GlobalUndoLog.Clear(request.RootID)
-	return apicontract.Success(apicontract.Null{})
+	return model.WithTransactionHistory(func(_ func(*model.Transaction) error) apicontract.Response[apicontract.Null] {
+		model.GlobalUndoLog.Clear(request.RootID)
+		return apicontract.Success(apicontract.Null{})
+	})
 })
 
 // pushUndoTransactions 广播 undo/redo 重放事务。
@@ -412,7 +457,7 @@ func pushUndoTransactions(app, session string, transactions []*model.Transaction
 
 func holdBlockSwapReplayRequests(c *gin.Context, tx *model.Transaction, rootIDs []string) error {
 	for _, operation := range tx.DoOperations {
-		if operation != nil && (operation.Action == "swapBlockRef" || operation.Action == "convertList") {
+		if operation != nil && (operation.Action == "swapBlockRef" || operation.Action == "convertList" || operation.Action == "setDocTitle") {
 			return holdEncryptedBlockRequests(c, "", rootIDs, false)
 		}
 	}

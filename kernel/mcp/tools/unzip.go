@@ -1,25 +1,12 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
 import (
 	"archive/zip"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,10 +21,14 @@ import (
 // UnzipTool 提供工作区内 zip 文件解压能力。
 // zipPath 和 destPath 均为工作区相对路径，通过 resolvePath 校验防逃逸；解压时对每个成员的最终
 // 输出路径再做一次授权，防止成员覆盖敏感文件。
-// 解压是写操作，自动触发 UI 确认和仓库快照（不在 safeActions 中）。
+// 解压声明本地写入效果，按能力确认策略执行并创建仓库快照。
 var UnzipTool = &Tool{
 	Name:        "unzip",
 	Description: "Extract a zip archive within the workspace. Provide the workspace-relative path to the zip file and the destination directory (also workspace-relative). The destination will be created if it does not exist.",
+	EffectScope: EffectScopeLocal,
+	ActionEffects: map[string]ToolEffects{
+		"": {LocalRead: true, LocalWrite: true},
+	},
 	InputSchema: ToolSchema{
 		Type: "object",
 		Properties: map[string]Property{
@@ -132,7 +123,7 @@ func extractGuardedArchive(zipAbs, destAbs string) error {
 		if err = authorizeArchiveEntry(destAbs, members[i].path, members[i].name); err != nil {
 			return err
 		}
-		if err = extractArchiveEntry(entry, members[i].path); err != nil {
+		if err = util.ExtractArchiveEntry(entry, members[i].path); err != nil {
 			return err
 		}
 	}
@@ -155,31 +146,4 @@ func authorizeArchiveEntry(destAbs, entryAbs, display string) error {
 		return fmt.Errorf("archive entry resolves outside destination [%s]", display)
 	}
 	return authorizePath(entryAbs, display)
-}
-
-func extractArchiveEntry(entry *zip.File, destination string) error {
-	if entry.FileInfo().IsDir() {
-		return os.MkdirAll(destination, 0755)
-	}
-	if err := os.MkdirAll(filepath.Dir(destination), 0755); err != nil {
-		return err
-	}
-	source, err := entry.Open()
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-	target, err := os.Create(destination)
-	if err != nil {
-		return err
-	}
-	_, copyErr := io.Copy(target, source)
-	closeErr := target.Close()
-	if copyErr != nil {
-		return copyErr
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	return os.Chtimes(destination, entry.Modified, entry.Modified)
 }

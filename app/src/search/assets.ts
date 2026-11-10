@@ -1,3 +1,4 @@
+import {MobileDialog} from "../dialog/mobileDialog";
 import {toggleMenu} from "../menus/menuToggle";
 import {Constants} from "../constants";
 import {fetchPost} from "../util/fetch";
@@ -6,7 +7,6 @@ import {setStorageVal, updateHotkeyTip} from "../protyle/util/compatibility";
 import {genQueryHTML} from "./util";
 /// #endif
 import {MenuItem} from "../menus/Menu";
-import {Dialog} from "../dialog";
 import {addClearButton} from "../util/addClearButton";
 import {saveAssetKeyList} from "./toggleHistory";
 import {genAssetSearchResultItemHTML, IAssetSearchResultItem} from "./assetsResult";
@@ -165,13 +165,24 @@ export const openSearchAsset = (element: HTMLElement, isStick: boolean) => {
     /// #endif
 };
 
-let inputTimeout: number;
+const inputTimeouts = new WeakMap<Element, number>();
+const inputRevisions = new WeakMap<Element, number>();
+export const refreshAssetContentSearch = () => {
+    document.querySelectorAll("[data-asset-search]").forEach(element => assetInputEvent(element));
+};
+
 export const assetInputEvent = (element: Element, localSearch?: ISearchAssetOption, page = 1) => {
+    const revision = (inputRevisions.get(element) || 0) + 1;
+    inputRevisions.set(element, revision);
+    element.setAttribute("data-asset-search", "true");
     const loadingElement = element.parentElement.querySelector(".fn__loading") as HTMLElement;
     loadingElement.classList.remove("fn__none");
     loadingElement.style.top = "84px";
-    clearTimeout(inputTimeout);
-    inputTimeout = window.setTimeout(() => {
+    clearTimeout(inputTimeouts.get(element));
+    inputTimeouts.set(element, window.setTimeout(() => {
+        if (!element.isConnected) {
+            return;
+        }
         if (!localSearch) {
             localSearch = window.siyuan.storage[Constants.LOCAL_SEARCHASSET] as ISearchAssetOption;
         }
@@ -189,6 +200,9 @@ export const assetInputEvent = (element: Element, localSearch?: ISearchAssetOpti
             method: localSearch.method,
             orderBy: localSearch.sort
         }, (response) => {
+            if (!element.isConnected || inputRevisions.get(element) !== revision) {
+                return;
+            }
             loadingElement.classList.add("fn__none");
             const nextElement = element.querySelector('[data-type="assetNext"]');
             if (page < response.data.pageCount) {
@@ -215,7 +229,7 @@ export const assetInputEvent = (element: Element, localSearch?: ISearchAssetOpti
     ${window.siyuan.languages.emptyContent}
 </div>`;
         });
-    }, Constants.TIMEOUT_INPUT);
+    }, Constants.TIMEOUT_INPUT));
 };
 
 export const renderPreview = (element: Element, id: string, query: string, queryMethod: number) => {
@@ -330,7 +344,7 @@ const filterTypesHTML = (types: IObject) => {
 
 export const assetFilterMenu = (assetsElement: Element) => {
     const localData = window.siyuan.storage[Constants.LOCAL_SEARCHASSET].types;
-    const filterDialog = new Dialog({
+    const filterDialog = new MobileDialog({
         title: window.siyuan.languages.type,
         content: `<div class="b3-dialog__content">${filterTypesHTML(localData)}</div>
 <div class="b3-dialog__action">
@@ -446,12 +460,7 @@ export const assetMoreMenu = (target: Element, element: Element, cb: () => void)
                 iconHTML: "",
                 label: window.siyuan.languages.rebuildAssetContentIndex,
                 click() {
-                    const loadingElement = element.parentElement.querySelector(".fn__loading") as HTMLElement;
-                    loadingElement.classList.remove("fn__none");
-                    loadingElement.style.top = "84px";
-                    fetchPost("/api/asset/fullReindexAssetContent", {}, () => {
-                        assetInputEvent(element, localData);
-                    });
+                    fetchPost("/api/asset/fullReindexAssetContent", {});
                 },
             }).element);
             /// #if MOBILE

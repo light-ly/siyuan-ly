@@ -5,8 +5,12 @@ import {getListMindmapSiblingIDs, isListMindmapSummaryCrossing, normalizeListMin
 import type {ListMindmapSummary} from "./summary";
 import {LIST_MINDMAP_CONNECTOR_STYLES} from "./connectors";
 import type {ListMindmapConnectorStyle} from "./connectors";
+import {isListMindmapAppearance} from "./appearance";
+import type {ListMindmapAppearance} from "./appearance";
 
 export interface ListMindmapNodeStyle {
+    width?: number;
+    branchColor?: number;
     textColor?: string;
     backgroundColor?: string;
     borderColor?: string;
@@ -39,6 +43,7 @@ export interface ListMindmapMetadata {
     rootTitle?: string;
     viewLocked?: boolean;
     connectorStyle?: ListMindmapConnectorStyle;
+    appearance?: ListMindmapAppearance;
     nodes: Record<string, ListMindmapNodeStyle>;
     relations: ListMindmapRelation[];
     summaries?: ListMindmapSummary[];
@@ -111,10 +116,14 @@ export const parseListMindmapMetadata = (value: string | null): ListMindmapMetad
     if ("connectorStyle" in data && !LIST_MINDMAP_CONNECTOR_STYLES.some(style => style === data.connectorStyle)) {
         throw invalidMetadata();
     }
-    const numberKeys = ["fontSize", "borderWidth", "borderRadius", "lineWidth"];
+    const numberKeys = ["width", "fontSize", "borderWidth", "borderRadius", "lineWidth"];
+    if ("appearance" in data && !isListMindmapAppearance(data.appearance)) {
+        throw invalidMetadata();
+    }
     const booleanKeys = ["bold", "italic", "lineDash"];
     for (const [id, style] of Object.entries(data.nodes)) {
         if (!id || !isRecord(style) ||
+            ("branchColor" in style && (!Number.isSafeInteger(style.branchColor) || Number(style.branchColor) < 0)) ||
             stringKeys.some(key => key in style && typeof style[key] !== "string") ||
             numberKeys.some(key => key in style && (typeof style[key] !== "number" ||
                 !Number.isFinite(style[key]) || Number(style[key]) < 0)) ||
@@ -347,6 +356,15 @@ const cleanListMindmapDOM = (root: Element | DocumentFragment) => {
     root.querySelectorAll(".mindmap-view, .list-mindmap, .protyle-image-resize").forEach(element => element.remove());
     root.querySelectorAll(".img--select, .img--drag, .protyle-image-container--compact").forEach(element => {
         element.classList.remove("img--select", "img--drag", "protyle-image-container--compact");
+    });
+    // 说明字号取决于当前显示宽度，隐藏源节点和编辑器的布局差异不能成为正文冲突。
+    root.querySelectorAll<HTMLElement>(".img .img__name, .img .protyle-action__title, .img .img__alt").forEach(element => {
+        if (element.style.getPropertyValue("--protyle-image-font-size")) {
+            element.style.removeProperty("--protyle-image-font-size");
+            if (element.style.length === 0) {
+                element.removeAttribute("style");
+            }
+        }
     });
     // 页签导航和面板标识由渲染器生成，不参与正文比较或脑图节点事务。
     root.querySelectorAll(".tabs-header, .tabs-divider, .tabs-attributes").forEach(element => element.remove());
@@ -634,6 +652,9 @@ const normalizeList = (list: HTMLElement, start: number) => {
 
 const getDestinationList = (model: ListMindmapModel, targetId: string, placement: ListMindmapPlacement,
                             createListId: () => string): HTMLElement | undefined => {
+    if (placement !== "child" && targetId === model.root.id) {
+        return;
+    }
     if (targetId === model.list.getAttribute("data-node-id")) {
         return placement === "child" ? model.list : undefined;
     }

@@ -1,9 +1,10 @@
+import {mobileConfirmDialog} from "../../dialog/mobileConfirmDialog";
+import {MobileDialog} from "../../dialog/mobileDialog";
 import {config as configApi} from "../util/configApi";
 import {showMessage} from "../../dialog/message";
 import {fetchPost, fetchSyncPost} from "../../util/fetch";
 import {ContractFormData} from "../../util/contractFormData";
 import type {APICallbackResponse, APIPOSTRoutes} from "../../types/api";
-import {confirmDialog} from "../../dialog/confirmDialog";
 import {saveExportFile} from "../../protyle/util/compatibility";
 import {getHostCapabilities} from "../../util/hostCapabilities";
 import {Dialog} from "../../dialog";
@@ -110,12 +111,14 @@ type SyncProviderFieldDef =
     | {type: "select"; label: string; id: string; options: {value: string; label: string}[]};
 
 type SyncProviderDef = {
-    configKey: SyncProviderConfigKey;
-    getConfig: () => Config.ISync[SyncProviderConfigKey];
     genIntro: () => string;
     isProviderConfigAllowed: () => boolean;
     fields: SyncProviderFieldDef[];
-};
+} & (
+    | {configKey: "s3"; getConfig: () => Config.ISync["s3"]}
+    | {configKey: "webdav"; getConfig: () => Config.ISync["webdav"]}
+    | {configKey: "local"; getConfig: () => Config.ISync["local"]}
+);
 
 /** 同步提供商选项：仅第三方（S3 / WebDAV / 本地文件系统），本地仅 std/docker 环境可用 */
 export const getSyncProviderOptions = (): {value: Config.ISync["provider"]; label: string}[] => [
@@ -229,11 +232,11 @@ const genProviderConfigRowHtml = (def: SyncProviderDef): string => {
     const importExportHtml = canImportExport ? `<div class="fn__hr"></div>
     <button class="b3-button b3-button--outline fn__block" style="position: relative"${disabled}>
         <input id="importSyncConfig" class="b3-form__upload" type="file" data-type="${def.configKey}">
-        <svg><use xlink:href="#iconDownload"></use></svg>${L.import}
+        <svg><use xlink:href="#iconUpload"></use></svg>${L.import}
     </button>
     <div class="fn__hr"></div>
     <button class="b3-button b3-button--outline fn__block" id="exportSyncConfig" data-type="${def.configKey}"${disabled}>
-        <svg><use xlink:href="#iconUpload"></use></svg>${L.export}
+        <svg><use xlink:href="#iconDownload"></use></svg>${L.export}
     </button>` : "";
     return `<div class="fn__flex">
     <div class="fn__flex-1 config-item__main">
@@ -382,13 +385,13 @@ const openSyncProviderConfigDialog = (root: Element) => {
     }
     const L = window.siyuan.languages;
     const warning = def.configKey === "s3" ? L.s3EndpointBucketWarning : "";
-    // 测试连接仅用于 S3：探测会写入并删除探针对象，WebDAV 与本地目录没有等价的列举语义
-    const testButton = def.configKey === "s3" ? `<div class="fn__space"></div>
-    <button class="b3-button b3-button--outline" data-action="test"><svg class="b3-button__icon"><use xlink:href="#iconPlugZap"></use></svg><span>${L.testConnection}</span></button>` : "";
+    const testButton = `<div class="fn__space"></div>
+    <button class="b3-button b3-button--outline" data-action="test"><svg class="b3-button__icon"><use xlink:href="#iconPlugZap"></use></svg><span>${L.testConnection}</span></button>`;
+    const cloudName = window.siyuan.config.sync.cloudName;
     let closed = false;
     let rulesVersion = 0;
     let rulesTimer: ReturnType<typeof setTimeout>;
-    const dialog = new Dialog({
+    const dialog = new MobileDialog({
         title: `${L.syncConfig} - ${def.configKey === "s3" ? "S3" : def.configKey === "webdav" ? "WebDAV" : L.localFileSystem}`,
         width: isMobile() ? "92vw" : "680px",
         containerClassName: "config-sync-dialog",
@@ -480,7 +483,7 @@ const openSyncProviderConfigDialog = (root: Element) => {
             destroy();
         } else {
             confirming = true;
-            confirmDialog(L.confirm, L.discardUnsavedChanges, () => destroy(), () => { confirming = false; });
+            mobileConfirmDialog(L.confirm, L.discardUnsavedChanges, () => destroy(), () => { confirming = false; });
         }
     };
     const refresh = () => {
@@ -571,8 +574,12 @@ const openSyncProviderConfigDialog = (root: Element) => {
                 configElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
                 return;
             }
-            const response = await fetchSyncPost("/api/sync/testSyncProviderS3", {
-                s3: readProviderConfigFields(configElement, template),
+            const response = def.configKey === "s3" ? await fetchSyncPost("/api/sync/testSyncProviderS3", {
+                s3: readProviderConfigFields(configElement, def.getConfig()),
+            }) : def.configKey === "webdav" ? await fetchSyncPost("/api/sync/testSyncProviderWebDAV", {
+                webdav: readProviderConfigFields(configElement, def.getConfig()), cloudName,
+            }) : await fetchSyncPost("/api/sync/testSyncProviderLocal", {
+                local: readProviderConfigFields(configElement, def.getConfig()),
             });
             if (closed) {
                 return;
@@ -599,7 +606,7 @@ const openSyncProviderConfigDialog = (root: Element) => {
             return;
         }
         confirming = true;
-        confirmDialog(L.clearSyncConfig, L.clearSyncConfigConfirm, () => {
+        mobileConfirmDialog(L.clearSyncConfig, L.clearSyncConfigConfirm, () => {
             confirming = false;
             if (window.siyuan.config.readonly) {
                 return;

@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package api
 
 import (
@@ -29,7 +33,7 @@ func compareSettingConfig[Request settingConfigInput, Data, Config any](t *testi
 			context, _ := gin.CreateTestContext(httptest.NewRecorder())
 			context.Request = httptest.NewRequest("POST", endpoint.Definition().Path, strings.NewReader(body))
 			result := gulu.Ret.NewResult()
-			fields, ok := util.JsonArg(context, result)
+			fields, ok := legacyJSONArg(context, result)
 			if !ok {
 				t.Fatal(result.Msg)
 			}
@@ -94,6 +98,10 @@ func TestAPIContractSettingPreferencesCompatibility(t *testing.T) {
 	compareSettingConfig(t, apicontract.SetAppearance, conf.NewAppearance, []string{
 		`{}`, `{"compactMode":true,"menuMouseScroll":false,"outlineKeepCurrentExpand":true}`,
 		`{"pdfTheme":{"light":"dark","dark":"light","annoColor":"red"},"mobileBars":{"autoHide":false}}`,
+		`{"showFloatingDockBar":true}`, `{"showFloatingDockBar":false}`,
+		`{"showFloatingDockBar":null}`, `{"ShowFloatingDockBar":false}`, `{"showFloatingDockBar":"bad"}`,
+		`{"showFloatingStatusBar":true}`, `{"showFloatingStatusBar":false}`, `{"showFloatingStatusBar":null}`,
+		`{"ShowFloatingStatusBar":true}`, `{"showFloatingStatusBar":"bad"}`,
 		`{"pdfTheme":null,"mobileBars":null}`, `{"mobileBars":{"sidebarSwipe":null,"sidebarButtons":false}}`,
 		`{"compactMode":"true"}`, `{"pdfTheme":{"light":false}}`, `{"mobileBars":{"autoHide":1}}`,
 	})
@@ -186,7 +194,7 @@ func TestAPIContractSettingParserCompatibility(t *testing.T) {
 		context, _ := gin.CreateTestContext(httptest.NewRecorder())
 		context.Request = httptest.NewRequest("POST", "/api/setting/setEditor", strings.NewReader(body))
 		result := gulu.Ret.NewResult()
-		_, ok := util.JsonArg(context, result)
+		_, ok := legacyJSONArg(context, result)
 		_, err := apicontract.SetEditor.Decode(strings.NewReader(body))
 		if ok != (err == nil) || err != nil && err.Error() != result.Msg {
 			t.Fatalf("parser changed for %s: before=%s after=%v", body, result.Msg, err)
@@ -237,11 +245,12 @@ func TestAPIContractSettingErrorsAndAdmission(t *testing.T) {
 }
 
 func TestAPIContractSettingEmojiAndPublishValidation(t *testing.T) {
-	previous := model.Conf
+	previous, readonly, confDir := model.Conf, util.ReadOnly, util.ConfDir
+	util.ReadOnly, util.ConfDir = true, t.TempDir()
 	model.Conf = model.NewAppConf()
 	model.Conf.Editor.Store(conf.NewEditor())
 	model.Conf.Publish.Store(conf.NewPublish())
-	t.Cleanup(func() { model.Conf = previous })
+	t.Cleanup(func() { model.Conf, util.ReadOnly, util.ConfDir = previous, readonly, confDir })
 	code, _, data := settingContractRequest(t, "setEmoji", setEmoji, `{"emoji":[]}`)
 	if code != 0 || string(data) != "null" || model.Conf.Editor.Load().Emoji == nil || len(model.Conf.Editor.Load().Emoji) != 0 {
 		t.Fatal("empty emoji list changed")

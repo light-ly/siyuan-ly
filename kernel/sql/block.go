@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package sql
 
@@ -194,16 +182,21 @@ func indexNode(tx *sql.Tx, id, boxID string) (err error) {
 }
 
 func NodeStaticContent(node *ast.Node, excludeTypes []string, includeTextMarkATitleURL, includeAssetPath, fullAttrView bool) string {
-	return nodeStaticContent(node, excludeTypes, includeTextMarkATitleURL, includeAssetPath, fullAttrView, false)
+	return nodeStaticContent(node, excludeTypes, includeTextMarkATitleURL, includeAssetPath, fullAttrView, false, true)
 }
 
-func nodeStaticContent(node *ast.Node, excludeTypes []string, includeTextMarkATitleURL, includeAssetPath, fullAttrView, unescapeBlockRef bool) string {
+// NodeStaticContentWithoutOCRAssets 与 NodeStaticContent 相同，但不读取资源的 OCR 文本。
+func NodeStaticContentWithoutOCRAssets(node *ast.Node, excludeTypes []string, includeTextMarkATitleURL, includeAssetPath, fullAttrView bool) string {
+	return nodeStaticContent(node, excludeTypes, includeTextMarkATitleURL, includeAssetPath, fullAttrView, false, false)
+}
+
+func nodeStaticContent(node *ast.Node, excludeTypes []string, includeTextMarkATitleURL, includeAssetPath, fullAttrView, unescapeBlockRef, includeOCRAssets bool) string {
 	if nil == node {
 		return ""
 	}
 
 	if ast.NodeDocument == node.Type {
-		return html.EscapeHTMLStr(node.IALAttr("title"))
+		return html.EscapeHTMLStr(treenode.ReadDocumentTitle(node).Text)
 	}
 
 	if ast.NodeAttributeView == node.Type {
@@ -242,7 +235,7 @@ func nodeStaticContent(node *ast.Node, excludeTypes []string, includeTextMarkATi
 			if ast.NodeTabItem == n.Type {
 				if title := treenode.TabTitleParagraph(n); nil != title {
 					buf.WriteString(nodeStaticContent(title, excludeTypes, includeTextMarkATitleURL,
-						includeAssetPath, fullAttrView, unescapeBlockRef))
+						includeAssetPath, fullAttrView, unescapeBlockRef, includeOCRAssets))
 					buf.WriteByte(' ')
 				}
 			}
@@ -303,7 +296,9 @@ func nodeStaticContent(node *ast.Node, excludeTypes []string, includeTextMarkATi
 			var linkDestStr, ocrText string
 			if nil != linkDest {
 				linkDestStr = linkDest.TokensStr()
-				ocrText = util.GetAssetText(linkDestStr)
+				if includeOCRAssets {
+					ocrText = util.GetAssetText(linkDestStr)
+				}
 			}
 
 			linkText := n.ChildByType(ast.NodeLinkText)

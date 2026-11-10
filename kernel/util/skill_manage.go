@@ -1,6 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-// Licensed under the GNU Affero General Public License, version 3 or later.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package util
 
@@ -344,6 +344,9 @@ func ManageSkillFiles(request SkillFileRequest) (SkillFileData, error) {
 		if err = writeManagedSkillSource(root, path.Join(tmp, "SKILL.md"), content, true, ""); err != nil {
 			return ret, err
 		}
+		if _, _, err = prepareSkillInstallationChange(request.Path); err != nil {
+			return ret, err
+		}
 		if err = root.Rename(tmp, request.Path); err != nil {
 			return ret, err
 		}
@@ -418,8 +421,16 @@ func ManageSkillFiles(request SkillFileRequest) (SkillFileData, error) {
 		if _, err = root.Lstat(request.Target); !errors.Is(err, os.ErrNotExist) {
 			return ret, errors.New("skill destination already exists or is inaccessible")
 		}
+		if !strings.Contains(request.Path, "/") {
+			return ret, renameSkillInstallation(request.Path, request.Target, func() error { return root.Rename(request.Path, request.Target) })
+		}
 		return ret, root.Rename(request.Path, request.Target)
 	case "remove":
+		if !strings.Contains(request.Path, "/") {
+			if _, _, err = prepareSkillInstallationChange(request.Path); err != nil {
+				return ret, err
+			}
+		}
 		if info.IsDir() {
 			return ret, root.RemoveAll(request.Path)
 		}

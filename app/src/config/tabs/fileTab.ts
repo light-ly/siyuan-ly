@@ -1,4 +1,4 @@
-import {confirmDialog} from "../../dialog/confirmDialog";
+import {mobileConfirmDialog} from "../../dialog/mobileConfirmDialog";
 import {genNotebookOption} from "../../menus/onGetnotebookconf";
 import {fetchPost} from "../../util/fetch";
 import {editorConfigApi} from "./editorRuntime";
@@ -95,6 +95,16 @@ const registerTabStartupGroup = (tab: SettingTabBuilder) => {
         min: 1,
         max: 32,
     });
+    /// #if !MOBILE
+    group.switch("fileTree.openFilesUseCurrentTab", {
+        title: window.siyuan.languages.fileTree7,
+        desc: window.siyuan.languages.fileTree8,
+    });
+    group.switch("fileTree.noSplitScreenWhenOpenTab", {
+        title: window.siyuan.languages.noSplitScreenWhenOpenTab,
+        desc: window.siyuan.languages.noSplitScreenWhenOpenTabTip,
+    });
+    /// #endif
     group.select("fileTree.tabStartupMode", {
         title: window.siyuan.languages.tabStartupMode,
         desc: window.siyuan.languages.tabStartupModeTip,
@@ -104,14 +114,10 @@ const registerTabStartupGroup = (tab: SettingTabBuilder) => {
             {value: 2, label: window.siyuan.languages.tabStartupClose},
         ],
     });
-    /// #if !MOBILE
-    group.switch("fileTree.openFilesUseCurrentTab", {
-        title: window.siyuan.languages.fileTree7,
-        desc: window.siyuan.languages.fileTree8,
-    });
-    group.switch("fileTree.noSplitScreenWhenOpenTab", {
-        title: window.siyuan.languages.noSplitScreenWhenOpenTab,
-        desc: window.siyuan.languages.noSplitScreenWhenOpenTabTip,
+    /// #if !MOBILE && !BROWSER
+    group.switch("fileTree.closeWindowOnLastTabClosed", {
+        title: window.siyuan.languages.closeWindowOnLastTabClosed,
+        desc: window.siyuan.languages.closeWindowOnLastTabClosedTip,
     });
     /// #endif
 };
@@ -278,7 +284,7 @@ const registerFileManagementGroup = (tab: SettingTabBuilder) => {
 </div>`,
         afterMount: (root) => {
             root.querySelector("#clearHistory")?.addEventListener("click", () => {
-                confirmDialog(
+                mobileConfirmDialog(
                     window.siyuan.languages.clearHistory,
                     window.siyuan.languages.confirmClearHistory,
                     () => {
@@ -293,6 +299,12 @@ const registerFileManagementGroup = (tab: SettingTabBuilder) => {
         }],
     });
 
+    group.number("fileTree.docTreeBatchSize", {
+        title: window.siyuan.languages.docTreeBatchSize,
+        desc: window.siyuan.languages.docTreeBatchSizeTip,
+        min: 1,
+        max: 10240,
+    });
     group.number("fileTree.maxListCount", {
         title: window.siyuan.languages.fileTree16,
         desc: window.siyuan.languages.fileTree17,

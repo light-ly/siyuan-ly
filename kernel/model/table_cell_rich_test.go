@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
@@ -16,12 +20,18 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
-func TestTableCellRichDocumentReaders(t *testing.T) {
-	originalConf := Conf
+func setupDocumentSourceReaderTest(t *testing.T) {
+	t.Helper()
+	originalConf, originalDataDir, originalConfDir := Conf, util.DataDir, util.ConfDir
+	util.DataDir, util.ConfDir = t.TempDir(), t.TempDir()
 	Conf = NewAppConf()
 	Conf.Editor.Store(conf.NewEditor())
 	Conf.Export.Store(conf.NewExport())
-	t.Cleanup(func() { Conf = originalConf })
+	t.Cleanup(func() { Conf, util.DataDir, util.ConfDir = originalConf, originalDataDir, originalConfDir })
+}
+
+func TestTableCellRichDocumentReaders(t *testing.T) {
+	setupDocumentSourceReaderTest(t)
 	legacy, err := os.ReadFile("../treenode/testdata/table-cell-legacy.sy")
 	if nil != err {
 		t.Fatal(err)
@@ -82,11 +92,7 @@ func TestTableCellRichDocumentReaders(t *testing.T) {
 }
 
 func TestLegacyTableAlignmentReadersAndExports(t *testing.T) {
-	originalConf := Conf
-	Conf = NewAppConf()
-	Conf.Editor.Store(conf.NewEditor())
-	Conf.Export.Store(conf.NewExport())
-	t.Cleanup(func() { Conf = originalConf })
+	setupDocumentSourceReaderTest(t)
 	legacy, err := os.ReadFile("../treenode/testdata/table-alignment-legacy.sy")
 	if err != nil {
 		t.Fatal(err)
@@ -248,7 +254,7 @@ func TestAttributeViewRichTextExport(t *testing.T) {
 		Spec: av.ValueTextRichSpec, Format: av.ValueTextRichFormatKramdown,
 		Content: "**foo**\n\n- 123\n  - 123",
 	}}
-	if err := appendAttributeViewRichTextExport(cell, value); err != nil {
+	if err := appendAttributeViewRichTextExport(cell, value, true); err != nil {
 		t.Fatal(err)
 	}
 	preview := normalizeExportPreviewTree(tree, luteEngine)
@@ -282,9 +288,11 @@ func TestAttributeViewRichTextExport(t *testing.T) {
 		})
 	}
 	invalid := &av.ValueText{Rich: &av.ValueTextRich{Spec: 99, Format: av.ValueTextRichFormatKramdown}}
-	empty := &ast.Node{Type: ast.NodeTableCell}
-	if err := appendAttributeViewRichTextExport(empty, invalid); err == nil || empty.FirstChild != nil {
-		t.Fatal("invalid rich text must return an error without populating the cell")
+	for _, richTableCells := range []bool{false, true} {
+		empty := &ast.Node{Type: ast.NodeTableCell}
+		if err := appendAttributeViewRichTextExport(empty, invalid, richTableCells); err == nil || empty.FirstChild != nil {
+			t.Fatal("invalid rich text must return an error without populating the cell")
+		}
 	}
 }
 

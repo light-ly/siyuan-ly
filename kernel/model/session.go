@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -28,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/88250/gulu"
 	ginSessions "github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -67,7 +54,6 @@ func LogoutAuth(c *gin.Context, request apicontract.EmptyRequest) (ret apicontra
 func LoginAuth(c *gin.Context, request apicontract.SystemLoginAuthRequest) (ret apicontract.Response[apicontract.Null]) {
 	ret = apicontract.Success(apicontract.Null{})
 
-	var inputCaptcha string
 	session := util.GetSession(c)
 	workspaceSession := util.GetWorkspaceSession(session)
 	if util.NeedCaptcha() {
@@ -79,13 +65,14 @@ func LoginAuth(c *gin.Context, request apicontract.SystemLoginAuthRequest) (ret 
 			logging.LogWarnf("invalid captcha")
 			return
 		}
-		inputCaptcha = request.Captcha
 
-		if !strings.EqualFold(workspaceSession.Captcha, inputCaptcha) {
+		// 挑战在服务端一次性消费，旧签名 Cookie 重放时挑战已不存在
+		// https://github.com/siyuan-note/siyuan/security/advisories/GHSA-23g4-vqq8-5764
+		if !util.ConsumeCaptchaChallenge(workspaceSession.CaptchaID, request.Captcha) {
 			ret = apicontract.Failure[apicontract.Null](1, Conf.Language(22))
 			logging.LogWarnf("invalid captcha")
 
-			workspaceSession.Captcha = gulu.Rand.String(7) // https://github.com/siyuan-note/siyuan/issues/13147
+			workspaceSession.CaptchaID = ""
 			if err := session.Save(c); err != nil {
 				logging.LogError("save session failed: " + err.Error())
 				session.Clear(c)
@@ -94,6 +81,7 @@ func LoginAuth(c *gin.Context, request apicontract.SystemLoginAuthRequest) (ret 
 			}
 			return
 		}
+		workspaceSession.CaptchaID = ""
 	}
 
 	if request.AuthCodeError() != nil {
@@ -108,7 +96,7 @@ func LoginAuth(c *gin.Context, request apicontract.SystemLoginAuthRequest) (ret 
 		logging.LogWarnf("invalid auth code [ip=%s]", util.GetRemoteAddr(c.Request))
 
 		util.WrongAuthCount++
-		workspaceSession.Captcha = gulu.Rand.String(7)
+		workspaceSession.CaptchaID = ""
 		if util.NeedCaptcha() {
 			code = 1 // 需要渲染验证码
 		}
@@ -122,11 +110,12 @@ func LoginAuth(c *gin.Context, request apicontract.SystemLoginAuthRequest) (ret 
 		return apicontract.Failure[apicontract.Null](code, Conf.Language(83))
 	}
 
-	workspaceSession.AccessAuthCode = authCode
+	SetAccessCodeSession(workspaceSession, authCode)
 	workspaceSession.OIDCSessionVersion = ""
+	BindDesktopSession(c, workspaceSession, request.RememberMe)
 	util.WrongAuthCount = 0
 	util.AuthThrottleReset(c.ClientIP())
-	workspaceSession.Captcha = gulu.Rand.String(7)
+	workspaceSession.CaptchaID = ""
 
 	maxAge := 0 // Default session expiration (browser session)
 	if request.RememberMe {
@@ -170,7 +159,12 @@ func GetCaptcha(c *gin.Context, request apicontract.EmptyRequest) apicontract.Re
 
 	session := util.GetSession(c)
 	workspaceSession := util.GetWorkspaceSession(session)
-	workspaceSession.Captcha = img.Text
+	captchaID := util.NewCaptchaChallenge(img.Text)
+	if "" == captchaID {
+		logging.LogError("generates captcha challenge failed")
+		return apicontract.EmptyHTTPResponse[apicontract.BinaryContent](http.StatusInternalServerError)
+	}
+	workspaceSession.CaptchaID = captchaID
 	if err = session.Save(c); err != nil {
 		logging.LogError("save session failed: " + err.Error())
 		return apicontract.EmptyHTTPResponse[apicontract.BinaryContent](http.StatusInternalServerError)
@@ -193,6 +187,49 @@ func CheckReadonly(c *gin.Context) {
 		c.JSON(http.StatusOK, result)
 		c.Abort()
 		return
+	}
+	// 导入提交期间暂停其他写接口，避免已确认的磁盘快照被并发请求修改。
+	if c.Request.URL.Path != "/api/import/commitDataImport" && c.Request.URL.Path != "/api/import/prepareDataImport" {
+		if !dataImportAccess.TryRLock() {
+			if IsSyncCheckoutApplying() {
+				result := util.NewResult()
+				result.Code, result.Msg = -1, Conf.Language(436)
+				result.Data = map[string]any{"closeTimeout": 5000}
+				c.JSON(http.StatusOK, result)
+				c.Abort()
+				return
+			}
+			dataImportAccess.RLock()
+		}
+		released := false
+		defer func() {
+			if !released {
+				dataImportAccess.RUnlock()
+			}
+		}()
+		if err := checkDataImportRecovery(); err != nil {
+			result := util.NewResult()
+			result.Code, result.Msg = -1, err.Error()
+			c.JSON(http.StatusOK, result)
+			c.Abort()
+			return
+		}
+		// 同步控制和来源配置在准备落盘时取得独占写准入，MCP 在实际工具调用期间取得读租约。
+		switch c.Request.URL.Path {
+		case "/api/sync/performSync", "/api/sync/performBootSync", "/api/sync/getSyncSourceState",
+			"/api/sync/setCloudSyncDir", "/api/sync/removeCloudSyncDir", "/api/sync/setSyncProvider",
+			"/api/sync/setSyncProviderS3", "/api/sync/setSyncProviderWebDAV", "/api/sync/setSyncProviderLocal",
+			"/api/sync/importSyncProviderS3", "/api/sync/importSyncProviderWebDAV", "/api/sync/clearSyncProviderConfig",
+			"/api/notebook/enableEncryptedNotebooks", "/mcp":
+			dataImportAccess.RUnlock()
+			released = true
+		}
+		// RPC 握手仍做只读及恢复检查，实际方法单独持有写入准入租约。
+		if c.FullPath() == "/ws/plugin/rpc" || c.FullPath() == "/ws/plugin/rpc/:name" {
+			dataImportAccess.RUnlock()
+			released = true
+		}
+		c.Next()
 	}
 }
 
@@ -252,7 +289,7 @@ func CheckAuth(c *gin.Context) {
 
 		// Authenticate requests with the Origin header other than 127.0.0.1 https://github.com/siyuan-note/siyuan/issues/9180
 		if !localhost || !isLocalHostRequestAllowed(c) {
-			c.JSON(http.StatusUnauthorized, map[string]any{"code": -1, "msg": "Auth failed: for security reasons, please set [Lock screen password] when using non-127.0.0.1 access\n\n为安全起见，使用非 127.0.0.1 访问时请设置 [锁屏密码]"})
+			c.JSON(http.StatusUnauthorized, map[string]any{"code": -1, "msg": Conf.Language(469)})
 			c.Abort()
 			return
 		}
@@ -434,10 +471,23 @@ func authByAPIToken(c *gin.Context, source, token string) (handled bool) {
 	return true
 }
 
-// IsLocalRequest 判断请求是否由本机客户端直接发起或经可信本机代理转发。
+// IsLocalRequest 判断请求是否由本机客户端直接发起或经内置 fixed-port 代理转发。
 func IsLocalRequest(c *gin.Context) bool {
-	// 仅当直接连接和可信代理解析出的原始客户端均为环回地址时，才视为本机请求。
-	return util.IsLocalHost(c.Request.RemoteAddr) && util.IsLocalHostname(c.ClientIP())
+	if !util.IsLocalHost(c.Request.RemoteAddr) {
+		return false
+	}
+
+	// 内置 fixed-port 代理会覆盖标记并追加真实客户端地址，仍需校验解析出的客户端为环回地址。
+	if util.IsLocalProxyRequest(c.Request) {
+		return util.IsLocalHostname(c.ClientIP())
+	}
+
+	// 第三方反向代理可能原样转发调用方伪造的转发头，带这类头的请求不能按本机请求放行。
+	// https://github.com/siyuan-note/siyuan/security/advisories/GHSA-gmcm-mggw-8759
+	if util.HasForwardedHeaders(c.Request) {
+		return false
+	}
+	return true
 }
 
 // isLocalHostRequestAllowed 判断本机放行请求是否可信任：
@@ -560,8 +610,8 @@ func ControlConcurrency(c *gin.Context) {
 
 	reqPath := c.Request.URL.Path
 
-	// 插件 RPC 独立处理各次调用，避免单个调用阻塞其他插件或信息查询。
-	if reqPath == "/api/plugin/rpc" {
+	// 插件 RPC 独立调用；日记创建使用内部身份锁，联网确认期间不能持有接口写入锁。
+	if reqPath == "/api/plugin/rpc" || reqPath == "/api/filetree/createDailyNote" {
 		c.Next()
 		return
 	}

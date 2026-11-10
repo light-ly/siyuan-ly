@@ -1,7 +1,14 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,13 +19,33 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/olahol/melody"
+	"github.com/siyuan-note/dejavu"
 	"github.com/siyuan-note/siyuan/kernel/conf"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
+func TestAutoSyncPauseExcludesCancellationAndPreparationRetry(t *testing.T) {
+	previous := autoSyncErrCount.Load()
+	t.Cleanup(func() { autoSyncErrCount.Store(previous) })
+	autoSyncErrCount.Store(7)
+	for range 10 {
+		recordAutoSyncFailure(errors.Join(errors.New("network request stopped"), context.Canceled))
+		recordAutoSyncFailure(dejavu.ErrIndexFileChanged)
+		recordAutoSyncFailure(fmt.Errorf("wrapped: %w", errSyncCheckoutBusy))
+	}
+	if autoSyncErrCount.Load() != 7 {
+		t.Fatal("user cancellation or active editing triggered automatic backoff")
+	}
+	recordAutoSyncFailure(errors.New("cloud unavailable"))
+	if autoSyncErrCount.Load() != 8 {
+		t.Fatal("real failures no longer reach the existing backoff threshold")
+	}
+}
+
 func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 	prepareSyncDirectoryTest(t)
 	previousErrors, previousNotice := autoSyncErrCount.Load(), autoSyncPauseNotice.messageID
+	previousRetry := autoSyncPauseNotice.retryAt
 	previousLangs, previousStatus := util.Langs, util.StatusBarCfg.Load()
 	syncPlanTimeLock.Lock()
 	previousPlan := syncPlanTime
@@ -26,6 +53,7 @@ func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 	t.Cleanup(func() {
 		autoSyncErrCount.Store(previousErrors)
 		autoSyncPauseNotice.messageID = previousNotice
+		autoSyncPauseNotice.retryAt = previousRetry
 		util.Langs = previousLangs
 		util.StatusBarCfg.Store(previousStatus)
 		syncPlanTimeLock.Lock()
@@ -33,8 +61,9 @@ func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 		syncPlanTimeLock.Unlock()
 	})
 	autoSyncPauseNotice.messageID = ""
+	autoSyncPauseNotice.retryAt = time.Time{}
 	Conf.Lang = "en"
-	util.Langs = map[string]map[int]string{"en": {125: "Auto sync paused; sync manually"}}
+	util.Langs = map[string]map[int]string{"en": {125: "Auto sync paused; sync manually", 431: "Retry at %s"}}
 	status := &util.StatusBar{}
 	if previousStatus != nil {
 		*status = *previousStatus
@@ -69,6 +98,7 @@ func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 	}
 	type event struct {
 		Cmd  string
+		Code int
 		Msg  string
 		Data struct{ ID string }
 	}
@@ -82,6 +112,7 @@ func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 		for {
 			var envelope struct {
 				Cmd  string
+				Code int
 				Msg  string
 				Data json.RawMessage
 			}
@@ -91,7 +122,9 @@ func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 			if envelope.Cmd == "barrier" {
 				return events
 			}
-			if envelope.Cmd == "msg" || envelope.Cmd == "statusbar" || envelope.Cmd == "cmsg" {
+			if envelope.Cmd == "syncing" && envelope.Code == 2 {
+				events = append(events, event{Cmd: envelope.Cmd, Code: envelope.Code})
+			} else if envelope.Cmd == "msg" || envelope.Cmd == "statusbar" || envelope.Cmd == "cmsg" {
 				item := event{Cmd: envelope.Cmd, Msg: envelope.Msg}
 				if err := json.Unmarshal(envelope.Data, &item.Data); err != nil {
 					t.Fatalf("decode %s notification: %v", envelope.Cmd, err)
@@ -111,14 +144,18 @@ func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 		t.Fatal("backoff began before the existing threshold")
 	}
 	autoSyncErrCount.Add(1)
-	if checkSync(false, false, false) || Conf.Sync.Load().Stat != Conf.Language(125) {
+	if checkSync(false, false, false) || !strings.HasPrefix(Conf.Sync.Load().Stat, Conf.Language(125)+" Retry at ") {
 		t.Fatal("paused sync has no persistent status")
 	}
 	events := readEvents()
-	if len(events) != 2 || events[0].Cmd != "statusbar" || events[1].Cmd != "msg" {
+	if len(events) != 3 || events[0].Cmd != "statusbar" || events[1].Cmd != "syncing" || events[2].Cmd != "msg" || Conf.Sync.Load().LastResult != 2 {
 		t.Fatalf("first pause notifications: %+v", events)
 	}
-	messageID := events[1].Data.ID
+	messageID := events[2].Data.ID
+	retryAt := autoSyncPauseNotice.retryAt
+	if time.Until(retryAt) < 63*time.Minute || !strings.Contains(Conf.Sync.Load().Stat, retryAt.Format("15:04:05")) {
+		t.Fatal("missing real retry time")
+	}
 	var group sync.WaitGroup
 	for range 32 {
 		group.Go(func() {
@@ -128,6 +165,9 @@ func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 		})
 	}
 	group.Wait()
+	if autoSyncPauseNotice.retryAt != retryAt {
+		t.Fatal("repeated checks extended the retry delay")
+	}
 	if events = readEvents(); len(events) != 0 {
 		t.Fatalf("pause was announced repeatedly: %+v", events)
 	}
@@ -136,7 +176,7 @@ func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 	}
 	UpdateSyncConf(func(s *conf.Sync) { s.Stat = "DNS failed again" })
 	checkSync(false, false, false)
-	if events = readEvents(); len(events) != 1 || events[0].Cmd != "statusbar" {
+	if events = readEvents(); len(events) != 2 || events[0].Cmd != "statusbar" || events[1].Cmd != "syncing" {
 		t.Fatalf("pause status after a failed manual attempt: %+v", events)
 	}
 	UpdateSyncConf(func(s *conf.Sync) { s.Stat = "Sync succeeded" })
@@ -149,7 +189,7 @@ func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 	}
 	autoSyncErrCount.Store(8)
 	checkSync(false, false, false)
-	if events = readEvents(); len(events) != 2 || events[1].Data.ID == messageID {
+	if events = readEvents(); len(events) != 3 || events[2].Data.ID == messageID {
 		t.Fatalf("a new failure episode was not announced: %+v", events)
 	}
 	resetAutoSyncErrors()
@@ -159,7 +199,17 @@ func TestAutoSyncPauseNotificationAndStatus(t *testing.T) {
 	autoSyncErrCount.Store(8)
 	UpdateSyncConf(func(s *conf.Sync) { s.Stat = "DNS failed" })
 	checkSync(false, false, false)
-	if events = readEvents(); len(events) != 1 || events[0].Cmd != "msg" || Conf.Sync.Load().Stat != Conf.Language(125) {
+	if events = readEvents(); len(events) != 2 || events[0].Cmd != "syncing" || events[1].Cmd != "msg" || !strings.HasPrefix(Conf.Sync.Load().Stat, Conf.Language(125)+" Retry at ") {
 		t.Fatalf("disabled status bar lost sync status or received a status message: %+v", events)
 	}
+	autoSyncPauseNotice.retryAt = time.Now().Add(-time.Second)
+	if !checkSync(false, false, false) || autoSyncErrCount.Load() != 7 {
+		t.Fatal("automatic retry was blocked after the deadline")
+	}
+	readEvents()
+	autoSyncErrCount.Add(1)
+	if checkSync(false, false, false) || time.Until(autoSyncPauseNotice.retryAt) < 63*time.Minute {
+		t.Fatal("failed retry did not start a fresh backoff")
+	}
+	readEvents()
 }

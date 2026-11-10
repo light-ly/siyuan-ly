@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package api
 
@@ -101,7 +89,7 @@ var installLocalBazaarPackage = contractHandler(apicontract.InstallLocalBazaarPa
 }, prepareLocalBazaarUpload)
 
 var batchUpdatePackage = contractHandler(apicontract.BatchUpdatePackage, func(c *gin.Context, request apicontract.BatchUpdatePackageRequest) apicontract.Response[apicontract.Null] {
-	if err := model.BatchUpdatePackages(request.Frontend); err != nil {
+	if err := model.BatchUpdatePackagesContext(c.Request.Context(), request.Frontend); err != nil {
 		return apicontract.Failure[apicontract.Null](1, err.Error())
 	}
 
@@ -122,7 +110,7 @@ var updateBazaarPackage = contractHandler(apicontract.UpdateBazaarPackage, func(
 	if !validPackageTypes[request.PackageType] {
 		return apicontract.Failure[apicontract.BazaarPackagesData](1, "Invalid package type")
 	}
-	if err := model.UpdateBazaarPackage(request.PackageType, request.PackageName, request.Frontend); err != nil {
+	if err := model.UpdateBazaarPackageContext(c.Request.Context(), request.PackageType, request.PackageName, request.Frontend); err != nil {
 		return apicontract.Failure[apicontract.BazaarPackagesData](1, err.Error())
 	}
 	util.PushMsgWithApp(resolveRequestAppID(c, ""), model.Conf.Language(69), 3000)
@@ -540,6 +528,7 @@ func bazaarPackage(value *bazaar.Package) *apicontract.BazaarPackage {
 	ret.HasStorageData = value.HasStorageData
 	ret.Outdated = value.Outdated
 	ret.Current = value.Current
+	ret.Created = value.Created
 	ret.Updated = value.Updated
 	ret.Stars = value.Stars
 	ret.OpenIssues = value.OpenIssues
@@ -554,6 +543,7 @@ func bazaarPackage(value *bazaar.Package) *apicontract.BazaarPackage {
 	ret.Downloads = value.Downloads
 	ret.DisallowInstall = value.DisallowInstall
 	ret.DisallowUpdate = value.DisallowUpdate
+	ret.BazaarVersionUnsupported = value.BazaarVersionUnsupported
 	ret.UpdateRequiredMinAppVer = value.UpdateRequiredMinAppVer
 	ret.InvalidReason = value.InvalidReason
 	ret.RatingAvailable = value.RatingAvailable
@@ -570,6 +560,7 @@ func bazaarAppearance(value *conf.Appearance) *apicontract.BazaarAppearance {
 		return nil
 	}
 	ret := &apicontract.BazaarAppearance{}
+	ret.ShowFloatingDockBar = value.ShowFloatingDockBar
 	ret.CompactMode = value.CompactMode
 	ret.MenuMouseScroll = value.MenuMouseScroll
 	ret.OutlineKeepCurrentExpand = value.OutlineKeepCurrentExpand
@@ -618,6 +609,7 @@ func bazaarAppearance(value *conf.Appearance) *apicontract.BazaarAppearance {
 	ret.CloseButtonBehavior = value.CloseButtonBehavior
 	ret.HideToolbar = value.HideToolbar
 	ret.HideStatusBar = value.HideStatusBar
+	ret.ShowFloatingStatusBar = value.ShowFloatingStatusBar
 	ret.StatusBar = bazaarStatusBar(value.StatusBar)
 	ret.Notifications = bazaarNotifications(value.Notifications)
 	ret.EntryVisibility = bazaarEntryVisibility(value.EntryVisibility)

@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package treenode
 
@@ -134,6 +122,28 @@ func FixInvalidListChildren(root *ast.Node) (fixed bool) {
 	for list := range fixedLists {
 		normalizeOrderedListItems(list)
 	}
+	return
+}
+
+// 正文内的历史文档节点以纵向超级块承载，原块 ID、属性及子块保持不变。
+func FixNestedDocumentNodes(root *ast.Node) (fixed bool) {
+	if root == nil {
+		return
+	}
+	ast.Walk(root, func(n *ast.Node, entering bool) ast.WalkStatus {
+		if !entering || n == root || n.Type != ast.NodeDocument {
+			return ast.WalkContinue
+		}
+		n.Type = ast.NodeSuperBlock
+		if n.FirstChild == nil {
+			n.AppendChild(NewParagraph(""))
+		}
+		n.PrependChild(&ast.Node{Type: ast.NodeSuperBlockLayoutMarker, Tokens: []byte("row")})
+		n.PrependChild(&ast.Node{Type: ast.NodeSuperBlockOpenMarker, Tokens: []byte("{{{")})
+		n.AppendChild(&ast.Node{Type: ast.NodeSuperBlockCloseMarker, Tokens: []byte("}}}")})
+		fixed = true
+		return ast.WalkContinue
+	})
 	return
 }
 

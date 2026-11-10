@@ -25,9 +25,11 @@ import {invalidateTrackedRanges} from "../protyle/util/trackedRange";
 import {getActiveMobileSecondaryEditor} from "./util/secondaryEditors";
 import {closeMobileEditorSheets} from "./util/MobileEditorDialog";
 import {invalidateMobileReferenceOpen} from "./util/openReference";
+import {clearMobileSearchHighlight} from "./menu/searchHighlight";
 import {closeAVCellEditor} from "../protyle/render/av/cellEditor";
 import {clearDatabaseRowNavigation} from "../protyle/render/av/databaseRowNavigation";
 import {prepareDatabaseAttributePanel} from "../protyle/render/av/attributePanel";
+import {closeMobileBottomBacklinkPanel, updateMobileBottomBacklinkPanel} from "./util/bottomBacklink";
 
 export const getCurrentEditor = () => {
     return getActiveMobileSecondaryEditor() || window.siyuan.mobile.popEditor || window.siyuan.mobile.editor;
@@ -75,7 +77,8 @@ export const loadMobileFileById = (app: App, id: string, action: TProtyleAction[
                                    onFailure?: (invalid?: boolean, editorUnchanged?: boolean) => void, keepPanels = false,
                                    waitForDatabaseAttributes = false) => {
     invalidateMobileReferenceOpen();
-    const closing = closeMobileEditorSheets();
+    clearMobileSearchHighlight();
+    const closing = closeMobileEditorSheets() || closeMobileBottomBacklinkPanel();
     if (closing) {
         void closing.then(() => {
             if (isValid() && !signal?.aborted) {
@@ -99,6 +102,7 @@ export const loadMobileFileById = (app: App, id: string, action: TProtyleAction[
         completed = true;
         clearDatabaseRowNavigation(protyle.element);
         setEditor();
+        void updateMobileBottomBacklinkPanel(protyle).catch(error => console.error(error));
         bindMobileBarsScroll(protyle.contentElement, () => {
             // 面包屑位移后同步数据库吸顶位置，避免数据库使用上一帧的面包屑位置
             protyle.wysiwyg.element.querySelectorAll(".av[data-render='true']").forEach((item: HTMLElement) => {
@@ -109,13 +113,8 @@ export const loadMobileFileById = (app: App, id: string, action: TProtyleAction[
             void window.siyuan.mobile.docks.file?.selectOpenedFile(protyle.notebookId, protyle.path);
         }
         afterOpen?.(protyle);
-        const titleElement = document.getElementById("toolbarName") as HTMLInputElement;
-        if (isValid() && action.includes(Constants.CB_GET_OPENNEW) && !protyle.disabled &&
-            titleElement && !titleElement.readOnly && !titleElement.disabled) {
-            // 新建文档加载完成后聚焦标题，通过移动端焦点桥接唤起键盘。
-            protyle.contentElement.scrollTop = 0;
-            titleElement.focus({preventScroll: true});
-            titleElement.setSelectionRange(titleElement.value.length, titleElement.value.length);
+        if (isValid() && action.includes(Constants.CB_GET_OPENNEW) && !protyle.disabled) {
+            void protyle.title?.openEditor();
         }
     };
     const fail = (invalid = false) => {
@@ -125,6 +124,9 @@ export const loadMobileFileById = (app: App, id: string, action: TProtyleAction[
         completed = true;
         if (titleHidden && isValid() && window.siyuan.mobile.editor?.protyle.wysiwyg.element.childElementCount > 0) {
             setEditor();
+        }
+        if (isValid()) {
+            void updateMobileBottomBacklinkPanel().catch(error => console.error(error));
         }
         onFailure?.(invalid, !titleHidden);
     };
@@ -186,7 +188,7 @@ export const loadMobileFileById = (app: App, id: string, action: TProtyleAction[
         blockInfoParam.notebook = targetNotebookId;
     }
     let blockInfoHandled = false;
-    void fetchPost("/api/block/getBlockInfo", blockInfoParam, (data) => {
+    void fetchPost("/api/block/getBlockInfo", blockInfoParam, async (data) => {
         blockInfoHandled = true;
         if (!isValid()) {
             fail();
@@ -200,6 +202,21 @@ export const loadMobileFileById = (app: App, id: string, action: TProtyleAction[
         if (data.code !== 0 || !data.data?.rootID) {
             fail();
             return;
+        }
+        const currentEditor = window.siyuan.mobile.editor;
+        const pendingTitle = currentEditor?.protyle.title?.prepareForDocumentSwitch?.(data.data.rootID);
+        if (pendingTitle) {
+            try {
+                await pendingTitle;
+            } catch (error) {
+                showMessage(error instanceof Error ? error.message : window.siyuan.languages.settingsPendingSaveError);
+                fail();
+                return;
+            }
+            if (!isValid() || window.siyuan.mobile.editor !== currentEditor) {
+                fail();
+                return;
+            }
         }
         const isRootFocus = id === data.data.rootID &&
             action.includes(Constants.CB_GET_ALL) &&
@@ -305,7 +322,8 @@ export const loadMobileFileById = (app: App, id: string, action: TProtyleAction[
                     }
                     try {
                         if (preserveContent) {
-                            const prepared = await prepareDatabaseAttributePanel(editor.protyle, id);
+                            const prepared = await prepareDatabaseAttributePanel(editor.protyle, id,
+                                () => isValid() && window.siyuan.mobile.editor === editor);
                             if (!prepared || !isValid() || window.siyuan.mobile.editor !== editor) {
                                 fail();
                                 return;
@@ -322,6 +340,7 @@ export const loadMobileFileById = (app: App, id: string, action: TProtyleAction[
                             updateReadonly,
                             scrollPosition,
                             isValid,
+                            onAVRenderError: () => fail(),
                             afterCB() {
                                 if (!isValid()) {
                                     fail();
@@ -377,6 +396,7 @@ export const openMobileFileById = (app: App, id: string, action: TProtyleAction[
                                    scrollPosition?: ScrollLogicalPosition, notebookId?: string,
                                    afterOpen?: (protyle: IProtyle) => void, forceReload = false,
                                    waitForDatabaseAttributes = false): Promise<boolean> => {
+    clearMobileSearchHighlight();
     const closing = closeMobileEditorSheets();
     if (closing) {
         return closing.then(() => openMobileFileById(app, id, action, scrollPosition, notebookId, afterOpen,

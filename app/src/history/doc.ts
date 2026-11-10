@@ -1,7 +1,7 @@
-import {openInputDialog} from "../dialog/inputDialog";
+import {MobileDialog} from "../dialog/mobileDialog";
+import {mobileInputDialog} from "../dialog/mobileInputDialog";
 import {showMessage} from "../dialog/message";
-import {Dialog} from "../dialog";
-import {confirmDialog} from "../dialog/confirmDialog";
+import {mobileConfirmDialog} from "../dialog/mobileConfirmDialog";
 import {Constants} from "../constants";
 import {Protyle} from "../protyle";
 import {disabledProtyle, onGet} from "../protyle/util/onGet";
@@ -115,7 +115,7 @@ const renderRepo = async (element: HTMLElement, currentPage: number, id: string,
     pageNumElement.textContent = currentPage.toString();
     previousElement.setAttribute("disabled", "disabled");
     nextElement.setAttribute("disabled", "disabled");
-    listElement.innerHTML = '<li style="position: relative;height: 100%;"><div class="fn__loading"><img width="64px" src="/stage/loading-pure.svg"></div></li>';
+    listElement.innerHTML = '<li style="position: relative;height: 100%;"><div class="fn__loading"><span class="b3-loading" aria-hidden="true"></span></div></li>';
 
     let response: APIPOSTRoutes["/api/repo/getRepoDocHistory"]["response"] | APITransportError;
     try {
@@ -224,7 +224,7 @@ export const openDocHistory = (options: {
             </div>
             <div class="fn__flex fn__flex-1 history__panel">
                 <ul class="b3-list b3-list--background history__side" ${isMobile() ? "" : `style="width: ${window.siyuan.storage[Constants.LOCAL_HISTORY].sideDocWidth}"`}>
-                    <li class="fn__loading"><img style="height: 64px;width: 64px" src="/stage/loading-pure.svg"></li>
+                    <li class="fn__loading"><span class="b3-loading" aria-hidden="true"></span></li>
                 </ul>
                 <div class="history__resize"></div>
                 <div class="fn__flex-1 fn__flex-column">
@@ -261,7 +261,8 @@ export const openDocHistory = (options: {
         </div>
     </div>
 </div>`;
-    const dialog = new Dialog({
+    const dialog = new MobileDialog({
+        mobileSheet: {mode: "expanded"},
         title: escapeHtml(options.pathString),
         content: contentHTML,
         width: isMobile() ? "100vw" : "90vw",
@@ -461,11 +462,12 @@ export const openDocHistory = (options: {
                     isLoading = false;
                     const confirmTip = window.siyuan.languages.rollbackConfirm.replace("${name}", escapeHtml(item.title))
                         .replace("${time}", historyItemElement.querySelector(".b3-list-item__text").textContent.trim());
-                    confirmDialog("⚠️ " + window.siyuan.languages.rollback, confirmTip, () => {
-                        fetchPost("/api/history/rollbackDocHistory", {
+                    mobileConfirmDialog("⚠️ " + window.siyuan.languages.rollback, confirmTip, async () => {
+                        const response = await fetchSyncPost("/api/history/rollbackDocHistory", {
                             historyPath: dataPath
                         });
-                    });
+                        return response.code === 0;
+                    }, undefined, false, undefined, undefined, {awaitConfirm: true});
                 });
                 event.stopPropagation();
                 event.preventDefault();
@@ -519,7 +521,7 @@ export const openDocHistory = (options: {
                 break;
             } else if (type === "jumpRepoPage") {
                 const totalPage = parseInt(target.getAttribute("data-totalpage") || "1");
-                openInputDialog({
+                mobileInputDialog({
                     title: window.siyuan.languages.jumpToPage.replace("${x}", totalPage),
                     value: String(pageNumElement.textContent),
                     type: "number",
@@ -543,7 +545,7 @@ export const openDocHistory = (options: {
                 break;
             } else if (type === "jumpSnapshotPage") {
                 const totalPage = parseInt(target.getAttribute("data-totalpage") || "1");
-                openInputDialog({
+                mobileInputDialog({
                     title: window.siyuan.languages.jumpToPage.replace("${x}", totalPage),
                     value: String(target.textContent),
                     type: "number",

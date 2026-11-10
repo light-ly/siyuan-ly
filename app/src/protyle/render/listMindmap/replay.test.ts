@@ -9,8 +9,9 @@ const indexSource = createSourceFile("index.ts", readFileSync("src/protyle/rende
     ScriptTarget.ES2021, true);
 const controller = indexSource.statements.find(item => isClassDeclaration(item) && item.name?.text === "ListMindmapController");
 assert.ok(controller && isClassDeclaration(controller));
-const replay = controller.members.find(item => item.name?.getText(indexSource) === "replay");
-const replaySource = compile(`class Controller { ${replay.getText(indexSource)} } globalThis.Controller = Controller;`);
+const replay = controller.members.filter(item => ["replay", "replaceSourceChildren"].includes(item.name?.getText(indexSource)));
+assert.equal(replay.length, 2);
+const replaySource = compile(`class Controller { ${replay.map(item => item.getText(indexSource)).join("\n")} } globalThis.Controller = Controller;`);
 
 // 小型 DOM 替身验证对象身份和替换顺序；真实布局/选区另由 Electron 回归覆盖。
 class ElementFixture {
@@ -146,8 +147,21 @@ const renderSource = createSourceFile("render.ts", readFileSync("src/protyle/ren
 const names = ["editorRoots", "registerListMindmapRoot", "replayListMindmap", "readListMindmapSelection", "restoreListMindmapFocus"];
 const declarations = renderSource.statements.filter(item => isVariableStatement(item) &&
     item.declarationList.declarations.some(declaration => names.includes(declaration.name.getText(renderSource))));
-const registry = new Function(compile(declarations.map(item => item.getText(renderSource)).join("\n").replace(/^export /gm, "")) +
-    "; return {registerListMindmapRoot, replayListMindmap, readListMindmapSelection};")();
+const registry = new Function("getListMindmapElements", compile(declarations.map(item => item.getText(renderSource)).join("\n").replace(/^export /gm, "")) +
+    "; return {registerListMindmapRoot, replayListMindmap, readListMindmapSelection, restoreListMindmapFocus};")(
+    (root: {lists?: unknown[]}) => root.lists || []);
+
+test("history focus carries the saved viewport to the exact source map without requiring a text selection", () => {
+    const source = {dataset: {nodeId: "map"}, getAttribute: () => "map", parentElement: null as unknown,
+        contains: (element: unknown) => element === source || element === paragraph};
+    const paragraph = {getAttribute: () => "paragraph", parentElement: source, closest: (): null => null};
+    const root = {lists: [source], contains: (): boolean => false};
+    const restored: unknown[][] = [];
+    registry.registerListMindmapRoot(root, () => {}, (...args: unknown[]) => restored.push(args));
+    const viewport = JSON.stringify({scale: 1.25, x: -80.5, y: 45.25});
+    assert.equal(registry.restoreListMindmapFocus(root, paragraph, {undoFocusMindmapViewport: viewport}), true);
+    assert.deepEqual(restored, [["map", ["paragraph", "map"], {undoFocusMindmapViewport: viewport}, source]]);
+});
 
 test("full snapshot permission is bound to each operation and registered source instance", () => {
     const root = {};

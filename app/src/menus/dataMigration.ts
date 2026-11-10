@@ -1,12 +1,11 @@
 import {importConfiguration} from "../config/util/resourceConfig";
-import {openInputDialog} from "../dialog/inputDialog";
-import {Dialog} from "../dialog";
+import {mobileInputDialog as openInputDialog} from "../dialog/mobileInputDialog";
+import {MobileDialog as Dialog} from "../dialog/mobileDialog";
 import {Constants} from "../constants";
 import {escapeHtml} from "../util/escape";
-import {fetchPost} from "../util/fetch";
+import {fetchPost, fetchSyncPost} from "../util/fetch";
 import {ContractFormData} from "../util/contractFormData";
 import type {APICallbackResponse, APIPOSTRoutes} from "../types/api";
-import {confirmDialog} from "../dialog/confirmDialog";
 import {showMessage} from "../dialog/message";
 import {importObsidianVault} from "./importObsidian";
 import {saveExportFile, writeText} from "../protyle/util/compatibility";
@@ -16,6 +15,8 @@ import * as path from "path";
 import {afterExport} from "../protyle/export/util";
 /// #endif
 import {getHostCapabilities} from "../util/hostCapabilities";
+import {importDataFile} from "./importData";
+import {isMobile} from "../util/functions";
 
 interface IDataMigrationOptions {
     mode?: "manage" | "onboarding";
@@ -24,11 +25,11 @@ interface IDataMigrationOptions {
 }
 
 const getExportButton = (action: string, mode: IDataMigrationOptions["mode"]) => mode === "manage" ?
-    `<span class="fn__space"></span><button class="b3-button b3-button--outline" data-action="${action}"><svg><use xlink:href="#iconUpload"></use></svg>${window.siyuan.languages.export}</button>` : "";
+    `<span class="fn__space"></span><button class="b3-button b3-button--outline" data-action="${action}"><svg><use xlink:href="#iconDownload"></use></svg>${window.siyuan.languages.export}</button>` : "";
 
 const getImportButton = (type: string, accept: string) => `<button class="b3-button b3-button--outline" style="position:relative">
     <input class="b3-form__upload" data-type="${type}" type="file" accept="${accept}">
-    <svg><use xlink:href="#iconDownload"></use></svg>${window.siyuan.languages.import}
+    <svg><use xlink:href="#iconUpload"></use></svg>${window.siyuan.languages.import}
 </button>`;
 
 const openRepoKeyImport = (onComplete?: () => void) => {
@@ -37,13 +38,15 @@ const openRepoKeyImport = (onComplete?: () => void) => {
         value: "",
         placeholder: window.siyuan.languages.keyPlaceholder,
         width: "520px",
-        onConfirm: (value, dialog) => {
-            fetchPost("/api/repo/importRepoKey", {key: value}, (response) => {
-                window.siyuan.config.repo.key = response.data.key;
-                dialog.destroy();
-                showMessage(window.siyuan.languages.imported);
-                onComplete?.();
-            });
+        awaitConfirm: true,
+        onConfirm: async (value, dialog) => {
+            const response = await fetchSyncPost("/api/repo/importRepoKey", {key: value});
+            if (response.code !== 0) return false;
+            window.siyuan.config.repo.key = response.data.key;
+            dialog.destroy();
+            showMessage(window.siyuan.languages.imported);
+            onComplete?.();
+            return true;
         },
     });
     dialog.element.setAttribute("data-key", Constants.DIALOG_PASSWORD);
@@ -163,7 +166,7 @@ export const openDataMigration = (options: IDataMigrationOptions = {}) => {
             <svg class="b3-list-item__graphic"><use xlink:href="#iconKey"></use></svg>
             <span class="b3-list-item__text">${window.siyuan.languages.dataRepoKey}</span>
             <span class="data-migration__actions">
-                ${hasRepoKey ? `<button class="b3-button b3-button--outline" data-action="copy-key"><svg><use xlink:href="#iconCopy"></use></svg>${window.siyuan.languages.copy}</button>` : `<button class="b3-button b3-button--outline" data-action="import-key"><svg><use xlink:href="#iconDownload"></use></svg>${window.siyuan.languages.import}</button>`}
+                ${hasRepoKey ? `<button class="b3-button b3-button--outline" data-action="copy-key"><svg><use xlink:href="#iconCopy"></use></svg>${window.siyuan.languages.copy}</button>` : `<button class="b3-button b3-button--outline" data-action="import-key"><svg><use xlink:href="#iconUpload"></use></svg>${window.siyuan.languages.import}</button>`}
             </span>
         </div>`}
     </div>` : ""}
@@ -176,7 +179,7 @@ export const openDataMigration = (options: IDataMigrationOptions = {}) => {
         options.onContentImportComplete?.();
     };
     let targetNotebookID = selectedNotebookID || "";
-    const selectTargetNotebook = (callback: (notebookID: string) => void, onCancel?: () => void) => {
+    const selectTargetNotebook = (callback: (notebookID: string) => void | Promise<boolean>, onCancel?: () => void) => {
         if (notebooks.length === 0) {
             onCancel?.();
             showMessage(window.siyuan.languages.newFileTip);
@@ -204,6 +207,14 @@ export const openDataMigration = (options: IDataMigrationOptions = {}) => {
         buttons[0].addEventListener("click", () => targetDialog.destroy());
         buttons[1].addEventListener("click", () => {
             targetNotebookID = selectElement.value;
+            if (isMobile()) {
+                void targetDialog.runPending(async () => {
+                    if (await callback(targetNotebookID) === false) return false;
+                    targetDialog.data = {confirmed: true};
+                    return true;
+                });
+                return;
+            }
             targetDialog.data = {confirmed: true};
             targetDialog.destroy();
             callback(targetNotebookID);
@@ -214,6 +225,16 @@ export const openDataMigration = (options: IDataMigrationOptions = {}) => {
         const formData = new FormData();
         formData.append("file", file);
         Object.entries(extra).forEach(([key, value]) => formData.append(key, value));
+        if (isMobile()) {
+            let result: IWebSocketData;
+            void dialog.runPending(async () => {
+                result = await fetchSyncPost(url, formData);
+                return result.code === 0;
+            }, {close: false}).then(success => {
+                if (success) callback(result);
+            });
+            return;
+        }
         fetchPost(url, formData, callback);
     };
     const bindFileInput = (type: string, callback: (file: File, input: HTMLInputElement) => void) => {
@@ -235,6 +256,13 @@ export const openDataMigration = (options: IDataMigrationOptions = {}) => {
                 return;
             }
             selectTargetNotebook((notebookID) => {
+                if (isMobile()) {
+                    return fetchSyncPost("/api/import/continueImportSY", {token, notebook: notebookID}).then(result => {
+                        if (result.code !== 0) return false;
+                        completeContentImport();
+                        return true;
+                    });
+                }
                 fetchPost("/api/import/continueImportSY", {token, notebook: notebookID}, completeContentImport);
             }, () => {
                 fetchPost("/api/import/cancelImportSY", {token});
@@ -248,9 +276,15 @@ export const openDataMigration = (options: IDataMigrationOptions = {}) => {
         });
     });
     bindFileInput("data", (file, input) => {
-        confirmDialog(`${window.siyuan.languages.import} Data`, window.siyuan.languages.importDataTip, () => {
-            postFile("/api/import/importData", file);
-        });
+        if (isMobile()) {
+            void dialog.runPending(async () => {
+                await importDataFile(file, completeContentImport);
+                // 预检流程由独立子面板接管，父面板不提交或关闭。
+                return false;
+            }, {close: false});
+        } else {
+            void importDataFile(file, completeContentImport);
+        }
         input.value = "";
     });
     bindFileInput("conf", (file, input) => {

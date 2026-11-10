@@ -1,10 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
@@ -61,6 +57,13 @@ func databaseViewAction(action string, args map[string]any) (CallToolResult, err
 			return blockToolError("previousID is required; use an empty string to move the view to the first position")
 		}
 		err = model.MoveAttributeViewView(id, blockID, viewID, previousID)
+	case "view_field_move":
+		keyID, _ := args["keyID"].(string)
+		previousID, ok := args["previousID"].(string)
+		if keyID == "" || !ok {
+			return blockToolError("keyID and previousID are required; use an empty previousID to move the field to the first position")
+		}
+		err = model.MoveAttributeViewViewField(id, blockID, viewID, keyID, previousID)
 	case "view_visibility_set":
 		return databaseViewVisibilitySet(args, id, blockID)
 	case "view_filters_set", "view_sorts_set", "view_group_set", "view_layout_set":
@@ -103,6 +106,7 @@ func databaseViewResult(action, id, blockID, viewID string) (CallToolResult, err
 		"group":          view.Group,
 		"revision":       model.AttributeViewViewConfigRevision(view),
 		"keys":           metadata.Keys,
+		"fieldIDs":       model.AttributeViewViewFieldIDs(view),
 		"views":          metadata.Views,
 		"visibleViewIDs": visibleViewIDs,
 	})

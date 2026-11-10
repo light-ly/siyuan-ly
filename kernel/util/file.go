@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package util
 
@@ -95,12 +83,25 @@ func GetMimeTypeByExt(filePath string) (ret string) {
 }
 
 func GetMimeTypeByPath(filePath string) (m *mimetype.MIME, ok bool) {
-	f, err := filelock.OpenFile(filePath, os.O_RDONLY, 0644)
+	managed := isManagedWorkspaceFile(filePath)
+	var f *os.File
+	var err error
+	if managed {
+		f, err = filelock.OpenFile(filePath, os.O_RDONLY, 0644)
+	} else {
+		filelock.Lock(filePath)
+		defer filelock.Unlock(filePath)
+		f, err = os.Open(filePath)
+	}
 	if err != nil {
 		logging.LogErrorf("open file [%s] failed: %s", filePath, err)
 		return
 	}
-	defer filelock.CloseFile(f)
+	if managed {
+		defer filelock.CloseFile(f)
+	} else {
+		defer f.Close()
+	}
 
 	m, err = mimetype.DetectReader(f)
 	if nil != err {

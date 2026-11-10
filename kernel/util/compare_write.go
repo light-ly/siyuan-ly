@@ -1,4 +1,4 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -23,8 +23,11 @@ func WriteFileIfUnchanged(path string, original, data []byte) error {
 	defer filelock.Unlock(path)
 	current, err := os.ReadFile(path)
 	if original == nil {
+		if err == nil {
+			return fmt.Errorf("%w: %s", ErrFileChanged, path)
+		}
 		if !os.IsNotExist(err) {
-			return fmt.Errorf("target already exists or is unreadable: %s", path)
+			return err
 		}
 	} else if err != nil {
 		return err

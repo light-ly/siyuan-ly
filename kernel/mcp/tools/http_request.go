@@ -1,24 +1,13 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/siyuan-note/siyuan/kernel/conf"
 	"github.com/siyuan-note/siyuan/kernel/model"
@@ -27,12 +16,19 @@ import (
 
 // HTTPRequestTool 通用 HTTP 调用工具，供智能体访问需要鉴权的 REST API（如微信读书网关）。
 // 与 web_fetch 的区别：支持自定义 method/headers/body，且文本类响应（含 JSON）原样返回而非转 Markdown。
-// 用 action 承载 method（get/post/put/delete/patch），从而零改动复用 agent 的确认机制——
-// GET 命中 safeActions["get"] 免确认，POST 等写操作触发 UI 确认 + 写前快照。
+// 请求可能发送敏感参数、调用付费接口或将二进制响应保存到工作区，所有方法均声明这些潜在效果。
 var HTTPRequestTool = &Tool{
 	Name:        "http_request",
 	Description: "Send an HTTP request to a REST API and return the raw text response (JSON is kept as-is). action (HTTP method): get (default)/post/put/delete/patch. url (http/https), headers (object), body (string). Use this instead of web_fetch when you need POST, custom headers (e.g. Authorization), or raw JSON responses.",
-	EffectScope: EffectScopeExternal,
+	EffectScope: EffectScopeMixed,
+	ActionEffects: map[string]ToolEffects{
+		"":       {LocalWrite: true, DataEgress: true, ExternalCost: true},
+		"get":    {LocalWrite: true, DataEgress: true, ExternalCost: true},
+		"post":   {LocalWrite: true, DataEgress: true, ExternalCost: true},
+		"put":    {LocalWrite: true, DataEgress: true, ExternalCost: true},
+		"delete": {LocalWrite: true, DataEgress: true, ExternalCost: true},
+		"patch":  {LocalWrite: true, DataEgress: true, ExternalCost: true},
+	},
 	InputSchema: ToolSchema{
 		Type: "object",
 		Properties: map[string]Property{
@@ -44,7 +40,7 @@ var HTTPRequestTool = &Tool{
 			"url": {Type: "string", Description: "The request URL (must start with http:// or https://)"},
 			"headers": {
 				Type:        "object",
-				Description: "Optional request headers, e.g. {\"Authorization\":\"Bearer ...\", \"Content-Type\":\"application/json\"}.",
+				Description: "Optional request headers, e.g. {\"Authorization\":\"Bearer ...\", \"Content-Type\":\"application/json\"}. Values must be strings, numbers or booleans; numbers and booleans are converted to text. Null, arrays and nested objects reject the entire request before sending.",
 				Properties:  map[string]Property{},
 			},
 			"body": {Type: "string", Description: "Optional request body for post/put/patch."},
@@ -66,9 +62,11 @@ func httpRequestHandler(args map[string]any) (CallToolResult, error) {
 
 	headers := map[string]string{}
 	if hs, ok := args["headers"].(map[string]any); ok {
-		for k, v := range hs {
-			headers[k] = fmt.Sprintf("%v", v)
+		parsed, err := parseHeaderValues(hs)
+		if err != nil {
+			return CallToolResult{Content: []ContentItem{{Type: "text", Text: err.Error()}}, IsError: true}, nil
 		}
+		headers = parsed
 	}
 	body, _ := args["body"].(string)
 
@@ -101,4 +99,27 @@ func httpRequestHandler(args map[string]any) (CallToolResult, error) {
 	return CallToolResult{
 		Content: []ContentItem{{Type: "text", Text: result}},
 	}, nil
+}
+
+// parseHeaderValues 把请求头收敛成字符串。嵌套对象与数组必须报错：直接格式化会把 Go 的
+// 内部表示（map[a:1]、[a b]）当成头值发出去，调用方看到成功却发了一段自己没写过的内容。
+// 标量按可读形式接受，与 attr 工具对属性值的处理保持一致。
+func parseHeaderValues(values map[string]any) (map[string]string, error) {
+	headers := make(map[string]string, len(values))
+	for name, value := range values {
+		switch typed := value.(type) {
+		case string:
+			headers[name] = typed
+		case bool:
+			headers[name] = strconv.FormatBool(typed)
+		case float64:
+			// JSON 数字统一解析为 float64，用最短往返表示避免出现 5.000000。
+			headers[name] = strconv.FormatFloat(typed, 'f', -1, 64)
+		case nil:
+			return nil, fmt.Errorf("header %q must be a string, number or boolean (got null)", name)
+		default:
+			return nil, fmt.Errorf("header %q must be a string, number or boolean (got %T)", name, value)
+		}
+	}
+	return headers, nil
 }

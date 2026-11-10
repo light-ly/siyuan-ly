@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package plugin
 
@@ -96,7 +84,7 @@ type RequestContent struct {
 
 	/* Request Headers */
 	Headers map[string][]string `json:"headers"` // e.g. {"Content-Type": ["application/json"], "Accept": ["*/*"]}
-	Cookies map[string][]string `json:"cookies"` // e.g. {"siyuan": ["abc123"]}
+	Cookies map[string][]string `json:"cookies"` // e.g. {"plugin-sample": ["abc123"]}，不含思源的会话 Cookie
 
 	ContentType   string `json:"contentType"`   // e.g. "application/json"
 	ContentLength int64  `json:"contentLength"` // e.g. 123
@@ -499,6 +487,10 @@ func parseRequest(c *gin.Context) (request *Request, err error) {
 
 	cookies := make(map[string][]string)
 	for _, cookie := range c.Request.Cookies() {
+		// 会话 Cookie 是内核的登录凭据，不交给插件
+		if util.SessionCookieName == cookie.Name {
+			continue
+		}
 		cookies[cookie.Name] = append(cookies[cookie.Name], cookie.Value)
 	}
 

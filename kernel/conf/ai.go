@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package conf
 
@@ -32,6 +20,7 @@ import (
 )
 
 type AI struct {
+	Memory          *Memory          `json:"memory"`
 	Web             *AIWeb           `json:"web"`
 	MCP             *MCP             `json:"mcp"`
 	Embedding       *Embedding       `json:"embedding"`
@@ -48,6 +37,7 @@ type AIWeb struct {
 	SearchProvider string `json:"searchProvider"`
 	FetchProvider  string `json:"fetchProvider"`
 	APIKey         string `json:"apiKey"`
+	ExaAPIKey      string `json:"exaApiKey"`
 	Timeout        int    `json:"timeout"`
 }
 
@@ -61,6 +51,7 @@ func (web *AIWeb) Normalize() {
 		web.FetchProvider = "direct"
 	}
 	web.APIKey = strings.TrimSpace(web.APIKey)
+	web.ExaAPIKey = strings.TrimSpace(web.ExaAPIKey)
 	web.Timeout = util.NormalizeWebTimeout(web.Timeout)
 }
 
@@ -428,6 +419,7 @@ func defaultImageGeneration() *ImageGeneration {
 
 func NewAI() *AI {
 	ai := &AI{
+		Memory:          defaultMemory(),
 		Providers:       []*Provider{},
 		MCP:             &MCP{Servers: []MCPServer{}, ExposurePolicy: defaultCapabilityPolicy()},
 		Embedding:       defaultEmbedding(),
@@ -661,6 +653,10 @@ func (ai *AI) ReconcileModelIDs() {
 }
 
 func (ai *AI) Normalize() {
+	if ai.Memory == nil {
+		ai.Memory = defaultMemory()
+	}
+	ai.Memory.Normalize()
 	if ai.Providers == nil {
 		ai.Providers = []*Provider{}
 	}
@@ -954,6 +950,13 @@ func normalizeApprovalPolicy(policy *ApprovalPolicy) {
 }
 
 func (ai *AI) DecryptAPIKeys() {
+	if ai.Web != nil && ai.Web.ExaAPIKey != "" {
+		if dec := util.AESDecrypt(ai.Web.ExaAPIKey); dec != nil {
+			if plain, err := hex.DecodeString(string(dec)); err == nil {
+				ai.Web.ExaAPIKey = string(plain)
+			}
+		}
+	}
 	if ai.Web != nil && ai.Web.APIKey != "" {
 		if dec := util.AESDecrypt(ai.Web.APIKey); dec != nil {
 			if plain, err := hex.DecodeString(string(dec)); err == nil {
@@ -1012,6 +1015,9 @@ func (ai *AI) DecryptAPIKeys() {
 }
 
 func (ai *AI) EncryptAPIKeys() {
+	if ai.Web != nil && ai.Web.ExaAPIKey != "" {
+		ai.Web.ExaAPIKey = util.AESEncrypt(ai.Web.ExaAPIKey)
+	}
 	if ai.Web != nil && ai.Web.APIKey != "" {
 		ai.Web.APIKey = util.AESEncrypt(ai.Web.APIKey)
 	}

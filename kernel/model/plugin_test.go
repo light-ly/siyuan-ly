@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -72,10 +60,10 @@ func TestSetPetalPublishEnabled(t *testing.T) {
 	if len(packages) != 1 || packages[0].UserDisabledInPublish == nil || !*packages[0].UserDisabledInPublish {
 		t.Fatal("installed plugin data should include the user publish preference")
 	}
-	if petals := LoadPetals("", false); len(petals) != 1 || petals[0].Name != "example" {
+	if petals := LoadPetals("", false, nil); len(petals) != 1 || petals[0].Name != "example" {
 		t.Fatal("user publish preference should not disable the plugin outside publish")
 	}
-	if petals := LoadPetals("", true); len(petals) != 0 {
+	if petals := LoadPetals("", true, nil); len(petals) != 0 {
 		t.Fatal("user-disabled plugin should not load in publish")
 	}
 	if petals := LoadKernelPetals(); len(petals) != 1 || petals[0].Name != "example" {

@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package bazaar
 
@@ -103,26 +91,28 @@ type Package struct {
 	PreviewURL string `json:"previewURL"`
 	IconURL    string `json:"iconURL"`
 
-	Installed               bool   `json:"installed"`
-	HasStorageData          bool   `json:"hasStorageData,omitempty"`
-	Outdated                bool   `json:"outdated"`
-	Current                 bool   `json:"current"`
-	Updated                 string `json:"updated"`
-	Stars                   int    `json:"stars"`
-	OpenIssues              int    `json:"openIssues"`
-	Size                    int64  `json:"size"`
-	HSize                   string `json:"hSize"`
-	InstallSize             int64  `json:"installSize"`
-	HInstallSize            string `json:"hInstallSize"`
-	InstallTime             int64  `json:"installTime"`
-	UpdateTime              int64  `json:"updateTime"`
-	HInstallDate            string `json:"hInstallDate"`
-	HUpdated                string `json:"hUpdated"`
-	Downloads               int    `json:"downloads"`
-	DisallowInstall         bool   `json:"disallowInstall"`
-	DisallowUpdate          bool   `json:"disallowUpdate"`
-	UpdateRequiredMinAppVer string `json:"updateRequiredMinAppVer,omitempty"` // 升级目标要求的最小应用版本
-	InvalidReason           string `json:"invalidReason,omitempty"`           // 本地安装包异常原因
+	Installed                bool   `json:"installed"`
+	HasStorageData           bool   `json:"hasStorageData,omitempty"`
+	Outdated                 bool   `json:"outdated"`
+	Current                  bool   `json:"current"`
+	Created                  string `json:"created,omitempty"` // 首次上架时间，来自在线集市索引；缺失时未知
+	Updated                  string `json:"updated"`
+	Stars                    int    `json:"stars"`
+	OpenIssues               int    `json:"openIssues"`
+	Size                     int64  `json:"size"`
+	HSize                    string `json:"hSize"`
+	InstallSize              int64  `json:"installSize"`
+	HInstallSize             string `json:"hInstallSize"`
+	InstallTime              int64  `json:"installTime"`
+	UpdateTime               int64  `json:"updateTime"`
+	HInstallDate             string `json:"hInstallDate"`
+	HUpdated                 string `json:"hUpdated"`
+	Downloads                int    `json:"downloads"`
+	DisallowInstall          bool   `json:"disallowInstall"`
+	DisallowUpdate           bool   `json:"disallowUpdate"`
+	BazaarVersionUnsupported bool   `json:"bazaarVersionUnsupported,omitempty"` // 在线版本要求的最低应用版本高于当前版本
+	UpdateRequiredMinAppVer  string `json:"updateRequiredMinAppVer,omitempty"`  // 升级目标要求的最小应用版本
+	InvalidReason            string `json:"invalidReason,omitempty"`            // 本地安装包异常原因
 
 	RatingAvailable bool           `json:"ratingAvailable"`  // 在线集市公开评分是否可用
 	Rating          *PackageRating `json:"rating,omitempty"` // 在线集市公开评分
@@ -172,6 +162,7 @@ func IsValidInstalledPackage(pkg *Package, dirName string) bool {
 type StageRepo struct {
 	URL         string `json:"url"` // owner/repo@hash 形式
 	RepoRef     string `json:"repoRef,omitempty"`
+	Created     string `json:"created,omitempty"`
 	Updated     string `json:"updated"`
 	Stars       int    `json:"stars"`
 	OpenIssues  int    `json:"openIssues"`
@@ -206,6 +197,9 @@ func ParsePackageJSON(filePath string) (ret *Package, err error) {
 	}
 
 	ret.URL = strings.TrimSuffix(ret.URL, "/")
+	// 首次上架时间和在线版本兼容性只能由集市索引提供，不能由本地清单声明。
+	ret.Created = ""
+	ret.BazaarVersionUnsupported = false
 	clearPackageDeprecationMetadata(ret)
 	return
 }

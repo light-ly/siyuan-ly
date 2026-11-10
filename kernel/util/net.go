@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package util
 
@@ -20,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -31,7 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/88250/gulu"
 	"github.com/88250/lute/ast"
 	"github.com/gin-gonic/gin"
 	"github.com/imroc/req/v3"
@@ -54,8 +40,7 @@ func GetPrivateIPv4s() (ret []string) {
 	virtualKeywords := []string{"docker", "veth", "br-", "vmnet", "vbox", "utun", "tun", "tap", "bridge", "cloud", "hyper-"}
 
 	for _, itf := range interfaces {
-		// 1. 基础状态过滤：必须是启动状态且不能是回环网卡
-		if itf.Flags&net.FlagUp == 0 || itf.Flags&net.FlagLoopback != 0 {
+		if !isLANInterface(itf) {
 			continue
 		}
 
@@ -97,6 +82,12 @@ func GetPrivateIPv4s() (ret []string) {
 		}
 	}
 	return
+}
+
+func isLANInterface(itf net.Interface) bool {
+	// 管理状态为 UP 的桥接网卡可能没有活动链路，mDNS 还需要组播能力。
+	return itf.Flags&(net.FlagUp|net.FlagRunning|net.FlagMulticast) == net.FlagUp|net.FlagRunning|net.FlagMulticast &&
+		itf.Flags&(net.FlagLoopback|net.FlagPointToPoint) == 0
 }
 
 func IsLocalHostname(hostname string) bool {
@@ -230,7 +221,9 @@ func originHostEquals(origin, host string) bool {
 	return "" != originHost && originHost == host
 }
 
-// SSRFSafeDialer returns a net.Dialer whose Control hook blocks private, loopback, link-local and unspecified IPs.
+// SSRFSafeDialer 返回内核出站请求使用的拨号器，在连接阶段按目标 IP 判断是否允许访问。
+// 非安全模式下放行回环与 RFC1918 私网，以支持插件访问本机或局域网服务，仅记录一次审计日志；
+// 链路本地与未指定地址始终拒绝，避免访问云元数据等仅本机可达的服务。
 func SSRFSafeDialer(timeout time.Duration) *net.Dialer {
 	return &net.Dialer{
 		Timeout: timeout,
@@ -239,7 +232,13 @@ func SSRFSafeDialer(timeout time.Duration) *net.Dialer {
 			if err != nil {
 				return err
 			}
-			if ip := net.ParseIP(host); ip != nil && isPrivateIP(ip) {
+			if ip := parseDialIP(host); nil != ip && isPrivateIP(ip) {
+				if isAlwaysBlockedIP(ip) {
+					if _, loaded := auditedAddresses.LoadOrStore(address, struct{}{}); !loaded {
+						logging.LogWarnf("Blocked connection to link-local or unspecified address [address=%s, network=%s]", address, network)
+					}
+					return fmt.Errorf("ip address [%s] is prohibited", host)
+				}
 				if _, loaded := auditedAddresses.LoadOrStore(address, struct{}{}); !loaded {
 					logging.LogWarnf("Establishing a connection to the private network [address=%s, network=%s]", address, network)
 				}
@@ -250,6 +249,27 @@ func SSRFSafeDialer(timeout time.Duration) *net.Dialer {
 			return nil
 		},
 	}
+}
+
+// parseDialIP 解析拨号地址中的 IP，忽略 IPv6 区域标识（例如 fe80::1%eth0），
+// 否则带区域标识的链路本地地址会被 net.ParseIP 判为无效而绕过检查。
+func parseDialIP(host string) net.IP {
+	if i := strings.IndexByte(host, '%'); 0 <= i {
+		host = host[:i]
+	}
+	return net.ParseIP(host)
+}
+
+// isAlwaysBlockedIP 判断 IP 是否始终禁止出站访问：链路本地单播（含 169.254.0.0/16 云元数据地址）
+// 与未指定地址。回环、RFC1918 私网和组播在非安全模式下仍允许。
+func isAlwaysBlockedIP(ip net.IP) bool {
+	if ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+		return true
+	}
+	if ip4 := extractEmbeddedIPv4(ip); nil != ip4 && !ip4.Equal(ip) {
+		return isAlwaysBlockedIP(ip4)
+	}
+	return false
 }
 
 // ssrfSafeDialContext 返回智能体出站请求专用的拨号函数：拨号时自行解析主机名并拒绝私网地址，
@@ -292,7 +312,7 @@ func ssrfSafeDialContext(timeout time.Duration) func(ctx context.Context, networ
 	}
 }
 
-// isPrivateIP 判断 IP 是否为私网地址，含内嵌私网 IPv4 的 IPv6 过渡地址（NAT64、6to4、Teredo、IPv4 兼容）。
+// isPrivateIP 判断 IP 是否为私网地址，含内嵌私网 IPv4 的 IPv6 过渡地址（NAT64、6to4、Teredo、IPv4-translated、IPv4 兼容）。
 // https://github.com/siyuan-note/siyuan/security/advisories/GHSA-qq8m-8p8v-x4xg
 // https://github.com/siyuan-note/siyuan/security/advisories/GHSA-rg26-cg95-gq6p
 func isPrivateIP(ip net.IP) bool {
@@ -307,7 +327,7 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
-// extractEmbeddedIPv4 提取 IPv6 过渡地址（NAT64、6to4、Teredo、IPv4 兼容）中内嵌的 IPv4 地址，非过渡地址返回 nil。
+// extractEmbeddedIPv4 提取 IPv6 过渡地址（NAT64、6to4、Teredo、IPv4-translated、IPv4 兼容）中内嵌的 IPv4 地址，非过渡地址返回 nil。
 func extractEmbeddedIPv4(ip net.IP) net.IP {
 	ip16 := ip.To16()
 	if nil == ip16 || 16 != len(ip16) {
@@ -324,6 +344,10 @@ func extractEmbeddedIPv4(ip net.IP) net.IP {
 	// Teredo（RFC 4380 2001:0000::/32）：低 32 位按位取反后为内嵌 IPv4。
 	if ip16[0] == 0x20 && ip16[1] == 0x01 && ip16[2] == 0x00 && ip16[3] == 0x00 {
 		return net.IPv4(ip16[12]^0xff, ip16[13]^0xff, ip16[14]^0xff, ip16[15]^0xff)
+	}
+	// IPv4-translated（RFC 2765 2.1 的 0::ffff:0:0:0/96，RFC 6145 已废弃）：第 64-79 位为 0xffff，低 32 位为内嵌 IPv4。
+	if isZeroIPv6(ip16[0:8]) && ip16[8] == 0xff && ip16[9] == 0xff && isZeroIPv6(ip16[10:12]) {
+		return net.IPv4(ip16[12], ip16[13], ip16[14], ip16[15])
 	}
 	// IPv4 兼容地址（RFC 4291 已废弃 ::/96）：低 32 位为内嵌 IPv4。
 	if isZeroIPv6(ip16[0:12]) {
@@ -425,24 +449,6 @@ func GetRemoteAddr(req *http.Request) string {
 	return strings.Split(ret, ",")[0]
 }
 
-func JsonArg(c *gin.Context, result *gulu.Result) (arg map[string]any, ok bool) {
-	arg = map[string]any{}
-	if err := c.ShouldBindJSON(&arg); err != nil {
-		result.Code = -1
-		var detail string
-		if errors.Is(err, io.EOF) {
-			detail = "the request body is empty or truncated (EOF)"
-		} else {
-			detail = err.Error()
-		}
-		result.Msg = fmt.Sprintf("Parses request [%s] failed: %s", c.Request.URL.Path, detail)
-		return
-	}
-
-	ok = true
-	return
-}
-
 // GetRequestUrlStringParam extracts a string parameter from URL (path or query parameters).
 func GetRequestUrlStringParam(c *gin.Context, key string) string {
 	// /path/:name
@@ -458,107 +464,25 @@ func GetRequestUrlStringParam(c *gin.Context, key string) string {
 	return ""
 }
 
-// ParseJsonArg 使用泛型从 JSON 参数中提取指定键的值。
-//   - 如果 required 为 true 但参数缺失，则会在 ret.Msg 中说明需要传入的键
-//   - 如果 rejectEmpty 为 true 但参数值为空，则会在 ret.Msg 中说明该键必须不为空（字符串去空白后、空数组、无任何键的对象）
-//   - 如果参数存在但类型不匹配，则会在 ret.Msg 中说明该键期望的类型
-//   - 返回值 ok 为 false 时，表示提取失败、类型不匹配或不满足非空约束
-func ParseJsonArg[T any](key string, arg map[string]any, ret *gulu.Result, required, rejectEmpty bool) (value T, ok bool) {
-	raw, exists := arg[key]
-	if !exists || raw == nil {
-		if required {
-			ret.Code = -1
-			ret.Msg = fmt.Sprintf("Field [%s] is required", key)
-		} else {
-			ok = true
-		}
-		return
-	}
+// ErrInvalidID 表示块或笔记本 ID 不是合法的 SiYuan ID 形态。
+var ErrInvalidID = errors.New("invalid ID argument")
 
-	value, ok = raw.(T)
-	if !ok {
-		var zero T
-		ret.Code = -1
-
-		// 返回对应的 JSON 类型
-		jsonType := ""
-		switch any(zero).(type) {
-		case string:
-			jsonType = "String"
-		case float64:
-			jsonType = "Number"
-		case bool:
-			jsonType = "Boolean"
-		case []any:
-			jsonType = "Array"
-		case map[string]any:
-			jsonType = "Object"
-		default:
-			jsonType = fmt.Sprintf("%T", zero)
-		}
-
-		ret.Msg = fmt.Sprintf("Field [%s] should be of type [%s]", key, jsonType)
-		return
-	}
-
-	if rejectEmpty {
-		var bad bool
-		switch x := any(value).(type) {
-		case string:
-			if t := strings.TrimSpace(x); t == "" {
-				bad = true
-			} else {
-				value = any(t).(T)
-			}
-		case []any:
-			bad = len(x) == 0
-		case map[string]any:
-			bad = len(x) == 0
-		}
-		if bad {
-			ret.Code = -1
-			ret.Msg = fmt.Sprintf("Field [%s] must not be empty", key)
-			ok = false
-		}
-	}
-	return
-}
-
-// JsonArgParseFunc 为单次提取函数，用于 ParseJsonArgs 批量提取。
-type JsonArgParseFunc func(arg map[string]any, ret *gulu.Result) bool
-
-// BindJsonArg 创建一个提取函数：从 arg 取 key 并写入 dest，供 ParseJsonArgs 使用。
-func BindJsonArg[T any](key string, dest *T, required, rejectEmpty bool) JsonArgParseFunc {
-	return func(arg map[string]any, ret *gulu.Result) bool {
-		v, ok := ParseJsonArg[T](key, arg, ret, required, rejectEmpty)
-		if !ok {
-			return false
-		}
-		*dest = v
-		return true
-	}
-}
-
-// ParseJsonArgs 按顺序执行多个提取函数。
-//   - 任一失败返回 false 并在 ret 中写入错误信息
-//   - 全部成功返回 true
-func ParseJsonArgs(arg map[string]any, ret *gulu.Result, extractors ...JsonArgParseFunc) bool {
-	for _, ext := range extractors {
-		if !ext(arg, ret) {
-			return false
-		}
-	}
-	return true
-}
-
-func InvalidIDPattern(idArg string, result *gulu.Result) bool {
+// ValidateID 检查块或笔记本 ID 形态，不合法时返回 ErrInvalidID。
+// 返回错误而不是往调用方的信封里写字，让调用方决定用哪个错误码响应。
+func ValidateID(idArg string) error {
 	if ast.IsNodeIDPattern(idArg) {
-		return false
+		return nil
 	}
+	return ErrInvalidID
+}
 
-	result.Code = -1
-	result.Msg = "invalid ID argument"
-	return true
+// ValidateOptionalID 与 ValidateID 相同，但把空字符串视为「未提供」而非非法值。
+// 用于可选的对端 ID 等参数，避免调用方各自重复判空。
+func ValidateOptionalID(idArg string) error {
+	if idArg == "" {
+		return nil
+	}
+	return ValidateID(idArg)
 }
 
 func initHttpClient() {

@@ -1,23 +1,12 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -95,13 +84,27 @@ var getNetwork = contractHandler(apicontract.GetNetwork, func(c *gin.Context, re
 	return apicontract.Success(apicontract.NetworkData{Proxy: proxy})
 })
 
-var getChangelog = contractHandler(apicontract.SystemGetChangelog, func(c *gin.Context, request apicontract.SystemChangelogRequest) (ret apicontract.Response[apicontract.SystemChangelogData]) {
-	ret = apicontract.Success(apicontract.SystemChangelogData{})
+var getReleaseChangelog = model.GetReleaseChangelog
 
-	force := request.Force
+var getChangelog = contractHandler(apicontract.SystemGetChangelog, func(c *gin.Context, request apicontract.SystemChangelogRequest) apicontract.Response[apicontract.SystemChangelogData] {
+	return loadChangelog(c.Request.Context(), request.Force, util.Ver)
+})
 
+func loadChangelog(ctx context.Context, force bool, version string) (ret apicontract.Response[apicontract.SystemChangelogData]) {
 	data := apicontract.SystemChangelogData{}
 	ret = apicontract.Success(data)
+
+	if !util.IsReleaseVer(version) {
+		if !force {
+			return
+		}
+		content, err := getReleaseChangelog(ctx, version)
+		if err != nil {
+			logging.LogWarnf("get changelog for v%s failed: %s", version, err)
+			return apicontract.Failure[apicontract.SystemChangelogData](-1, "release changelog is unavailable")
+		}
+		return apicontract.Success(apicontract.SystemChangelogData{Show: true, HTML: content, Version: version})
+	}
 
 	changelogsDir := filepath.Join(util.WorkingDir, "changelogs")
 	if !gulu.File.IsDir(changelogsDir) {
@@ -112,19 +115,13 @@ var getChangelog = contractHandler(apicontract.SystemGetChangelog, func(c *gin.C
 		return
 	}
 
-	if !force && !util.IsReleaseVer(util.Ver) {
-		model.Conf.ShowChangelog = false
-		model.Conf.Save()
-		return
-	}
-
-	changelogVer := util.Ver
+	changelogVer := version
 	changelogPath := getChangelogPath(changelogsDir, changelogVer)
 	if force && changelogPath == "" {
-		changelogVer, changelogPath = getLatestChangelog(changelogsDir, util.Ver)
+		changelogVer, changelogPath = getLatestChangelog(changelogsDir, version)
 	}
 	if changelogPath == "" {
-		logging.LogErrorf("changelog not found for v%s", util.Ver)
+		logging.LogErrorf("changelog not found for v%s", version)
 		return
 	}
 
@@ -147,7 +144,7 @@ var getChangelog = contractHandler(apicontract.SystemGetChangelog, func(c *gin.C
 	data.Version = changelogVer
 	ret = apicontract.Success(data)
 	return
-})
+}
 
 func getChangelogPath(changelogsDir, ver string) string {
 	verDir := filepath.Join(changelogsDir, "v"+ver)
@@ -428,6 +425,14 @@ var checkUpdate = contractHandler(apicontract.SystemCheckUpdate, func(c *gin.Con
 	return apicontract.Success(apicontract.Null{})
 })
 
+var downloadUpdate = contractHandler(apicontract.SystemDownloadUpdate, func(c *gin.Context, request apicontract.SystemDownloadUpdateRequest) apicontract.Response[apicontract.Null] {
+	if err := model.DownloadUpdate(request.Version); err != nil {
+		logging.LogWarnf("download selected update failed: %s", err)
+		return apicontract.Failure[apicontract.Null](-1, model.Conf.Language(104))
+	}
+	return apicontract.Success(apicontract.Null{})
+})
+
 var exportLog = contractHandler(apicontract.SystemExportLog, func(c *gin.Context, request apicontract.EmptyRequest) (ret apicontract.Response[apicontract.SystemZipData]) {
 	ret = apicontract.Success(apicontract.SystemZipData{})
 
@@ -457,6 +462,8 @@ var exportConf = contractHandler(apicontract.SystemExportConf, func(c *gin.Conte
 	}
 
 	if nil != clonedConf.Appearance.Load() {
+		// 壁纸文件仅属于本工作空间，不包含在设置导出中。
+		clonedConf.Appearance.Load().LockScreenWallpaper = false
 		clonedConf.Appearance.Load().DarkThemes = nil
 		clonedConf.Appearance.Load().LightThemes = nil
 		clonedConf.Appearance.Load().Icons = nil
@@ -524,6 +531,7 @@ var exportConf = contractHandler(apicontract.SystemExportConf, func(c *gin.Conte
 	if nil != clonedConf.AI.Load() {
 		if clonedConf.AI.Load().Web != nil {
 			clonedConf.AI.Load().Web.APIKey = ""
+			clonedConf.AI.Load().Web.ExaAPIKey = ""
 		}
 		for _, provider := range clonedConf.AI.Load().Providers {
 			if nil != provider {
@@ -756,8 +764,13 @@ func preserveImportedAISecrets(imported, current *conf.AI) {
 	if imported == nil || current == nil {
 		return
 	}
-	if imported.Web != nil && current.Web != nil && imported.Web.APIKey == "" {
-		imported.Web.APIKey = current.Web.APIKey
+	if imported.Web != nil && current.Web != nil {
+		if imported.Web.APIKey == "" {
+			imported.Web.APIKey = current.Web.APIKey
+		}
+		if imported.Web.ExaAPIKey == "" {
+			imported.Web.ExaAPIKey = current.Web.ExaAPIKey
+		}
 	}
 
 	currentProviders := map[string]*conf.Provider{}
@@ -921,12 +934,15 @@ var setAccessAuthCode = contractHandler(apicontract.SystemSetAccessAuthCode, fun
 		}
 	}
 
+	session := util.GetSession(c)
+	workspaceSession := util.GetWorkspaceSession(session)
+	if !model.IsWorkspaceSessionAuthenticated(workspaceSession) {
+		model.BindDesktopSession(c, workspaceSession, false)
+	}
 	model.Conf.AccessAuthCode = aac
 	model.Conf.Save()
 
-	session := util.GetSession(c)
-	workspaceSession := util.GetWorkspaceSession(session)
-	workspaceSession.AccessAuthCode = aac
+	model.SetAccessCodeSession(workspaceSession, aac)
 	session.Save(c)
 	go func() {
 		time.Sleep(200 * time.Millisecond)
@@ -1377,7 +1393,7 @@ var addUIProcess = contractHandler(apicontract.SystemAddUIProcess, func(c *gin.C
 
 var exit = contractHandler(apicontract.SystemExit, exitSystem)
 
-var closeSystem = model.Close
+var closeSystem = model.CloseWithContext
 var recoverSystemExit = model.RecoverWorkspaceExit
 var finishSystemExit = model.ExitKernel
 
@@ -1391,7 +1407,7 @@ func exitSystem(c *gin.Context, request apicontract.SystemExitRequest) apicontra
 	if request.RecoverExit != nil {
 		exitCode, installPkgPath = recoverSystemExit(request.RecoverExit.PID, request.RecoverExit.StartedAt, request.RecoverExit.Force)
 	} else {
-		exitCode, installPkgPath = closeSystem(request.Force, setCurrentWorkspace, int(request.ExecInstallPkg))
+		exitCode, installPkgPath = closeSystem(c.Request.Context(), request.Force, setCurrentWorkspace, int(request.ExecInstallPkg))
 	}
 	data := apicontract.SystemExitData{CloseTimeout: 0, InstallPkgPath: installPkgPath}
 	switch exitCode {

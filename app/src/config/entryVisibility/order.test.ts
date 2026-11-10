@@ -178,11 +178,16 @@ test("definition conversion submenus preserve custom order and plugin slots", ()
 
 test("missing table and image actions merge into saved orders while preserving plugin slots", () => {
     [
+        {path: "gutter.single.table", added: ["insertTableHeaderRow"]},
+        {path: "inline.text", added: ["insertTableHeaderRow"]},
         {path: "gutter.single.table", added: ["cancelMerged", "transposeTable"]},
         {path: "inline.text.more", added: ["cancelMerged"]},
         {path: "inline.image", added: ["openBy"]},
         {path: "gutter.single.copy", added: ["copyMirror"]},
-        {path: "gutter.single.blockEmbed", added: ["embedHeadingLevel"]},
+        {path: "gutter.single.blockEmbed", added: ["refPopover", "embedHeadingLevel", "embedBlockBreadcrumbParentPath"]},
+        {path: "gutter.single.blockEmbed", added: ["separator_conversion", "convertToBlocks", "convertToReferences"]},
+        {path: "gutter.single.blockEmbed.embedBlockBreadcrumb", added: ["enable", "disable", "default"]},
+        {path: "gutter.single.blockEmbed.embedBlockBreadcrumbParentPath", added: ["enable", "disable", "default"]},
     ].forEach(({path, added}) => {
         const entries = getEntryCatalogChildren(path);
         const defaults = entries.map(item => item.key);

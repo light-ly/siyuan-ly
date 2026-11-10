@@ -1,30 +1,24 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
+	"strings"
 	"testing"
 
 	ginSessions "github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/siyuan-note/siyuan/kernel/apicontract"
 	"github.com/siyuan-note/siyuan/kernel/conf"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
@@ -93,17 +87,27 @@ func TestAuthByAPITokenThrottle(t *testing.T) {
 
 func TestIsLocalRequest(t *testing.T) {
 	tests := []struct {
-		name         string
-		remoteAddr   string
-		forwardedFor string
-		wantLocal    bool
+		name           string
+		remoteAddr     string
+		forwardedFor   string
+		forwardedHost  string
+		forwardedProto string
+		xRealIP        string
+		forwarded      string
+		localProxy     bool
+		wantLocal      bool
 	}{
 		{name: "direct loopback", remoteAddr: "127.0.0.1:1234", wantLocal: true},
 		{name: "direct remote", remoteAddr: "192.0.2.10:1234", wantLocal: false},
 		{name: "direct remote with spoofed forwarding", remoteAddr: "192.0.2.10:1234", forwardedFor: "127.0.0.1", wantLocal: false},
-		{name: "local proxy for local client", remoteAddr: "127.0.0.1:1234", forwardedFor: "127.0.0.1", wantLocal: true},
-		{name: "local proxy for remote client", remoteAddr: "127.0.0.1:1234", forwardedFor: "192.0.2.10", wantLocal: false},
-		{name: "local proxy with spoofed chain", remoteAddr: "127.0.0.1:1234", forwardedFor: "127.0.0.1, 192.0.2.10", wantLocal: false},
+		{name: "local proxy for local client", remoteAddr: "127.0.0.1:1234", forwardedFor: "127.0.0.1", localProxy: true, wantLocal: true},
+		{name: "unmarked local proxy for local client", remoteAddr: "127.0.0.1:1234", forwardedFor: "127.0.0.1", wantLocal: false},
+		{name: "local proxy for remote client", remoteAddr: "127.0.0.1:1234", forwardedFor: "192.0.2.10", localProxy: true, wantLocal: false},
+		{name: "local proxy with spoofed chain", remoteAddr: "127.0.0.1:1234", forwardedFor: "127.0.0.1, 192.0.2.10", localProxy: true, wantLocal: false},
+		{name: "local request with forwarded host", remoteAddr: "127.0.0.1:1234", forwardedHost: "localhost:6806", wantLocal: false},
+		{name: "local request with forwarded proto", remoteAddr: "127.0.0.1:1234", forwardedProto: "https", wantLocal: false},
+		{name: "local request with x-real-ip", remoteAddr: "127.0.0.1:1234", xRealIP: "127.0.0.1", wantLocal: false},
+		{name: "local request with forwarded", remoteAddr: "127.0.0.1:1234", forwarded: "for=127.0.0.1", wantLocal: false},
 	}
 
 	for _, test := range tests {
@@ -112,6 +116,7 @@ func TestIsLocalRequest(t *testing.T) {
 			if err := engine.SetTrustedProxies([]string{"127.0.0.1", "::1"}); err != nil {
 				t.Fatal(err)
 			}
+			engine.ForwardedByClientIP = true
 			engine.RemoteIPHeaders = []string{"X-Forwarded-For"}
 			engine.GET("/", func(c *gin.Context) {
 				if IsLocalRequest(c) {
@@ -123,8 +128,23 @@ func TestIsLocalRequest(t *testing.T) {
 
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
 			request.RemoteAddr = test.remoteAddr
+			if test.localProxy {
+				request.Header.Set(util.LocalProxyHeader, util.LocalProxyToken)
+			}
 			if test.forwardedFor != "" {
 				request.Header.Set("X-Forwarded-For", test.forwardedFor)
+			}
+			if test.forwardedHost != "" {
+				request.Header.Set("X-Forwarded-Host", test.forwardedHost)
+			}
+			if test.forwardedProto != "" {
+				request.Header.Set("X-Forwarded-Proto", test.forwardedProto)
+			}
+			if test.xRealIP != "" {
+				request.Header.Set("X-Real-IP", test.xRealIP)
+			}
+			if test.forwarded != "" {
+				request.Header.Set("Forwarded", test.forwarded)
 			}
 			recorder := httptest.NewRecorder()
 			engine.ServeHTTP(recorder, request)
@@ -137,6 +157,87 @@ func TestIsLocalRequest(t *testing.T) {
 				t.Fatalf("status = %d, want %d", recorder.Code, wantStatus)
 			}
 		})
+	}
+}
+
+// TestCheckAuthForwardedHeadersNotLocal 验证经第三方反代转发的请求不能凭伪造的
+// X-Forwarded-For 获得本机免认证权限，内置 fixed-port 代理仍按真实客户端地址判断。
+// https://github.com/siyuan-note/siyuan/security/advisories/GHSA-gmcm-mggw-8759
+func TestCheckAuthForwardedHeadersNotLocal(t *testing.T) {
+	originalConf, originalWorkspaceDir := Conf, util.WorkspaceDir
+	Conf = NewAppConf()
+	util.WorkspaceDir = "test-workspace"
+	t.Cleanup(func() {
+		Conf = originalConf
+		util.WorkspaceDir = originalWorkspaceDir
+	})
+
+	engine := gin.New()
+	if err := engine.SetTrustedProxies([]string{"127.0.0.1", "::1"}); err != nil {
+		t.Fatal(err)
+	}
+	engine.ForwardedByClientIP = true
+	engine.RemoteIPHeaders = []string{"X-Forwarded-For"}
+	engine.Use(ginSessions.Sessions("siyuan", cookie.NewStore([]byte("test-session-cookie-key"))))
+	engine.GET("/history/*path", CheckAuth, CheckAdminRole, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	engine.POST("/api/system/exit", CheckAuth, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	engine.GET("/api/system/getWorkspaceInfo", CheckAuth, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	engine.GET("/assets/icon.png", CheckAuth, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	newRequest := func(method, path, host, forwardedFor string, localProxy bool) int {
+		request := httptest.NewRequest(method, path, nil)
+		request.Host = host
+		request.RemoteAddr = "127.0.0.1:443"
+		if "" != forwardedFor {
+			request.Header.Set("X-Forwarded-For", forwardedFor)
+		}
+		if localProxy {
+			request.Header.Set(util.LocalProxyHeader, util.LocalProxyToken)
+		}
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		return recorder.Code
+	}
+
+	history := "/history/snap/blocks/note.sy"
+	if code := newRequest(http.MethodGet, history, "localhost:6806", "127.0.0.1", false); http.StatusUnauthorized != code {
+		t.Fatalf("spoofed forwarded history = %d, want %d", code, http.StatusUnauthorized)
+	}
+	if code := newRequest(http.MethodGet, history, "localhost:6806", "127.0.0.1", true); http.StatusNoContent != code {
+		t.Fatalf("local proxy history = %d, want %d", code, http.StatusNoContent)
+	}
+	if code := newRequest(http.MethodGet, history, "workspace.example.test", "198.51.100.7", false); http.StatusUnauthorized != code {
+		t.Fatalf("public host history = %d, want %d", code, http.StatusUnauthorized)
+	}
+	spoofedHost := httptest.NewRequest(http.MethodGet, history, nil)
+	spoofedHost.Host = "localhost:6806"
+	spoofedHost.RemoteAddr = "127.0.0.1:443"
+	spoofedHost.Header.Set("X-Forwarded-Host", "localhost:6806")
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, spoofedHost)
+	if http.StatusUnauthorized != recorder.Code {
+		t.Fatalf("spoofed forwarded host history = %d, want %d", recorder.Code, http.StatusUnauthorized)
+	}
+
+	Conf.AccessAuthCode = "configured"
+	for _, test := range []struct {
+		name, method, path string
+	}{
+		{"system exit", http.MethodPost, "/api/system/exit"},
+		{"workspace info", http.MethodGet, "/api/system/getWorkspaceInfo"},
+		{"asset", http.MethodGet, "/assets/icon.png"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if code := newRequest(test.method, test.path, "localhost:6806", "127.0.0.1", false); http.StatusUnauthorized != code {
+				t.Fatalf("spoofed forwarded request = %d, want %d", code, http.StatusUnauthorized)
+			}
+			if code := newRequest(test.method, test.path, "localhost:6806", "127.0.0.1", true); http.StatusNoContent != code {
+				t.Fatalf("local proxy request = %d, want %d", code, http.StatusNoContent)
+			}
+		})
+	}
+	if code := newRequest(http.MethodGet, history, "localhost:6806", "127.0.0.1", true); http.StatusUnauthorized != code {
+		t.Fatalf("password-protected local proxy history = %d, want %d", code, http.StatusUnauthorized)
 	}
 }
 
@@ -187,6 +288,7 @@ func TestCheckAuthSessionCrossSiteFetchSite(t *testing.T) {
 	originalConf := Conf
 	originalWorkspaceDir := util.WorkspaceDir
 	Conf = NewAppConf()
+	Conf.CookieKey = "test-cookie-key"
 	Conf.AccessAuthCode = "test-access-auth-code"
 	util.WorkspaceDir = "test-workspace"
 	t.Cleanup(func() {
@@ -200,7 +302,7 @@ func TestCheckAuthSessionCrossSiteFetchSite(t *testing.T) {
 	engine.GET("/login", func(c *gin.Context) {
 		session := util.GetSession(c)
 		workspaceSession := util.GetWorkspaceSession(session)
-		workspaceSession.AccessAuthCode = Conf.AccessAuthCode
+		SetAccessCodeSession(workspaceSession, Conf.AccessAuthCode)
 		if err := session.Save(c); err != nil {
 			c.Status(http.StatusInternalServerError)
 			return
@@ -249,6 +351,7 @@ func TestCheckAuthRemoteSessionOrigin(t *testing.T) {
 	originalConf := Conf
 	originalWorkspaceDir := util.WorkspaceDir
 	Conf = NewAppConf()
+	Conf.CookieKey = "test-cookie-key"
 	Conf.AccessAuthCode = "test-access-auth-code"
 	util.WorkspaceDir = "test-workspace"
 	t.Cleanup(func() {
@@ -262,7 +365,7 @@ func TestCheckAuthRemoteSessionOrigin(t *testing.T) {
 	engine.GET("/login", func(c *gin.Context) {
 		session := util.GetSession(c)
 		workspaceSession := util.GetWorkspaceSession(session)
-		workspaceSession.AccessAuthCode = Conf.AccessAuthCode
+		SetAccessCodeSession(workspaceSession, Conf.AccessAuthCode)
 		if err := session.Save(c); err != nil {
 			c.Status(http.StatusInternalServerError)
 			return
@@ -391,6 +494,7 @@ func TestCheckAuthLoopbackProxy(t *testing.T) {
 	originalConf := Conf
 	originalWorkspaceDir := util.WorkspaceDir
 	Conf = NewAppConf()
+	Conf.CookieKey = "test-cookie-key"
 	Conf.AccessAuthCode = "test-access-auth-code"
 	util.WorkspaceDir = "test-workspace"
 	t.Cleanup(func() {
@@ -402,7 +506,7 @@ func TestCheckAuthLoopbackProxy(t *testing.T) {
 	engine.Use(ginSessions.Sessions("siyuan", cookie.NewStore([]byte("test-session-cookie-key"))))
 	engine.GET("/login", func(c *gin.Context) {
 		session := util.GetSession(c)
-		util.GetWorkspaceSession(session).AccessAuthCode = Conf.AccessAuthCode
+		SetAccessCodeSession(util.GetWorkspaceSession(session), Conf.AccessAuthCode)
 		if err := session.Save(c); err != nil {
 			t.Fatal(err)
 		}
@@ -471,5 +575,197 @@ func TestCheckAuthLoopbackProxy(t *testing.T) {
 				t.Fatalf("unexpected login redirect: %s", recorder.Header().Get("Location"))
 			}
 		})
+	}
+}
+
+const loginAuthTestAccessCode = "test-access-auth-code"
+
+// newLoginAuthTestEngine 初始化登录接口测试环境，返回带会话中间件的引擎和来源 IP。
+func newLoginAuthTestEngine(t *testing.T) (engine *gin.Engine, store ginSessions.Store, clientIP string) {
+	t.Helper()
+
+	originalConf, originalWorkspaceDir, originalWrongAuthCount, originalLangs := Conf, util.WorkspaceDir, util.WrongAuthCount, util.Langs
+	Conf = NewAppConf()
+	Conf.CookieKey = "test-cookie-key"
+	Conf.AccessAuthCode = loginAuthTestAccessCode
+	Conf.Lang = "en"
+	util.WorkspaceDir = "test-login-auth-workspace"
+	util.WrongAuthCount = 0
+	util.Langs = map[string]map[int]string{"en": {
+		21:  "captcha required",
+		22:  "invalid captcha",
+		83:  "invalid auth code",
+		156: "unauthorized",
+		258: "save failed",
+		354: "too many attempts",
+	}}
+	clientIP = "192.0.2.70"
+	t.Cleanup(func() {
+		Conf, util.WorkspaceDir, util.WrongAuthCount, util.Langs = originalConf, originalWorkspaceDir, originalWrongAuthCount, originalLangs
+	})
+
+	gin.SetMode(gin.TestMode)
+	engine = gin.New()
+	store = cookie.NewStore([]byte("test-session-cookie-key"))
+	engine.Use(ginSessions.Sessions("siyuan", store))
+	engine.POST("/api/system/loginAuth", func(c *gin.Context) {
+		body := struct {
+			AuthCode string `json:"authCode"`
+			Captcha  string `json:"captcha"`
+		}{}
+		if err := json.NewDecoder(c.Request.Body).Decode(&body); err != nil {
+			c.Status(http.StatusBadRequest)
+			return
+		}
+		c.JSON(http.StatusOK, LoginAuth(c, apicontract.SystemLoginAuthRequest{AuthCode: body.AuthCode, Captcha: body.Captcha}))
+	})
+	engine.POST("/api/system/probeAdmin", CheckAuth, func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	return
+}
+
+// loginTestRequest 发送一次带会话 Cookie 的请求，返回响应和响应中签发的会话 Cookie。
+func loginTestRequest(t *testing.T, engine *gin.Engine, clientIP, method, path string, body any, sessionCookie *http.Cookie) (*httptest.ResponseRecorder, *http.Cookie) {
+	t.Helper()
+
+	var reader io.Reader
+	if nil != body {
+		data, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reader = bytes.NewReader(data)
+	}
+	request := httptest.NewRequest(method, "http://127.0.0.1:6806"+path, reader)
+	request.RemoteAddr = clientIP + ":1234"
+	if nil != body {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if nil != sessionCookie {
+		request.AddCookie(sessionCookie)
+	}
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, request)
+
+	var next *http.Cookie
+	for _, responseCookie := range recorder.Result().Cookies() {
+		if "siyuan" == responseCookie.Name {
+			next = responseCookie
+		}
+	}
+	return recorder, next
+}
+
+// loginTestLogin 提交一次登录请求。
+func loginTestLogin(t *testing.T, engine *gin.Engine, clientIP, authCode, captcha string, sessionCookie *http.Cookie) (int, string, *http.Cookie) {
+	t.Helper()
+
+	recorder, next := loginTestRequest(t, engine, clientIP, http.MethodPost, "/api/system/loginAuth", map[string]string{
+		"authCode": authCode,
+		"captcha":  captcha,
+	}, sessionCookie)
+	result := struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+	}{}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode login response %q: %v", recorder.Body.String(), err)
+	}
+	return result.Code, result.Msg, next
+}
+
+// TestLoginAuthCaptchaChallengeSingleUse 验证验证码挑战在服务端一次性消费，旧签名 Cookie 重放不能再次通过验证码校验。
+// https://github.com/siyuan-note/siyuan/security/advisories/GHSA-23g4-vqq8-5764
+func TestLoginAuthCaptchaChallengeSingleUse(t *testing.T) {
+	engine, _, clientIP := newLoginAuthTestEngine(t)
+	engine.GET("/test/challenge", func(c *gin.Context) {
+		session := util.GetSession(c)
+		util.GetWorkspaceSession(session).CaptchaID = util.NewCaptchaChallenge("ABCD")
+		if err := session.Save(c); err != nil {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		c.Status(http.StatusNoContent)
+	})
+
+	var sessionCookie *http.Cookie
+	for i := 1; i <= 4; i++ {
+		if _, _, sessionCookie = loginTestLogin(t, engine, clientIP, "wrong-"+strconv.Itoa(i), "", sessionCookie); nil == sessionCookie {
+			t.Fatal("login did not issue the session cookie")
+		}
+	}
+	if util.WrongAuthCount <= 3 {
+		t.Fatalf("captcha threshold not reached: %d", util.WrongAuthCount)
+	}
+
+	_, challengeCookie := loginTestRequest(t, engine, clientIP, http.MethodGet, "/test/challenge", nil, sessionCookie)
+	if nil == challengeCookie {
+		t.Fatal("challenge request did not issue the session cookie")
+	}
+
+	if code, msg, _ := loginTestLogin(t, engine, clientIP, "wrong-5", "ABCD", challengeCookie); 1 != code || "invalid auth code" != msg {
+		t.Fatalf("first captcha use = %d %q, want code 1 and invalid auth code", code, msg)
+	}
+	if code, msg, _ := loginTestLogin(t, engine, clientIP, "wrong-6", "ABCD", challengeCookie); 1 != code || "invalid captcha" != msg {
+		t.Fatalf("replayed captcha = %d %q, want code 1 and invalid captcha", code, msg)
+	}
+
+	_, challengeCookie = loginTestRequest(t, engine, clientIP, http.MethodGet, "/test/challenge", nil, sessionCookie)
+	code, msg, authCookie := loginTestLogin(t, engine, clientIP, loginAuthTestAccessCode, "abcd", challengeCookie)
+	if 0 != code {
+		t.Fatalf("login with a new challenge = %d %q", code, msg)
+	}
+	if nil == authCookie {
+		t.Fatal("login did not issue the authenticated cookie")
+	}
+	if recorder, _ := loginTestRequest(t, engine, clientIP, http.MethodPost, "/api/system/probeAdmin", nil, authCookie); http.StatusNoContent != recorder.Code {
+		t.Fatalf("authenticated request = %d, want %d", recorder.Code, http.StatusNoContent)
+	}
+	if recorder, _ := loginTestRequest(t, engine, clientIP, http.MethodPost, "/api/system/probeAdmin", nil, challengeCookie); http.StatusUnauthorized != recorder.Code {
+		t.Fatalf("request with the stale cookie = %d, want %d", recorder.Code, http.StatusUnauthorized)
+	}
+}
+
+// TestGetCaptchaStoresChallengeID 验证验证码答案只保存在服务端，会话中仅保存挑战 ID。
+// https://github.com/siyuan-note/siyuan/security/advisories/GHSA-23g4-vqq8-5764
+func TestGetCaptchaStoresChallengeID(t *testing.T) {
+	engine, store, clientIP := newLoginAuthTestEngine(t)
+	engine.GET("/api/system/getCaptcha", func(c *gin.Context) {
+		if content := GetCaptcha(c, apicontract.EmptyRequest{}).Binary(); nil != content {
+			c.Data(content.Status, content.ContentType, content.Bytes)
+			return
+		}
+		c.Status(http.StatusInternalServerError)
+	})
+
+	recorder, sessionCookie := loginTestRequest(t, engine, clientIP, http.MethodGet, "/api/system/getCaptcha", nil, nil)
+	if http.StatusOK != recorder.Code {
+		t.Fatalf("getCaptcha = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if nil == sessionCookie {
+		t.Fatal("getCaptcha did not issue the session cookie")
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:6806/", nil)
+	request.AddCookie(sessionCookie)
+	session, err := store.Get(request, "siyuan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, ok := session.Values["data"].(string)
+	if !ok {
+		t.Fatal("session data is missing from the cookie")
+	}
+	data := &util.SessionData{}
+	if err = json.Unmarshal([]byte(raw), data); err != nil {
+		t.Fatal(err)
+	}
+	workspaceSession := data.Workspaces[util.WorkspaceDir]
+	if nil == workspaceSession || "" == workspaceSession.CaptchaID {
+		t.Fatal("captcha challenge ID is missing from the session")
+	}
+	if strings.Contains(raw, `"Captcha":`) {
+		t.Fatalf("captcha answer is still stored in the session: %s", raw)
 	}
 }

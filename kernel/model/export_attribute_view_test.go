@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -24,6 +12,7 @@ import (
 
 	"github.com/88250/lute/ast"
 	"github.com/88250/lute/html"
+	"github.com/88250/lute/parse"
 	"github.com/88250/lute/render"
 	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/siyuan-note/siyuan/kernel/av"
@@ -141,6 +130,77 @@ func TestAttributeViewExportTablePresentation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAttributeViewMarkdownExportPreservesRichText(t *testing.T) {
+	const boxID = "20261108000000-box0001"
+	setupExportRelatedTest(t, boxID)
+	Conf.Editor.Store(conf.NewEditor())
+	setupAttributeViewRefI18n(t)
+	attrView := av.NewAttributeView("20261108000001-av00001")
+	primary := attrView.GetBlockKeyValues()
+	rowID := "20261108000002-row0001"
+	primary.Values = []*av.Value{{ID: ast.NewNodeID(), KeyID: primary.Key.ID, BlockID: rowID,
+		Type: av.KeyTypeBlock, IsDetached: true, Block: &av.ValueBlock{Content: "Row"}}}
+	textKey := av.NewKey(ast.NewNodeID(), "Rich text", "", av.KeyTypeText)
+	value := &av.ValueText{Content: "stale plain projection", Rich: &av.ValueTextRich{
+		Spec: av.ValueTextRichSpec, Format: av.ValueTextRichFormatKramdown,
+		Content: "3. **first | item**\n4. <u>second</u>\n   - nested\n\nline one  \nline two\n\n" +
+			"```go\na | b\nc\n```\n\n[link](https://example.com/path?a=1&b=2)",
+	}}
+	attrView.KeyValues = append(attrView.KeyValues, &av.KeyValues{Key: textKey, Values: []*av.Value{{
+		ID: ast.NewNodeID(), KeyID: textKey.ID, BlockID: rowID, Type: av.KeyTypeText, Text: value,
+	}}})
+	relation := &av.Key{ID: ast.NewNodeID(), Type: av.KeyTypeRelation, Relation: &av.Relation{AvID: attrView.ID}}
+	rollup := &av.Key{ID: ast.NewNodeID(), Name: "Rollup", Type: av.KeyTypeRollup,
+		Rollup: &av.Rollup{RelationKeyID: relation.ID, KeyID: textKey.ID, Calc: &av.RollupCalc{Operator: av.CalcOperatorNone}}}
+	attrView.KeyValues = append(attrView.KeyValues,
+		&av.KeyValues{Key: relation, Values: []*av.Value{{ID: ast.NewNodeID(), KeyID: relation.ID, BlockID: rowID,
+			Type: av.KeyTypeRelation, Relation: &av.ValueRelation{BlockIDs: []string{rowID}}}}},
+		&av.KeyValues{Key: rollup})
+	view := attrView.Views[0]
+	view.Table.Columns = []*av.ViewTableColumn{
+		{BaseField: &av.BaseField{ID: primary.Key.ID}},
+		{BaseField: &av.BaseField{ID: textKey.ID}},
+		{BaseField: &av.BaseField{ID: rollup.ID}},
+	}
+	view.Table.RowIDs = []string{rowID}
+	tree := treenode.NewTree(boxID, "/20261108000003-doc0001.sy", "/Export", "Export")
+	database := &ast.Node{Type: ast.NodeAttributeView, ID: "20261108000004-avnode1",
+		AttributeViewID: attrView.ID, AttributeViewType: string(av.LayoutTypeTable)}
+	database.SetIALAttr(av.NodeAttrView, view.ID)
+	tree.Root.AppendChild(database)
+	writeExportRelatedTestTree(t, tree)
+	for _, wrap := range []bool{false, true} {
+		view.Table.Columns[1].Wrap = wrap
+		if err := av.SaveAttributeView(attrView); err != nil {
+			t.Fatal(err)
+		}
+		before, err := av.ReadAttributeViewDataInBox(attrView.ID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		markdown := exportMarkdownContent0(tree.ID, tree, markdownExportOptions{Config: *conf.NewExport(), Ext: ".md"})
+		for _, expected := range []string{"<ol start=\"3\">", "<strong>first &#124; item</strong>", "<u>second</u>", "<ul>",
+			"<br", "<pre><code", "a &#124; b&#10;c", `href="https://example.com/path?a=1&amp;b=2"`} {
+			if !strings.Contains(markdown, expected) {
+				t.Fatalf("wrap=%v: Markdown export lost %q: %s", wrap, expected, markdown)
+			}
+		}
+		if strings.Count(markdown, "<u>second</u>") != 2 {
+			t.Fatalf("rollup lost the original rich text: %s", markdown)
+		}
+		engine := NewLute()
+		parsed := parse.Parse("", []byte(markdown), engine.ParseOptions)
+		tables := parsed.Root.ChildrenByType(ast.NodeTable)
+		if len(tables) != 1 || len(tables[0].ChildrenByType(ast.NodeTableCell)) != 6 {
+			t.Fatalf("rich text split the exported table: %s", markdown)
+		}
+		after, err := av.ReadAttributeViewDataInBox(attrView.ID, "")
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatalf("Markdown export changed the stored database: %v", err)
+		}
 	}
 }
 
@@ -287,12 +347,16 @@ func TestAttributeViewExportDoesNotCrossEncryptedBoundary(t *testing.T) {
 	}
 
 	directIDs := hashset.New()
-	walkRelationAvs(directAvID, "", directIDs)
+	if err := walkRelationAvs(directAvID, "", directIDs); err != nil {
+		t.Fatal(err)
+	}
 	if !directIDs.Contains(directAvID) || directIDs.Contains(encryptedAvID) {
 		t.Fatalf("direct relation export crossed the encrypted boundary: %v", directIDs.Values())
 	}
 	recursiveIDs := hashset.New()
-	walkRelationAvs(recursiveAvID, "", recursiveIDs)
+	if err := walkRelationAvs(recursiveAvID, "", recursiveIDs); err != nil {
+		t.Fatal(err)
+	}
 	if !recursiveIDs.Contains(recursiveAvID) || !recursiveIDs.Contains(middleAvID) ||
 		recursiveIDs.Contains(encryptedAvID) {
 		t.Fatalf("recursive relation export crossed the encrypted boundary: %v", recursiveIDs.Values())

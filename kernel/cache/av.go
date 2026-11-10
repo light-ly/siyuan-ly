@@ -1,27 +1,17 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package cache
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/dgraph-io/ristretto"
+	"github.com/siyuan-note/siyuan/kernel/templatehttp"
 )
 
 var avCache, _ = ristretto.NewCache(&ristretto.Config{
@@ -162,12 +152,30 @@ func SetAVDataWithVersionInBox(avID, boxID string, raw []byte) uint64 {
 	return setAVDataInBox(avID, boxID, raw)
 }
 
+// AVDataReadVersion captures source-read admission without allocating key tombstones.
+func AVDataReadVersion() uint64 {
+	avSearchDataCacheLock.RLock()
+	defer avSearchDataCacheLock.RUnlock()
+	return avDataVersion
+}
+
+func SetAVDataFromReadInBox(avID, boxID string, raw []byte, version uint64) uint64 {
+	return setAVDataFromReadInBox(avID, boxID, raw, &version)
+}
+
 func setAVDataInBox(avID, boxID string, raw []byte) (version uint64) {
+	return setAVDataFromReadInBox(avID, boxID, raw, nil)
+}
+
+func setAVDataFromReadInBox(avID, boxID string, raw []byte, expected *uint64) (version uint64) {
 	if raw == nil {
 		return
 	}
 	avSearchDataCacheLock.Lock()
 	defer avSearchDataCacheLock.Unlock()
+	if expected != nil && *expected != avDataVersion {
+		return 0
+	}
 	key := avCacheKey(avID, boxID)
 	version = invalidateAVSearchDataByKeyLocked(key)
 	replaceAVCacheLocked(avID, key, &avCacheEntry{raw: raw, version: version}, int64(len(raw)))
@@ -203,7 +211,10 @@ func RemoveAVData(avID string) {
 func ClearAVCache() {
 	avSearchDataCacheLock.Lock()
 	defer avSearchDataCacheLock.Unlock()
+	avDataVersion++
 	avCacheGeneration.Add(1)
+	templatehttp.ClearTemplateResults()
+	clearAVOrderedIDs("")
 	avCacheKeys = map[string]map[string]uint64{}
 	avCache.Clear()
 	avDataVersions = map[string]uint64{}
@@ -246,5 +257,9 @@ func invalidateAVSearchDataByKeyLocked(key string) (version uint64) {
 	version = avDataVersion
 	avDataVersions[key] = version
 	delete(avSearchDataCache, key)
+	_, avID, found := strings.Cut(key, "\x00")
+	if found {
+		clearAVOrderedIDs(avID)
+	}
 	return
 }

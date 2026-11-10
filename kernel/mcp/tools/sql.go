@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
@@ -29,13 +17,13 @@ const sqlQueryDefaultLimit = 100
 
 var SQLTool = &Tool{
 	Name:        "sql",
-	Description: "Read-only SQL on SiYuan's database. Actions: schema() for table definitions, type codes, hierarchy, search examples and native SQL embed create/read/update guidance; query(stmt) for statistics, arbitrary projections and structural searches. Results include raw structured rows and verified block links. Results default to at most 100 rows; use explicit LIMIT and OFFSET for pagination. For the frontend SQL search interface or dynamic document embeds, use SELECT b.* FROM blocks b to return complete block rows; ordinary search filters do not apply to SQL. Create or update document embeds through block tools, not SQL writes.",
+	Description: "Read-only SQL on SiYuan's database. Actions: schema() for table definitions, type codes, hierarchy, search examples and native SQL embed create/read/update guidance; query(stmt) for statistics, arbitrary projections and structural searches. Results include raw structured rows and verified block links. Results default to at most 100 rows; use explicit LIMIT and OFFSET for pagination. For the frontend SQL search interface or dynamic document embeds, use SELECT b.* FROM blocks b to return complete block rows; ordinary search filters do not apply to SQL. Create or update document embeds through block tools, not SQL writes. Use block.get or block.get_kramdown to read specific blocks before answering about their content, rather than substituting SQL projections. Never switch to SQL to bypass block-tool notebook scope, ambiguity or access errors; pass the owning notebook for encrypted queries.",
 	InputSchema: ToolSchema{
 		Type: "object",
 		Properties: map[string]Property{
 			"action":   {Type: "string", Description: "Operation", Enum: []string{"query", "schema"}},
 			"stmt":     {Type: "string", Description: "SQL SELECT statement. Results default to at most 100 rows; use LIMIT and OFFSET for pagination"},
-			"notebook": {Type: "string", Description: "Optional notebook ID used to query an encrypted notebook"},
+			"notebook": {Type: "string", Description: "Owning notebook ID required for encrypted queries; the notebook must be unlocked. Omit for the normal notebook database. Selects the database, not a SQL row filter"},
 		},
 		Required: []string{"action"},
 	},

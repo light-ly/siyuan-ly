@@ -1,22 +1,11 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -91,6 +80,65 @@ func writeProbeFile(t *testing.T, path, data string) {
 	}
 	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatalf("write [%s] failed: %v", path, err)
+	}
+}
+
+func TestResolvePathRequiresWorkspaceRelativePath(t *testing.T) {
+	workspace := setupProbeWorkspace(t)
+	for _, p := range []string{
+		"/tmp/x", `\tmp\x`, "C:/tmp/x", `C:\tmp\x`, "C:tmp/x", "c:x",
+		"//server/share/x", `\\server\share\x`, `\\?\C:\tmp\x`,
+		"../x", "temp/../../x", `..\x`, `temp\..\..\x`,
+	} {
+		t.Run(p, func(t *testing.T) {
+			if abs, err := resolvePath(p); err == nil || !strings.Contains(err.Error(), "workspace-relative path") {
+				t.Fatalf("resolvePath(%q) = %q, %v; want a workspace-relative path error", p, abs, err)
+			}
+		})
+	}
+	for _, p := range []string{"temp/x", "./temp/x", "temp/nested/../x"} {
+		abs, err := resolvePath(p)
+		want := filepath.Join(workspace, filepath.FromSlash(p))
+		if err != nil || abs != want {
+			t.Fatalf("resolvePath(%q) = %q, %v; want %q", p, abs, err, want)
+		}
+	}
+}
+
+func TestFileActionsRejectAbsolutePaths(t *testing.T) {
+	for _, args := range []map[string]any{
+		{"action": "list", "path": "/temp"},
+		{"action": "read", "path": "/temp/source.txt"},
+		{"action": "read", "path": "/temp/source.txt", "withMetadata": true},
+		{"action": "write", "path": "/temp/new.txt", "data": "new"},
+		{"action": "write", "path": "/temp/new.txt", "data": "new", "ifAbsent": true},
+		{"action": "edit", "path": "/temp/source.txt", "expectedRevision": "unused"},
+		{"action": "delete", "path": "/temp/source.txt"},
+		{"action": "rename", "old": "/temp/source.txt", "new": "temp/renamed.txt"},
+		{"action": "rename", "old": "temp/source.txt", "new": "/temp/renamed.txt"},
+		{"action": "copy", "src": "/temp/source.txt", "dst": "temp/copied.txt"},
+		{"action": "copy", "src": "temp/source.txt", "dst": "/temp/copied.txt"},
+		{"action": "grep", "path": "/temp", "pattern": "source"},
+		{"action": "find", "path": "/temp"},
+		{"action": "stat", "path": "/temp/source.txt"},
+	} {
+		t.Run(fmt.Sprint(args), func(t *testing.T) {
+			workspace := setupProbeWorkspace(t)
+			source := filepath.Join(workspace, "temp", "source.txt")
+			writeProbeFile(t, source, "source content")
+			result, err := fileHandler(args)
+			if err != nil || !result.IsError || !strings.Contains(probeText(result), "relative") {
+				t.Fatalf("absolute path was not rejected: %#v, %v", result, err)
+			}
+			data, err := os.ReadFile(source)
+			if err != nil || string(data) != "source content" {
+				t.Fatalf("rejected operation modified source: %q, %v", data, err)
+			}
+			entries, err := os.ReadDir(filepath.Dir(source))
+			if err != nil || len(entries) != 1 || entries[0].Name() != "source.txt" {
+				t.Fatalf("rejected operation modified directory: %v, %v", entries, err)
+			}
+		})
 	}
 }
 

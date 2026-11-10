@@ -24,8 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"golang.org/x/sys/unix"
 )
 
 // defaultExternalFilesDir 是官方包名的外部文件目录；标志文件内容优先，兼容调试包名后缀。
@@ -84,7 +82,6 @@ func init() {
 	}
 	step("3 open ok")
 	// Go 运行时致命输出绕过 os.Stderr 直接写 fd 2，复制文件描述符接管标准错误。
-	// unix.Dup2 在 arm64 下内部使用 dup3。
-	_ = unix.Dup2(int(f.Fd()), 2)
+	_ = dupStderr(int(f.Fd()))
 	step("4 dup2 done")
 }

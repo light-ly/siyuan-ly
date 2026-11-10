@@ -5,6 +5,9 @@ import {isBrowserRenderableImagePath} from "../../util/imageURL";
 import {copyPNGByLink, writeAssetToClipboard} from "../../menus/util";
 import {isEncryptedBox} from "../../util/pathName";
 import {createLivePhotoPlayer} from "./livePhoto";
+import {writeClipboardData} from "../util/compatibility";
+import {showMessage} from "../../dialog/message";
+import {getZIndex} from "../../util/zIndex";
 
 const getCopyFileMenu = (src: string) => {
     try {
@@ -27,10 +30,12 @@ export const previewImages = (srcList: Array<string | {src: string, video?: stri
     addScript(`${Constants.PROTYLE_CDN}/js/viewerjs/viewer.js?v=1.14.0`, "protyleViewerScript").then(() => {
         const imagesElement = document.createElement("ul");
         let html = "";
+        const imageSources: string[] = [];
         let initialViewIndex = -1;
         srcList.forEach((source, index: number) => {
             const item = typeof source === "string" ? source : source.src;
             if (item) {
+                imageSources.push(item);
                 html += `<li><img src="${encodeURI(item)}"></li>`;
                 if (currentSrc && initialViewIndex === -1 && (currentSrc.endsWith(encodeURI(item)) || currentSrc.endsWith(item)) &&
                     (currentVideo === undefined || (typeof source === "string" ? "" : source.video || "") === currentVideo)) {
@@ -65,13 +70,46 @@ export const previewImages = (srcList: Array<string | {src: string, video?: stri
                     name = image.src.substring(image.src.lastIndexOf("/") + 1);
                 }
                 name = name.substring(0, name.lastIndexOf(".")).replace(/-\d{14}-\w{7}$/, "");
-                return `${name} [${imageData.naturalWidth} × ${imageData.naturalHeight}]`;
+                return `${currentIndex + 1}/${imagesElement.childElementCount} ${name} [${imageData.naturalWidth} × ${imageData.naturalHeight}]`;
             }],
             button: false,
             magnifier: false,
             navigation: true,
             transition: false,
             ready: () => {
+                window.siyuan.zIndex = Math.max(window.siyuan.zIndex + 1, getZIndex(viewer.viewer));
+                viewer.viewer.style.zIndex = window.siyuan.zIndex.toString();
+                const copyURLElement = document.createElement("li");
+                copyURLElement.className = "viewer-copy-url ariaLabel";
+                copyURLElement.tabIndex = 0;
+                copyURLElement.setAttribute("role", "button");
+                copyURLElement.setAttribute("aria-label", window.siyuan.languages.copyImageURL);
+                copyURLElement.setAttribute("data-position", "north");
+                copyURLElement.innerHTML = '<svg><use xlink:href="#iconLink"></use></svg>';
+                const copyURL = async () => {
+                    if (!viewer.viewed || !viewer.image) {
+                        return;
+                    }
+                    const result = await writeClipboardData({textPlain: imageSources[currentIndex]})
+                        .catch(() => ({status: "failed"}));
+                    if (result.status === "failed") {
+                        showMessage(window.siyuan.languages.copyImageURLFailed, 7000, "error");
+                        return;
+                    }
+                    showMessage(window.siyuan.languages.copied);
+                };
+                copyURLElement.addEventListener("click", event => {
+                    event.stopPropagation();
+                    copyURL();
+                });
+                copyURLElement.addEventListener("keydown", event => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        copyURL();
+                    }
+                });
+                viewer.toolbar.querySelector("ul").append(copyURLElement);
                 if (srcList.some(source => typeof source !== "string" && source.video)) {
                     liveButton = document.createElement("li");
                     liveButton.className = "viewer-live-photo ariaLabel fn__none";
@@ -79,7 +117,7 @@ export const previewImages = (srcList: Array<string | {src: string, video?: stri
                     liveButton.setAttribute("role", "button");
                     liveButton.setAttribute("aria-label", window.siyuan.languages.livePhoto);
                     liveButton.setAttribute("data-position", "north");
-                    liveButton.innerHTML = '<svg><use xlink:href="#iconVideo"></use></svg>';
+                    liveButton.innerHTML = '<svg><use xlink:href="#iconImagePlay"></use></svg>';
                     const play = () => {
                         if (stopLivePhoto) {
                             stopLive();

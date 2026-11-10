@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package conf
 
@@ -24,6 +12,7 @@ type Sync struct {
 	Interval            int      `json:"interval"`            // 自动同步间隔，单位：秒
 	Synced              int64    `json:"synced"`              // 最近同步时间
 	Stat                string   `json:"stat"`                // 最近同步统计信息
+	LastResult          int      `json:"lastResult"`          // 最近同步结果：0 未知，1 成功，2 失败；不持久化进行中状态
 	GenerateConflictDoc bool     `json:"generateConflictDoc"` // 云端同步冲突时是否生成冲突文档
 	AssetDownloadMode   int      `json:"assetDownloadMode"`   // 当前设备的资源下载模式，0：全部下载，1：按需下载
 	Provider            int      `json:"provider"`            // 云端存储服务提供者

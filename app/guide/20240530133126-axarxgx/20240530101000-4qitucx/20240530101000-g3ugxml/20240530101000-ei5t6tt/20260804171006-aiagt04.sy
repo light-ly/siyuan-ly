@@ -6,7 +6,7 @@
 		"id": "20260804171006-aiagt04",
 		"title": "AI エージェント",
 		"type": "doc",
-		"updated": "20261018104335"
+		"updated": "20261106140529"
 	},
 	"Children": [
 		{
@@ -44,7 +44,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260804170025-r2m4o0b",
-				"updated": "20260926163337"
+				"updated": "20261024161816"
 			},
 			"Children": [
 				{
@@ -164,7 +164,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20260926163337-49n3p0a",
-				"updated": "20260926163337"
+				"updated": "20261024161816"
 			},
 			"Children": [
 				{
@@ -224,12 +224,26 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20260926163337-f5ixseu",
-				"updated": "20260926163337"
+				"updated": "20261024161816"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "指示はワークスペース内の data/ai/AGENTS.md に最大 32 KiB の UTF-8 テキストとして保存されます。データ同期が有効で、同期の除外ルールに該当しなければ、ワークスペースとともに同期されます。テキストエディターで直接編集することもできます。ファイルが存在しない場合や空の場合、カスタム指示は追加されません。"
+					"Data": "指示はワークスペース内の data/storage/ai/AGENTS.md に最大 32 KiB の UTF-8 テキストとして保存されます。データ同期が有効で、同期の除外ルールに該当しなければ、ワークスペースとともに同期されます。テキストエディターで直接編集することもできます。"
+				}
+			]
+		},
+		{
+			"ID": "20261024161816-v4wiksm",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024161816-v4wiksm",
+				"updated": "20261024161816"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "ファイルが存在しない場合や空の場合、カスタム指示は追加されません。旧パスの data/ai/AGENTS.md も引き続き読み込めます。設定で保存すると新しい場所に移行します。旧パスに対する同期の除外ルールがある場合は、保存前に更新してください。両方のファイルの内容が異なる場合は、新しいファイルに内容を統合し、古いファイルを削除してから続行してください。"
 				}
 			]
 		},
@@ -267,7 +281,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260804170027-2jaadkf",
-				"updated": "20261016191953"
+				"updated": "20261105133947"
 			},
 			"Children": [
 				{
@@ -488,7 +502,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20260804170039-9kcdqv4",
-				"updated": "20260816114944"
+				"updated": "20261105133947"
 			},
 			"Children": [
 				{
@@ -502,7 +516,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20260804170040-m2zcmhf",
-				"updated": "20260816114944"
+				"updated": "20261105133947"
 			},
 			"Children": [
 				{
@@ -538,7 +552,94 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "エージェントの実行中は停止ボタンで現在のタスクを中断できます。目的、範囲、出力先を明確に指定すると、通常はより安定した結果が得られます。"
+					"Data": "エージェントの実行中は停止ボタンで現在のタスクを中断できます。自動再試行では同じ思考カードを保持して続きを表示します。停止後も表示済みの内容を保持し、サーバー側の保存と復元の完了を待ちますが、実行済みの操作は取り消されません。接続が遅いと生成が中断される場合があります。セッションを開き直すと、保存済みの内容を復元できます。目的、範囲、出力先を明確に指定すると、通常はより安定した結果が得られます。"
+				}
+			]
+		},
+		{
+			"ID": "20261022182404-hxp98ok",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261022182404-hxp98ok",
+				"updated": "20261027140312"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "入力欄は文字や画像に合わせて自動的に高くなり、パネルで利用可能な高さの上限に達するとスクロールします。デスクトップでは入力欄にマウスポインターを合わせると上端に小さなハンドルが表示され、タッチ画面では常に表示されます。ハンドルを上下にドラッグすると、現在のメッセージの入力中は高さが固定され、空の入力欄も広げられます。"
+				}
+			]
+		},
+		{
+			"ID": "20261024164212-5kzoj2e",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024164212-5kzoj2e",
+				"updated": "20261027140312"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "最小の高さはテキストを一行すべて表示できる大きさで、最大の高さはパネルの利用可能なスペースに応じて決まります。メッセージを送信すると、空になった入力欄は初期の高さに戻り、次のメッセージでは再び自動調整されます。入力中にハンドルをダブルクリックして自動調整に戻すこともできます。内容の前後にはスクロール用の余白があり、最初と最後の行を確認しやすくなっています。"
+				}
+			]
+		},
+		{
+			"ID": "20261022182404-yecrc0p",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261022182404-yecrc0p",
+				"updated": "20261024153700"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "高さのハンドルにキーボードフォーカスがあるときは、"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "↑"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " または "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "↓"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " で高さを増減し、"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Home"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " で最小、"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "End"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " で現在利用できる最大の高さに変更できます。ドラッグ中に "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Esc"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " を押すと調整を取り消します。"
 				}
 			]
 		},
@@ -567,7 +668,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "読み取りと検索は通常そのまま実行されます。データの作成、変更、移動、削除、インポートを行う操作では確認カードが表示され、ローカルへの書き込み、データ送信、外部料金などの影響が示されます。実行、拒否、または "
+					"Data": "ローカルのみの読み取りと検索は通常そのまま実行されます。データの作成、変更、移動、削除、インポートやネットワークリクエストでは、機能設定に従って確認カードが表示され、ローカルへの書き込み、データ送信、外部料金の可能性が示されます。オンライン検索、ウェブ取得、クラウド受信箱、オンラインのバザー照会も外部にリクエストを送信します。直接ウェブ取得と HTTP リクエストは、ダウンロードしたファイルをワークスペースに保存する場合もあります。料金の表示は有料サービスを利用する可能性を示し、毎回課金されるという意味ではありません。オンデマンドのリソース取得や書き込み前のスナップショット作成でも、同期先へのアクセスやローカルリソースへの書き込みが発生する場合があります。確認後にローカル書き込み、外部送信、料金が追加された場合、呼び出しは中止され、現在の設定で再確認が必要になります。実行、拒否、または "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -700,7 +801,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260804170050-7cf4sou",
-				"updated": "20260816130653"
+				"updated": "20261102182306"
 			},
 			"Children": [
 				{
@@ -792,7 +893,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " と入力すると、インストール済みのスキルを検索して選択できます。"
+					"Data": " と入力すると、スラッシュメニューが有効な場合にインストール済みのスキルを検索して選択できます。モバイルでは、スラッシュメニューは初期設定で無効です。スラッシュメニューの設定にかかわらず、キーボードツールバーのプラスパネルからスキルを選択できます。"
 				}
 			]
 		},
@@ -801,7 +902,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20260804170053-2kk8p7q",
-				"updated": "20260804180000"
+				"updated": "20261102182306"
 			},
 			"Children": [
 				{
@@ -838,17 +939,266 @@
 			]
 		},
 		{
+			"ID": "20261102182306-mpfox5j",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261102182306-mpfox5j",
+				"updated": "20261102182306"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "外部スキルのインストール"
+				}
+			],
+			"HeadingLevel": 3
+		},
+		{
+			"ID": "20261102182306-7npg8sf",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102182306-7npg8sf",
+				"updated": "20261102182306"
+			},
+			"Children": [
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "owner/repo"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "、"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "npx skills add owner/repo -g"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "、および "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "https://github.com/owner/repo"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " などのリポジトリ URL では、リポジトリ全体からインストールします。まず "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "main"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " を試し、ダウンロードに失敗すると "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "master"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " を試します。コマンド形式はリポジトリ名の抽出にのみ使用され、コマンドの実行や "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "--skill"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " などの絞り込み引数の適用は行いません。"
+				}
+			]
+		},
+		{
+			"ID": "20261102182306-ui4x6js",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102182306-ui4x6js",
+				"updated": "20261102182306"
+			},
+			"Children": [
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "https://github.com/owner/repo/tree/dev"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " などのブランチ単位の tree URL は、その参照のリポジトリ内のスキルをインストールします。"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "https://github.com/owner/repo/tree/main/skills/example"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " などのサブディレクトリの tree URL は、そのディレクトリ内だけを対象にします。単一スキルのディレクトリなら1つ、コレクションなら配下のスキルをインストールします。"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "/"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " を含むブランチ名にも対応し、有効な参照の最長の接頭辞を優先して解決します。タグやコミット参照も使用できます。指定ディレクトリが存在しない場合やスキルがない場合はエラーとなり、リポジトリ全体のインストールには切り替わりません。"
+				}
+			]
+		},
+		{
+			"ID": "20261102182306-thicbmo",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102182306-thicbmo",
+				"updated": "20261102182306"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "リポジトリアーカイブや "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "https://github.com/owner/repo/releases/download/v1.0/skills.zip"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " などの release ZIP URL は、展開後に "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "SKILL.md"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " を含むスキルディレクトリを再帰的に検索します。コレクションでは複数のスキルを一度にインストールする場合があります。スキルディレクトリが見つかると、その内部で別のスキルを検索せず、ディレクトリと付属リソースをまとめてコピーします。ダウンロードの上限は 10 MB です。サブディレクトリの tree URL でもリポジトリアーカイブ全体のダウンロードが必要です。"
+				}
+			]
+		},
+		{
+			"ID": "20261102182306-tqnybrt",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102182306-tqnybrt",
+				"updated": "20261102182306"
+			},
+			"Children": [
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "https://github.com/owner/repo/blob/main/skills/example/SKILL.md"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " などの blob URL や "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "https://raw.githubusercontent.com/owner/repo/main/skills/example/SKILL.md"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " などの raw URL は、単一の "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "SKILL.md"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " だけをインストールし、付属のスクリプトや参考資料はダウンロードしません。単一ファイルのインストールには Front Matter の "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "name"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " が必要です。付属リソースが必要な場合は、スキルディレクトリの tree URL または ZIP を使用してください。"
+				}
+			]
+		},
+		{
+			"ID": "20261102182306-76sq5br",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102182306-76sq5br",
+				"updated": "20261102182306"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "スキル名に基づいてワークスペースのスキルディレクトリに保存します。ZIP のインストールは同名スキルのディレクトリ全体を置き換えます。blob/raw の単一ファイルのインストールは "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "code",
+					"TextMarkTextContent": "SKILL.md"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " だけを上書きし、既存のほかのファイルを保持します。再インストール前にローカルでの変更をバックアップしてください。"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " インストーラーはスキルディレクトリ外の data/storage/ai/agent/skills.json にインストール記録を保存します。スキル一覧には認証情報を除いた取得元 URL、確認できたリポジトリ参照とサブディレクトリ、判明している場合の完全なコミット SHA、インストール日時、思源のバージョン、およびすべての通常ファイルと相対パスの決定的な SHA-256 ダイジェストが表示されます。ダイジェストはインストール直後のディレクトリの状態を示し、現在の内容の完全性や信頼性を保証するものではありません。単一ファイルのインストールでは sourceScope は manifest-only です。取得元 URL は SKILL.md のみを指し、ダイジェストには保持されたリソースも含まれますが、そのリソースの取得元は今回のインストールでは確認できません。ZIP インストールの範囲は directory です。ディレクトリ名の変更は記録に反映され、削除時には記録も削除されます。記録のない既存スキルや手動作成したスキルは unknown と表示されます。上書きが中断された場合、誤った対応を残す代わりに取得元が不明になることがあります。移行時はこの記録ファイルを含むワークスペース全体をコピーしてください。記録によってスキルが自動的に有効化、更新、承認されることはありません。"
+				}
+			]
+		},
+		{
+			"ID": "20261102182306-hdyii2e",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261102182306-hdyii2e",
+				"updated": "20261102182306"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "現在、スキルの更新を確認する機能はありません。提供元のバージョンと自分で比較し、確認後に再インストールしてください。"
+				}
+			]
+		},
+		{
 			"ID": "20260804170054-qfoixg9",
 			"Type": "NodeHeading",
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260804170054-qfoixg9",
-				"updated": "20260812170000"
+				"updated": "20261102193434"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
 					"Data": "MCP サービス"
+				}
+			]
+		},
+		{
+			"ID": "20261026182137-bhff56j",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261026182137-bhff56j",
+				"updated": "20261102193434"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "外部 MCP ツールは必要に応じて読み込まれます。エージェントは最初にサービス一覧のみを受け取り、必要なサービスのツール定義を読み込むと、次のモデルリクエストから利用できます。メッセージで使用するサービスを指定することもできます。読み込み状態は現在のユーザーリクエストとそのツール実行中のみ保持され、次のメッセージではリセットされます。複数のサービスを同時に読み込め、固定の数の上限はありません。モデルは不要なサービスを解除してコンテキストを節約できます。無効なツールは読み込まれず、実行の確認ポリシーも適用されます。エージェントの機能設定で組み込み mcp ツールを無効にすると外部ツール定義をすべて送信する方式に戻り、再度有効にすると必要に応じた読み込みに戻ります。mcp 検出ツールを呼び出すときは、表示名ではなく正確なサービス ID を使用します。action=list を指定して server を省略すると、利用可能なサービス ID を確認できます。エラーには、サービス名の指定、不明な ID、サービスの無効化、接続やツールの可用性の問題、機能ポリシーによる制限の違いが示されます。"
 				}
 			]
 		},
@@ -913,12 +1263,26 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20260804170056-7d7fak1",
-				"updated": "20260812170000"
+				"updated": "20261024161816"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "stdio サービスは、ユーザーが選択したカーネル環境変数だけを継承し、起動するたびに現在の値を読み取ります。環境変数の各項目ではシークレットと変数も参照できます。シークレットを参照すると、その平文がこのプログラムと子プロセスに渡され、直接入力した値は平文で保存されます。認証が必要な HTTP サービスでは OAuth 認証が案内されます。再利用するシークレットとパラメーターは "
+					"Data": "stdio サービスは、ユーザーが選択したカーネル環境変数だけを継承し、起動するたびに現在の値を読み取ります。環境変数の各項目ではシークレットと変数も参照できます。シークレットを参照すると、その平文がこのプログラムと子プロセスに渡され、直接入力した値は平文で保存されます。認証が必要な HTTP サービスでは OAuth 認証が案内されます。"
+				}
+			]
+		},
+		{
+			"ID": "20261024161816-ub5ldhk",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024161816-ub5ldhk",
+				"updated": "20261024161816"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "再利用するシークレットとパラメーターは "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -956,7 +1320,7 @@
 			"Type": "NodeHeading",
 			"Properties": {
 				"id": "20261018102417-5r3z242",
-				"updated": "20261018104335"
+				"updated": "20261028114540"
 			},
 			"Children": [
 				{
@@ -985,7 +1349,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20261018104335-h974oif",
-				"updated": "20261018104335"
+				"updated": "20261024164212"
 			},
 			"Children": [
 				{
@@ -1013,7 +1377,35 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " で検索サービスと取得サービスを個別に選択できます。既定では Exa 検索と直接取得を使用します。DeepSeek を使用する場合は、Search と Fetch で共有する DeepSeek API キーを入力します。この設定は対話モデルとは独立しています。DeepSeek Search は本文なしで 5 件の結果を要求し、各要約を 800 文字、出力全体を 8,000 文字に制限します。全文が必要な場合にページを取得してください。"
+					"Data": " で検索サービスと取得サービスを個別に選択できます。既定では Exa 検索と直接取得を使用します。DeepSeek を使用する場合は、Search と Fetch で共有する DeepSeek API キーを入力します。"
+				}
+			]
+		},
+		{
+			"ID": "20261028114540-s2hs8vm",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261028114540-s2hs8vm",
+				"updated": "20261028114540"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Exa API キーが空欄の場合は、レート制限付きの匿名サービスを使用します。自分のキーを入力すると、そのアカウントの利用枠を使用します。検索語は Exa に送信され、料金が発生する場合があります。Exa と DeepSeek のキーは別々に保存され、サービスを切り替えても保持されます。Exa のキーを消去すると匿名モードに戻ります。キーを使用したリクエストが失敗した場合はエラーを返し、匿名モードや別のサービスに自動で切り替えません。キーはローカル設定に暗号化して保存され、設定のエクスポートには含まれません。"
+				}
+			]
+		},
+		{
+			"ID": "20261024164212-omb0uex",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024164212-omb0uex",
+				"updated": "20261024164212"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "この設定は対話モデルとは独立しています。DeepSeek Search は本文なしで 5 件の結果を要求し、各要約を 800 文字、出力全体を 8,000 文字に制限します。全文が必要な場合にページを取得してください。"
 				}
 			]
 		},
@@ -1022,12 +1414,26 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20261018104335-6bib27g",
-				"updated": "20261018104335"
+				"updated": "20261024164212"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "DeepSeek Search は検索語を、DeepSeek Fetch は対象 URL を DeepSeek に送信します。ブラウザーの Cookie やログイン状態は送信しません。これらのリクエストには料金が発生する場合があります。DeepSeek Fetch はページ本文のみを取得するため、ファイルのダウンロードには直接取得を選択してください。キーが無効、残高不足、レート制限、ページの取得不可などの場合はエラーを返し、サービスを自動で切り替えません。ツールの権限設定に従って外部リクエストを確認してください。"
+					"Data": "DeepSeek Search は検索語を、DeepSeek Fetch は対象 URL を DeepSeek に送信します。ブラウザーの Cookie やログイン状態は送信しません。これらのリクエストには料金が発生する場合があります。"
+				}
+			]
+		},
+		{
+			"ID": "20261024164212-2r4ag5i",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024164212-2r4ag5i",
+				"updated": "20261024164212"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "DeepSeek Fetch はページ本文のみを取得するため、ファイルのダウンロードには直接取得を選択してください。キーが無効、残高不足、レート制限、ページの取得不可などの場合はエラーを返し、サービスを自動で切り替えません。ツールの権限設定に従って外部リクエストを確認してください。"
 				}
 			]
 		},
@@ -1056,6 +1462,276 @@
 				{
 					"Type": "NodeText",
 					"Data": "レンダリング取得には、デスクトップインスタンスの接続を維持する必要があります。ブラウザー版、モバイル版、外部 MCP クライアントは、設定された取得サービスを使用します。本文が空の場合やタイムアウト時はエラーを返し、長い結果は 50,000 文字で切り詰めます。ログイン、埋め込みページ、ワーカー、継続的なブラウザー接続が必要なページは、取得できない場合があります。"
+				}
+			]
+		},
+		{
+			"ID": "20261010113646-e4bfwsj",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261010113646-e4bfwsj",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "SQL クエリ、検索、動的埋め込み"
+				}
+			],
+			"HeadingLevel": 2
+		},
+		{
+			"ID": "20261010113646-71xuifp",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261010113646-71xuifp",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "エージェントに、ブロックの種類、行内書式、親子関係、複数の条件でノートを検索し、結果を集計するよう依頼できます。"
+				}
+			]
+		},
+		{
+			"ID": "20261010172554-3gmocso",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261010172554-3gmocso",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "例：「過去1週間に更新されたタスクを集計して」「プロジェクト文書内の未完了のタスク項目を探して」。"
+				}
+			]
+		},
+		{
+			"ID": "20261010172554-los4ny5",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261010172554-los4ny5",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "結果を確認して移動するには検索ウィンドウでの表示を、文書内に一致するブロックを継続的に表示するには動的な SQL 埋め込みの作成を依頼します。集計結果は回答に使用できますが、埋め込みブロックとして直接表示することはできません。"
+				}
+			]
+		},
+		{
+			"ID": "20261010172554-nkhymve",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261010172554-nkhymve",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "既存の埋め込みを変更するときは、変更したい検索条件を伝え、元のブロックと表示設定を保持するよう依頼してください。"
+				}
+			]
+		},
+		{
+			"ID": "20261010173100-j0996f2",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261010173100-j0996f2",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "暗号化ノートブックは、ロックを解除して対象を指定してから検索してください。そのノートブック内の埋め込みは、同じノートブックの内容だけを検索できます。"
+				}
+			]
+		},
+		{
+			"ID": "20261106140529-y3ufklr",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261106140529-y3ufklr",
+				"updated": "20261106140529"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "文書とデータベースへの書き込み"
+				}
+			],
+			"HeadingLevel": 2
+		},
+		{
+			"ID": "20261106140529-uk3hrlq",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261106140529-uk3hrlq",
+				"updated": "20261106140529"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "文書の作成や移動では、親文書の ID で保存先を指定してください。ノートブックのルートには空の parentID を使い、タイトルは別に指定します。表示パスから文書の識別情報を推測しないでください。"
+				}
+			]
+		},
+		{
+			"ID": "20261106140529-x4692m3",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261106140529-x4692m3",
+				"updated": "20261106140529"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "新しいブロックの ID はシステムに生成させてください。更新前に元の内容を読み取り、既存のブロック ID を保持します。形式が不正な ID、重複した ID、既存ブロックと衝突する ID はツールが拒否します。"
+				}
+			]
+		},
+		{
+			"ID": "20261106140529-dhafpmo",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261106140529-dhafpmo",
+				"updated": "20261106140529"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "データベースの一括操作では、database.items_add で最大 100 行を追加し、各行の他のフィールド値も同時に指定できます。database.items_update では最大 1000 セルを更新できます。各呼び出しは一つのトランザクションで確定され、指定しないセルは保持されます。先にフィールド情報を読み取り、型に合った値を指定して、返された保存結果を確認してください。実行結果が不明な追加操作を自動で再試行しないでください。"
+				}
+			]
+		},
+		{
+			"ID": "20261106140529-mzs1nkb",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261106140529-mzs1nkb",
+				"updated": "20261106140529"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "数値と日付には number または date オブジェクトを使います。content を指定する場合は isNotEmpty も明示し、true で値を設定、false でクリアします。content だけのオブジェクトをセル値全体として渡さないでください。計算フィールドには直接書き込めません。"
+				}
+			]
+		},
+		{
+			"ID": "20260804170109-yrnzqjt",
+			"Type": "NodeHeading",
+			"HeadingLevel": 2,
+			"Properties": {
+				"id": "20260804170109-yrnzqjt",
+				"updated": "20260804205607"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "データスナップショットとロールバック"
+				}
+			]
+		},
+		{
+			"ID": "20260804170110-e38e283",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260804170110-e38e283",
+				"updated": "20260804205607"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "各ターンで最初にワークスペースのデータへ書き込む前に、エージェントはデータスナップショットを自動作成します。作成されるスナップショットは 1 ターンにつき最大 1 つです。書き込みを依頼する前に、ローカルのデータリポジトリキーを初期化してください。クラウドアカウントは不要です。未初期化の場合は、書き込み確認を求める前にこの前提条件が通知されます。読み取り操作は引き続き利用できます。結果が適切でない場合は、セッション内のスナップショット通知からロールバックできます。"
+				}
+			]
+		},
+		{
+			"ID": "20260804170111-8dl6p54",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20260804170111-8dl6p54",
+				"updated": "20260804205607"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "スナップショットはワークスペースのデータを対象としますが、外部 MCP サービスやプラグインが外部システムに加えた変更は対象外です。回答の再生成、タスクの停止、セッションの削除でも、完了済みの書き込み操作は自動的に元に戻りません。"
+				}
+			]
+		},
+		{
+			"ID": "20261008115720-n4ciuhi",
+			"Type": "NodeHeading",
+			"HeadingLevel": 2,
+			"Properties": {
+				"id": "20261008115720-n4ciuhi",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "CSS/JS コードスニペット"
+				}
+			]
+		},
+		{
+			"ID": "20261008115720-jxawckb",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261008115720-jxawckb",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "AI エージェントに CSS/JS コードスニペットの一覧表示、読み取り、作成、変更、有効化、無効化、削除を依頼できます。例えば、「画面の文字サイズを大きくする CSS スニペットを作成し、確認できるよう無効のままにしてください」と伝えます。"
+				}
+			]
+		},
+		{
+			"ID": "20261008115720-2cca2wa",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261008115720-2cca2wa",
+				"updated": "20261008115720"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "セッション全体の許可や自動承認を有効にしていても、スニペットの変更は毎回確認が必要です。確認カードに表示される変更予定のコードと現在のスニペットを確認してください。新しいスニペットは無効な状態で作成され、公開サービスでは読み込まれません。CSS/JS の全体スイッチと既存スニペットの公開設定は維持されます。"
+				}
+			]
+		},
+		{
+			"ID": "20261008115720-zx5ldnm",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261008115720-zx5ldnm",
+				"updated": "20261008115720"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "JS を有効にする場合や、有効な JS スニペットを変更する場合、接続中のウィンドウでコードが実行されることがあります。無効化や削除では実行済みコードの効果を取り消せないため、フロントエンドの再起動が必要になる場合があります。確認中にスニペットが変更された場合、操作は拒否され、エージェントは再度読み取って確認を求めます。"
+				}
+			]
+		},
+		{
+			"ID": "20261008125238-mzmf6je",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261008125238-mzmf6je",
+				"updated": "20261012014859"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "スニペットの名前とコードを検索し、名前の変更や一部分の修正を依頼できます。管理ダイアログを開いている間にスニペットが変更された場合、保存は拒否され、下書きは保持されます。編集内容をコピーしてダイアログを開き直し、最新のスニペットと統合してください。"
 				}
 			]
 		},
@@ -1237,205 +1913,6 @@
 							]
 						}
 					]
-				}
-			]
-		},
-		{
-			"ID": "20261010113646-e4bfwsj",
-			"Type": "NodeHeading",
-			"Properties": {
-				"id": "20261010113646-e4bfwsj",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "SQL クエリ、検索、動的埋め込み"
-				}
-			],
-			"HeadingLevel": 2
-		},
-		{
-			"ID": "20261010113646-71xuifp",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20261010113646-71xuifp",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "エージェントに、ブロックの種類、行内書式、親子関係、複数の条件でノートを検索し、結果を集計するよう依頼できます。"
-				}
-			]
-		},
-		{
-			"ID": "20261010172554-3gmocso",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20261010172554-3gmocso",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "例：「過去1週間に更新されたタスクを集計して」「プロジェクト文書内の未完了のタスク項目を探して」。"
-				}
-			]
-		},
-		{
-			"ID": "20261010172554-los4ny5",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20261010172554-los4ny5",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "結果を確認して移動するには検索ウィンドウでの表示を、文書内に一致するブロックを継続的に表示するには動的な SQL 埋め込みの作成を依頼します。集計結果は回答に使用できますが、埋め込みブロックとして直接表示することはできません。"
-				}
-			]
-		},
-		{
-			"ID": "20261010172554-nkhymve",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20261010172554-nkhymve",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "既存の埋め込みを変更するときは、変更したい検索条件を伝え、元のブロックと表示設定を保持するよう依頼してください。"
-				}
-			]
-		},
-		{
-			"ID": "20261010173100-j0996f2",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20261010173100-j0996f2",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "暗号化ノートブックは、ロックを解除して対象を指定してから検索してください。そのノートブック内の埋め込みは、同じノートブックの内容だけを検索できます。"
-				}
-			]
-		},
-		{
-			"ID": "20260804170109-yrnzqjt",
-			"Type": "NodeHeading",
-			"HeadingLevel": 2,
-			"Properties": {
-				"id": "20260804170109-yrnzqjt",
-				"updated": "20260804205607"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "データスナップショットとロールバック"
-				}
-			]
-		},
-		{
-			"ID": "20260804170110-e38e283",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260804170110-e38e283",
-				"updated": "20260804205607"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "各ターンで最初にワークスペースのデータへ書き込む前に、エージェントはデータスナップショットを自動作成します。作成されるスナップショットは 1 ターンにつき最大 1 つです。結果が適切でない場合は、セッション内のスナップショット通知からロールバックできます。"
-				}
-			]
-		},
-		{
-			"ID": "20260804170111-8dl6p54",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20260804170111-8dl6p54",
-				"updated": "20260804205607"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "スナップショットはワークスペースのデータを対象としますが、外部 MCP サービスやプラグインが外部システムに加えた変更は対象外です。回答の再生成、タスクの停止、セッションの削除でも、完了済みの書き込み操作は自動的に元に戻りません。"
-				}
-			]
-		},
-		{
-			"ID": "20261008115720-n4ciuhi",
-			"Type": "NodeHeading",
-			"HeadingLevel": 2,
-			"Properties": {
-				"id": "20261008115720-n4ciuhi",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "CSS/JS コードスニペット"
-				}
-			]
-		},
-		{
-			"ID": "20261008115720-jxawckb",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20261008115720-jxawckb",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "AI エージェントに CSS/JS コードスニペットの一覧表示、読み取り、作成、変更、有効化、無効化、削除を依頼できます。例えば、「画面の文字サイズを大きくする CSS スニペットを作成し、確認できるよう無効のままにしてください」と伝えます。"
-				}
-			]
-		},
-		{
-			"ID": "20261008115720-2cca2wa",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20261008115720-2cca2wa",
-				"updated": "20261008115720"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "セッション全体の許可や自動承認を有効にしていても、スニペットの変更は毎回確認が必要です。確認カードに表示される変更予定のコードと現在のスニペットを確認してください。新しいスニペットは無効な状態で作成され、公開サービスでは読み込まれません。CSS/JS の全体スイッチと既存スニペットの公開設定は維持されます。"
-				}
-			]
-		},
-		{
-			"ID": "20261008115720-zx5ldnm",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20261008115720-zx5ldnm",
-				"updated": "20261008115720"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "JS を有効にする場合や、有効な JS スニペットを変更する場合、接続中のウィンドウでコードが実行されることがあります。無効化や削除では実行済みコードの効果を取り消せないため、フロントエンドの再起動が必要になる場合があります。確認中にスニペットが変更された場合、操作は拒否され、エージェントは再度読み取って確認を求めます。"
-				}
-			]
-		},
-		{
-			"ID": "20261008125238-mzmf6je",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20261008125238-mzmf6je",
-				"updated": "20261012014859"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "スニペットの名前とコードを検索し、名前の変更や一部分の修正を依頼できます。管理ダイアログを開いている間にスニペットが変更された場合、保存は拒否され、下書きは保持されます。編集内容をコピーしてダイアログを開き直し、最新のスニペットと統合してください。"
 				}
 			]
 		},

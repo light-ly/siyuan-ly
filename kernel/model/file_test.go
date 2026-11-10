@@ -1,24 +1,13 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
 import (
 	"errors"
 	"maps"
+	"os"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -44,10 +33,12 @@ type fileOperationTestFixture struct {
 	childID    string
 }
 
-func setupFileOperationTest(t *testing.T) *fileOperationTestFixture {
+func setupFileOperationTest(t testing.TB) *fileOperationTestFixture {
 	originalConf := Conf
 	originalDataDir := util.DataDir
 	originalBlockTreeDBPath := util.BlockTreeDBPath
+	originalQueueDir := util.QueueDir
+	originalConfDir := util.ConfDir
 	const testLang = "file-operation-test"
 	originalTimeLang, hadTimeLang := util.TimeLangs[testLang]
 	util.TimeLangs[testLang] = map[string]any{
@@ -59,6 +50,8 @@ func setupFileOperationTest(t *testing.T) *fileOperationTestFixture {
 	tempDir := t.TempDir()
 	util.DataDir = filepath.Join(tempDir, "data")
 	util.BlockTreeDBPath = filepath.Join(tempDir, "blocktree.db")
+	util.QueueDir = t.TempDir()
+	util.ConfDir = t.TempDir()
 	Conf = NewAppConf()
 	Conf.Lang = testLang
 	Conf.FileTree.Store(conf.NewFileTree())
@@ -103,6 +96,8 @@ func setupFileOperationTest(t *testing.T) *fileOperationTestFixture {
 		Conf = originalConf
 		util.DataDir = originalDataDir
 		util.BlockTreeDBPath = originalBlockTreeDBPath
+		util.QueueDir = originalQueueDir
+		util.ConfDir = originalConfDir
 		if "" != originalBlockTreeDBPath {
 			treenode.InitBlockTree(false)
 		}
@@ -178,6 +173,90 @@ func TestListDocTreeUsesPathIDForInvalidPropertiesID(t *testing.T) {
 				}
 			}
 			t.Fatalf("document [%s] was not listed", fixture.sourceID)
+		})
+	}
+}
+
+func TestDocIALPreservesUnsupportedSpec(t *testing.T) {
+	fixture := setupFileOperationTest(t)
+	originalWorkspace := util.WorkspaceDir
+	util.WorkspaceDir = t.TempDir()
+	t.Cleanup(func() { util.WorkspaceDir = originalWorkspace })
+	absPath := filepath.Join(util.DataDir, fixture.box.ID, fixture.sourcePath)
+	for _, source := range []string{
+		`{"Spec":"999","Properties":{"title":"Future"}}`,
+		`{"Properties":{"title":"Future"},"Spec":"999"}`,
+		`{"Spec":"999","Properties":{}}`,
+		`{"Properties":{"title":{"text":"Future"}},"Spec":"999"}`,
+		`{"Spec":"999","Properties":{"title":"Future"},"Children":[`,
+		`{"Properties":{"title":"Future"},"Spec":"999","Children":[`,
+		`{"Spec":"999","Properties":{"title":`,
+		`{"Properties":{"title":"Invalid version"},"Spec":{}}`,
+	} {
+		cache.RemoveDocIALInBox(fixture.sourcePath, fixture.box.ID)
+		if err := os.WriteFile(absPath, []byte(source), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if properties := fixture.box.docIAL(fixture.sourcePath); properties != nil {
+			t.Fatalf("unsupported source returned properties: %v", properties)
+		}
+		retained, err := os.ReadFile(absPath)
+		if err != nil || string(retained) != source {
+			t.Fatalf("unsupported source was changed or quarantined: %v", err)
+		}
+		if properties := cache.GetDocIALInBox(fixture.sourcePath, fixture.box.ID); properties != nil {
+			t.Fatalf("unsupported source published cached properties: %v", properties)
+		}
+		if _, err = os.Stat(filepath.Join(util.WorkspaceDir, "corrupted")); !os.IsNotExist(err) {
+			t.Fatalf("version error entered corruption recovery: %v", err)
+		}
+	}
+}
+
+func TestListDocTreeShowsNewerSpecAsPlaceholder(t *testing.T) {
+	fixture := setupFileOperationTest(t)
+	originalWorkspace := util.WorkspaceDir
+	util.WorkspaceDir = t.TempDir()
+	t.Cleanup(func() { util.WorkspaceDir = originalWorkspace })
+	absPath := filepath.Join(util.DataDir, fixture.box.ID, fixture.sourcePath)
+	for _, test := range []struct {
+		name      string
+		source    string
+		wantName  string
+		wantEmpty bool
+	}{
+		{"title", `{"Spec":"999","Properties":{"title":"Future"}}`, "Future", false},
+		{"escaped title", `{"Spec":"999","Properties":{"title":"A &amp; B"}}`, "A & B", false},
+		{"no title", `{"Spec":"999","Properties":{"id":"` + fixture.sourceID + `"}}`, "", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cache.RemoveDocIALInBox(fixture.sourcePath, fixture.box.ID)
+			if err := os.WriteFile(absPath, []byte(test.source), 0600); err != nil {
+				t.Fatal(err)
+			}
+			files, _, err := ListDocTree(fixture.box.ID, "/", util.SortModeNameASC, false, false, 128)
+			if err != nil {
+				t.Fatalf("list documents failed: %v", err)
+			}
+			var found *File
+			for _, file := range files {
+				if fixture.sourceID == file.ID {
+					found = file
+					break
+				}
+			}
+			if found == nil || !found.SpecTooNew {
+				t.Fatalf("newer spec document was not listed as a placeholder: %+v", found)
+			}
+			if found.Name != test.wantName || found.TitleEmpty != test.wantEmpty {
+				t.Fatalf("placeholder title mismatch: name=%q empty=%v", found.Name, found.TitleEmpty)
+			}
+			if properties := cache.GetDocIALInBox(fixture.sourcePath, fixture.box.ID); properties != nil {
+				t.Fatalf("placeholder properties entered the document property cache: %v", properties)
+			}
+			if _, statErr := os.Stat(filepath.Join(util.WorkspaceDir, "corrupted")); !os.IsNotExist(statErr) {
+				t.Fatalf("newer spec entered corruption recovery: %v", statErr)
+			}
 		})
 	}
 }
@@ -528,8 +607,8 @@ func TestValidateCreateDocDoesNotWrite(t *testing.T) {
 	}
 
 	invalidChildPath := path.Join(fixture.targetPath, newID+".sy")
-	if err := ValidateCreateDoc(fixture.box.ID, invalidChildPath, "Invalid child"); !errors.Is(err, ErrBlockNotFound) {
-		t.Fatalf("expected parent path with .sy suffix to return ErrBlockNotFound, got [%v]", err)
+	if err := ValidateCreateDoc(fixture.box.ID, invalidChildPath, "Invalid child"); err == nil || !strings.Contains(err.Error(), "invalid document path") {
+		t.Fatalf("expected parent path with .sy suffix to fail path validation, got [%v]", err)
 	}
 
 	wrongParentPath := path.Join(strings.TrimSuffix(fixture.sourcePath, ".sy"), strings.TrimSuffix(fixture.targetPath, ".sy"), newID+".sy")
@@ -834,7 +913,10 @@ func TestPerformCreateDocTransactionSyncReturnsWriteError(t *testing.T) {
 
 func TestCreateDocByMdSyncReturnsWriteError(t *testing.T) {
 	fixture := setupFileOperationTest(t)
-	docID := "20260718000009-abcdefg\x00"
+	docID := "20260718000009-abcdefg"
+	if err := os.WriteFile(filepath.Join(util.QueueDir, "document-sources"), []byte("not a directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	tree, err := CreateDocByMdSync(fixture.box.ID, "/"+docID+".sy", "Inbox", "Keep the cloud original", nil, nil)
 	if tree == nil {
 		t.Fatal("expected document validation to succeed before the filesystem write fails")
@@ -844,6 +926,21 @@ func TestCreateDocByMdSyncReturnsWriteError(t *testing.T) {
 	}
 	if bt := treenode.GetBlockTree(docID); bt != nil {
 		t.Fatal("failed document remains in the block tree")
+	}
+	if fixture.box.Exist("/" + docID + ".sy") {
+		t.Fatal("failed document was persisted")
+	}
+}
+
+func TestCreateDocByMdSyncRejectsInvalidPath(t *testing.T) {
+	fixture := setupFileOperationTest(t)
+	docID := "20260718000009-abcdefg\x00"
+	tree, err := CreateDocByMdSync(fixture.box.ID, "/"+docID+".sy", "Inbox", "Keep the cloud original", nil, nil)
+	if tree != nil || err == nil || !strings.Contains(err.Error(), "invalid document path") {
+		t.Fatalf("invalid path must fail before creating a tree: tree=%v, error=%v", tree, err)
+	}
+	if bt := treenode.GetBlockTree(docID); bt != nil {
+		t.Fatal("invalid document remains in the block tree")
 	}
 }
 

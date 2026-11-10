@@ -1,5 +1,7 @@
 import {Constants} from "./constants";
 import {closeNotebookHistoryDialogs} from "./history/notebookDialogs";
+import {closeDocumentTitleDialogs} from "./protyle/header/documentTitleDialogs";
+import {clearDocumentCreationPlans} from "./util/configuredDocument";
 import {refreshSettingConfig} from "./config/setting/sync";
 import {closeNotebookLivePhotos} from "./protyle/preview/livePhoto";
 import {systemConfig} from "./config/systemConfig";
@@ -13,7 +15,8 @@ import {Model} from "./layout/Model";
 import {loadDesktopHostConnection, onGetConfig} from "./boot/onGetConfig";
 import {initBlockPopover} from "./block/popover";
 import {applyCloudUserState} from "./config/tabs/accountUi";
-import {addScript, addScriptSync} from "./protyle/util/addScript";
+import {addScript} from "./protyle/util/addScript";
+import {ensureLute} from "./protyle/util/lute";
 import {genUUID} from "./util/genID";
 import {fetchPost} from "./util/fetch";
 import {
@@ -39,6 +42,7 @@ import {
     transactionError
 } from "./dialog/processSystem";
 import {progressLoading} from "./dialog/progress";
+import {syncCheckoutProgress} from "./sync/checkoutProgress";
 import {initMessage, showMessage} from "./dialog/message";
 import {getAllModels, getAllTabs} from "./layout/getAll";
 import {getLocalStorage, isChromeBrowser, isInMobileApp, isIOSDevice} from "./protyle/util/compatibility";
@@ -72,6 +76,9 @@ import {removeBlockPanelEditors} from "./block/panelRemoval";
 import {initializeEnglishCommandTranslations} from "./command/english";
 import {loadLanguages} from "./boot/loadLanguages";
 import {installPluginStorageFetchAppId} from "./util/fetchAppId";
+import {completeStartup, guardStartup, reportStartupError, setStartupLanguage, setStartupStage} from "./boot/startupError";
+
+const startupRequestFailed = (response: IWebSocketData) => reportStartupError(new Error(response.msg || String(response.code)));
 
 export class App {
     public plugins: import("./plugin").Plugin[] = [];
@@ -79,6 +86,7 @@ export class App {
 
     constructor() {
         if (checkPublishServiceClosed()) {
+            completeStartup();
             return;
         }
         registerServiceWorker(`${Constants.SERVICE_WORKER_PATH}?v=${Constants.SIYUAN_VERSION}`);
@@ -176,6 +184,9 @@ export class App {
                                 });
                             }
                             break;
+                        case "syncProgress":
+                            syncCheckoutProgress(data);
+                            break;
                         case "progress":
                             progressLoading(data);
                             break;
@@ -212,7 +223,9 @@ export class App {
                             break;
                         case "closeBox":
                         case "removeBox":
+                            closeDocumentTitleDialogs({notebookId: data.data.box});
                             closeNotebookHistoryDialogs(data.data.box);
+                            clearDocumentCreationPlans(data.data.box);
                             closeNotebookLivePhotos(data.data.box);
                             removeBlockPanelEditors({notebookId: data.data.box});
                             getAllTabs().forEach((tab) => {
@@ -221,13 +234,14 @@ export class App {
                                     if (initTab) {
                                         const initTabData = JSON.parse(initTab);
                                         if (initTabData.instance === "Editor" && data.data.box === initTabData.notebookId) {
-                                            tab.parent.removeTab(tab.id);
+                                            tab.parent.removeTab(tab.id, false, false, true, true);
                                         }
                                     }
                                 }
                             });
                             break;
                         case "removeDoc":
+                            closeDocumentTitleDialogs({rootIDs: data.data.ids});
                             removeBlockPanelEditors({rootIDs: data.data.ids});
                             getAllTabs().forEach((tab) => {
                                 if (tab.headElement) {
@@ -235,7 +249,7 @@ export class App {
                                     if (initTab) {
                                         const initTabData = JSON.parse(initTab);
                                         if (initTabData.instance === "Editor" && data.data.ids.includes(initTabData.rootId)) {
-                                            tab.parent.removeTab(tab.id);
+                                            tab.parent.removeTab(tab.id, false, false, true, true);
                                         }
                                     }
                                 }
@@ -330,8 +344,11 @@ export class App {
             ws: mainWs,
         };
         const notebookPromise = setNoteBook();
-        fetchPost("/api/system/getConf", {}, async (response) => {
-            await addScriptSync(`${Constants.PROTYLE_CDN}/js/lute/lute.min.js?v=${Constants.SIYUAN_VERSION}`, "protyleLuteScript");
+        setStartupStage("configuration");
+        fetchPost("/api/system/getConf", {}, guardStartup<IWebSocketData>(async (response) => {
+            setStartupLanguage(response.data.conf.appearance.lang);
+            setStartupStage("engine");
+            await ensureLute({reloadOnFailure: false});
             addScript(`${Constants.PROTYLE_CDN}/js/protyle-html.js?v=${Constants.SIYUAN_VERSION}`, "protyleWcHtmlScript");
             window.siyuan.config = systemConfig(response.data.conf, () => structuredClone(Constants.SIYUAN_EMPTY_LAYOUT));
             await loadDesktopHostConnection();
@@ -339,9 +356,13 @@ export class App {
             window.siyuan.isPublish = response.data.isPublish;
             setBodyHighlight();
             await notebookPromise;
+            setStartupStage("plugins");
             await loadPlugins(this);
-            getLocalStorage(() => {
-                void loadLanguages(window.siyuan.config.appearance.lang, Constants.SIYUAN_VERSION, (languages: IObject) => {
+            setStartupStage("storage");
+            getLocalStorage(guardStartup<void>(() => {
+                setStartupStage("language");
+                void loadLanguages(window.siyuan.config.appearance.lang, Constants.SIYUAN_VERSION, guardStartup<IObject>((languages) => {
+                    setStartupStage("interface");
                     window.siyuan.languages = languages;
                     void initializeEnglishCommandTranslations(
                         window.siyuan.config.appearance.lang,
@@ -349,11 +370,14 @@ export class App {
                         Constants.SIYUAN_VERSION,
                     );
                     window.siyuan.menus = new Menus(this);
-                    bootSync();
-                    void (async () => {
+                    void guardStartup<void>(async () => {
                         await ensureOnboarding();
                         await setNoteBook();
                         await initWindowWithLoading(() => onGetConfig(response.data.start, this), setTabPosition);
+                        /// #if !BROWSER
+                        // 加载遮罩移除后再显示主窗口，避免原生窗口按钮出现在启动界面上。
+                        ipcRenderer.send(Constants.SIYUAN_READY_TO_SHOW);
+                        /// #endif
                         setTitle("", true);
                         initMessage();
                         /// #if BROWSER && !MOBILE
@@ -365,11 +389,13 @@ export class App {
                         /// #endif
                         window.siyuan.isReady = true;
                         mainWs.flushMainMessages();
+                        bootSync();
                         exitAfterSettingsReset();
+                        completeStartup();
                     })();
-                });
-            });
-        });
+                }), reportStartupError);
+            }), reportStartupError);
+        }), undefined, startupRequestFailed);
         initBlockPopover(this);
     }
 }
@@ -409,7 +435,7 @@ window.openFileByURL = (openURL) => {
 };
 
 /// #if BROWSER
-registerDesktopBackNavigation();
+registerDesktopBackNavigation(siyuanApp);
 window.showKeyboardToolbar = () => {
     // 防止 Pad 端报错
 };
@@ -426,6 +452,4 @@ if (window.JSAndroid?.setWebViewFocusable) {
 } else if (window.JSHarmony?.setWebViewFocusable) {
     window.JSHarmony.setWebViewFocusable(true);
 }
-/// #else
-ipcRenderer.send(Constants.SIYUAN_READY_TO_SHOW);
 /// #endif

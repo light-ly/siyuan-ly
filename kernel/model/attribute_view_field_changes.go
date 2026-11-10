@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -245,31 +233,26 @@ func (change *attributeViewFieldChange) apply(current any, exists, undo bool) (a
 				delete(elements, id)
 			}
 		}
-		result := make([]any, 0, len(values))
+		currentOrder := make([]string, 0, len(values))
 		for _, value := range values {
-			if updated, keep := elements[attributeViewFieldElementID(value, change.container)]; keep {
-				result = append(result, updated)
+			id := attributeViewFieldElementID(value, change.container)
+			if _, keep := elements[id]; keep {
+				currentOrder = append(currentOrder, id)
 			}
 		}
 		order := change.afterOrder
 		if undo {
 			order = change.beforeOrder
 		}
-		for index, id := range order {
-			if elements[id] == nil || slices.ContainsFunc(result, func(value any) bool { return attributeViewFieldElementID(value, change.container) == id }) {
-				continue
+		restored := make([]string, 0, len(order))
+		for _, id := range order {
+			if elements[id] != nil {
+				restored = append(restored, id)
 			}
-			position := -1
-			for previous := index - 1; previous >= 0; previous-- {
-				if found := slices.IndexFunc(result, func(value any) bool { return attributeViewFieldElementID(value, change.container) == order[previous] }); found >= 0 {
-					position = found + 1
-					break
-				}
-			}
-			if position < 0 {
-				position = 0
-			}
-			result = slices.Insert(result, position, elements[id])
+		}
+		result := make([]any, 0, len(elements))
+		for _, id := range restoreAttributeViewItemOrder(currentOrder, order, restored) {
+			result = append(result, elements[id])
 		}
 		return result, true, nil
 	}

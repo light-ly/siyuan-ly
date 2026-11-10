@@ -1,4 +1,4 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -56,5 +56,5 @@ func collectMarkdownExportReferences(tree *parse.Tree, refs *markdownExportRefer
 	var order []string
 	footnotes := map[string]*refAsFootnotes{}
 	depth := 0
-	collectFootnotesDefs0(tree, tree.Root, &order, footnotes, &depth, refs)
+	collectFootnotesDefs0(tree, tree.Root, &order, footnotes, &depth, refs, nil)
 }

@@ -2,6 +2,8 @@ import {config as configApi} from "../util/configApi";
 /// #if MOBILE
 import {saveScroll} from "../../protyle/scroll/saveScroll";
 /// #else
+import {syncStatusBarVisibility} from "../../layout/statusHover";
+import {syncFloatingDockBarPreference} from "../../layout/dock/barVisibility";
 import {adjustDockPadding} from "../../layout/dock/util";
 import {reloadUI as reloadDesktopUI} from "../../layout/util";
 import {syncHideToolbarLayout, updateBarModeIcon} from "../../layout/topBar";
@@ -22,6 +24,7 @@ import {remountOpenSettingTab} from "../setting/mount";
 import {createConfigNamespaceApi} from "../util/namespaceApi";
 import {createSectionRuntime} from "../util/sectionRuntime";
 import {syncBodyGradient} from "./bodyGradient";
+import {syncLockScreenWallpaper} from "./lockScreenWallpaper";
 import {refreshDynamicIcons} from "../../emoji/dynamicIcon";
 import {closeSettingsWindow, isSettingsWindow} from "../setting/windowContext";
 import {syncAppearancePreferences} from "./appearancePreferences";
@@ -78,7 +81,7 @@ const applyAppearanceConfig = async (data: Config.IAppearance, refresh?: IAppear
     // 启动初始化传入当前配置本身，需要完整加载外观资源；重复推送仍使用原位同步。
     const appearanceKeys = Object.keys({...prevAppearance, ...data}) as Array<keyof Config.IAppearance>;
     const inPlaceKeys = new Set(["bodyGradient", "compactMode", "menuMouseScroll", "pdfTheme",
-        "outlineKeepCurrentExpand", "mobileBars"]);
+        "outlineKeepCurrentExpand", "mobileBars", "lockScreenWallpaper", "showFloatingDockBar", "showFloatingStatusBar"]);
     const inPlace = !refresh && prevAppearance !== data &&
         appearanceKeys.every(key => inPlaceKeys.has(key) ||
             JSON.stringify(prevAppearance[key]) === JSON.stringify(data[key]));
@@ -103,6 +106,10 @@ const applyAppearanceConfig = async (data: Config.IAppearance, refresh?: IAppear
             changed: () => true,
             apply: () => { syncAppearancePreferences(); },
         }, {
+            name: "lock-screen-wallpaper",
+            changed: (old, next) => old.lockScreenWallpaper !== next.lockScreenWallpaper,
+            apply: () => { syncLockScreenWallpaper(); },
+        }, {
             name: "gradient",
             changed: () => inPlace,
             apply: () => {
@@ -115,8 +122,10 @@ const applyAppearanceConfig = async (data: Config.IAppearance, refresh?: IAppear
             apply: (old, next) => {
                 document.getElementById("status")?.classList.toggle("fn__none", next.hideStatusBar);
                 /// #if !MOBILE
+                syncStatusBarVisibility();
                 if (!isSettingsWindow() && next.hideStatusBar !== old.hideStatusBar) adjustDockPadding();
                 if (!isSettingsWindow() && next.hideToolbar !== old.hideToolbar) syncHideToolbarLayout();
+                if (!isSettingsWindow() && next.showFloatingDockBar !== old.showFloatingDockBar) syncFloatingDockBarPreference();
                 if (!isSettingsWindow()) updateBarModeIcon();
                 /// #endif
             },

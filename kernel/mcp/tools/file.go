@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
@@ -22,9 +10,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -40,19 +28,19 @@ import (
 
 var FileTool = &Tool{
 	Name:        "file",
-	Description: "Workspace file operations (paths relative to workspace; debugging/log reading and approved plugin development only — never use for workspace data). Actions: list, read, write, edit, delete, rename, copy, grep, find, stat. read defaults to legacy plain text/200 lines; withMetadata=true returns bounded JSON with whole-file SHA256, UTF-8 byte range, truncation and nextOffsetByte. Continue with byteOffset and the same expectedRevision; only startByte=0/endByte=totalBytes/truncated=false is a complete read. edit requires expectedRevision and unique nonempty oldText/newText anchors against the original file; conflicts reject the entire edit. write may opt into ifAbsent=true or expectedRevision for safe conditional writes (including empty data); parent directories must exist. Safe text operations reject links, binary/non-UTF-8 and files above 8 MiB. Approved managed plugin sources always require safe conditions and trusted workflow context; copy/directory mutation is unavailable there.",
+	Description: "Workspace file operations (paths relative to workspace; debugging/log reading and approved plugin development only — never use for workspace data). Actions: list, read, write, edit, delete, rename, copy, grep, find, stat. read defaults to legacy plain text/200 lines; withMetadata=true returns bounded JSON with whole-file SHA256, UTF-8 byte range, truncation and nextOffsetByte. Continue with byteOffset and the same expectedRevision; only startByte=0/endByte=totalBytes/truncated=false is a complete read. edit requires expectedRevision and unique nonempty oldText/newText anchors against the original file; conflicts reject the entire edit. write may opt into ifAbsent=true or expectedRevision for safe conditional writes (including empty data); these conditional writes require existing parent directories. Unconditional write creates missing parent directories. Safe text operations reject links, binary/non-UTF-8 and files above 8 MiB. Approved managed plugin sources always require safe conditions and trusted workflow context; copy/directory mutation is unavailable there.",
 	InputSchema: ToolSchema{
 		Type: "object",
 		Properties: map[string]Property{
 			"action":           {Type: "string", Description: "Operation", Enum: []string{"list", "read", "write", "edit", "delete", "rename", "copy", "grep", "find", "stat"}},
-			"path":             {Type: "string", Description: "Relative path within workspace (for list, read, write, edit, delete, grep, find, stat)"},
+			"path":             {Type: "string", Description: "Workspace-relative path (for list, read, write, edit, delete, grep, find, stat); absolute paths, drive prefixes and paths escaping the workspace are rejected for all file operations"},
 			"data":             {Type: "string", Description: "File content (for write)"},
 			"offset":           {Type: "number", Description: "Line number to start reading from (for read, 1-based). Negative means N lines from the end. Default: 0 (read from beginning)."},
 			"limit":            {Type: "number", Description: "Maximum lines/files/entries to return (for read, list, find, grep). Default: 200 lines when offset and limit are both 0 for read, 200 for list/find/grep. Use 0 or negative for unlimited."},
-			"old":              {Type: "string", Description: "Source path (for rename)"},
-			"new":              {Type: "string", Description: "Destination path (for rename)"},
-			"src":              {Type: "string", Description: "Source path (for copy)"},
-			"dst":              {Type: "string", Description: "Destination path (for copy)"},
+			"old":              {Type: "string", Description: "Workspace-relative source path (for rename)"},
+			"new":              {Type: "string", Description: "Workspace-relative destination path (for rename)"},
+			"src":              {Type: "string", Description: "Workspace-relative source path (for copy)"},
+			"dst":              {Type: "string", Description: "Workspace-relative destination path (for copy)"},
 			"pattern":          {Type: "string", Description: "Regex pattern to search for (for grep)"},
 			"include":          {Type: "string", Description: "File glob pattern to filter files (for grep, find; e.g. \"*.go\", \"*.{ts,tsx}\")"},
 			"context":          {Type: "number", Description: "Number of context lines before and after each match (for grep, default 0)"},
@@ -132,6 +120,14 @@ func fileContextHandler(ctx context.Context, args map[string]any) (CallToolResul
 }
 
 func resolvePath(rel string) (string, error) {
+	portable := strings.ReplaceAll(rel, "\\", "/")
+	cleaned := path.Clean(portable)
+	hasDrive := len(portable) >= 2 && portable[1] == ':' &&
+		((portable[0] >= 'A' && portable[0] <= 'Z') || (portable[0] >= 'a' && portable[0] <= 'z'))
+	if strings.HasPrefix(portable, "/") || filepath.VolumeName(rel) != "" ||
+		hasDrive || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return "", fmt.Errorf("expected a workspace-relative path without an absolute root, drive prefix or parent traversal outside the workspace: %s", rel)
+	}
 	rel = filepath.Clean(strings.ReplaceAll(rel, "/", string(os.PathSeparator)))
 	abs := filepath.Join(util.WorkspaceDir, rel)
 	if err := authorizePath(abs, rel); err != nil {
@@ -859,55 +855,10 @@ func fileCopy(args map[string]any) (CallToolResult, error) {
 	if err = authorizeCopyTree(srcAbs, dstAbs); err != nil {
 		return CallToolResult{Content: []ContentItem{{Type: "text", Text: err.Error()}}, IsError: true}, nil
 	}
-	if err := copyPath(srcAbs, dstAbs); err != nil {
+	if err := util.CopyPath(srcAbs, dstAbs); err != nil {
 		return CallToolResult{Content: []ContentItem{{Type: "text", Text: "copy failed: " + err.Error()}}, IsError: true}, nil
 	}
 	return CallToolResult{Content: []ContentItem{{Type: "text", Text: fmt.Sprintf("copied: %s -> %s", src, dst)}}}, nil
-}
-
-func copyPath(src, dst string) error {
-	srcInfo, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-	if srcInfo.IsDir() {
-		return copyDir(src, dst)
-	}
-	return copyFile(src, dst)
-}
-
-func copyDir(src, dst string) error {
-	if err := os.MkdirAll(dst, 0755); err != nil {
-		return err
-	}
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		if err := copyPath(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func copyFile(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-	srcF, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcF.Close()
-	dstF, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer dstF.Close()
-	_, err = io.Copy(dstF, srcF)
-	return err
 }
 
 func typeLabel(isDir bool) string {
@@ -993,7 +944,7 @@ func grepGuarded(root, include, pattern string, context, maxResults int) ([]*gul
 		if !d.Type().IsRegular() {
 			return nil
 		}
-		if include != "" && !matchGlob(d.Name(), include) {
+		if include != "" && !util.MatchGlob(d.Name(), include) {
 			return nil
 		}
 		if authorizeFinalPath(path) != nil {
@@ -1113,7 +1064,7 @@ func fileFind(args map[string]any) (CallToolResult, error) {
 		if !d.Type().IsRegular() {
 			return nil
 		}
-		if include != "" && !matchGlob(d.Name(), include) {
+		if include != "" && !util.MatchGlob(d.Name(), include) {
 			return nil
 		}
 		if authorizeFinalPath(path) != nil {
@@ -1154,39 +1105,6 @@ func fileFind(args map[string]any) (CallToolResult, error) {
 	}
 
 	return CallToolResult{Content: []ContentItem{{Type: "text", Text: sb.String()}}}, nil
-}
-
-func matchGlob(filename, pattern string) bool {
-	patterns := expandGlobBrace(pattern)
-	for _, p := range patterns {
-		if matched, _ := filepath.Match(p, filename); matched {
-			return true
-		}
-	}
-	return false
-}
-
-func expandGlobBrace(pattern string) []string {
-	i := strings.Index(pattern, "{")
-	if i < 0 {
-		return []string{pattern}
-	}
-
-	j := strings.Index(pattern[i:], "}")
-	if j < 0 {
-		return []string{pattern}
-	}
-	j += i
-
-	prefix := pattern[:i]
-	body := pattern[i+1 : j]
-	suffix := pattern[j+1:]
-
-	var result []string
-	for opt := range strings.SplitSeq(body, ",") {
-		result = append(result, expandGlobBrace(prefix+strings.TrimSpace(opt)+suffix)...)
-	}
-	return result
 }
 
 func fileStat(args map[string]any) (CallToolResult, error) {

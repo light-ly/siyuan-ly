@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package apicontract
 
 import (
@@ -41,6 +45,8 @@ func TestPluginServiceProtocolVariants(t *testing.T) {
 		{PluginServiceXML, 200, `<value>`, false},
 		{PluginServiceYAML, 200, `key: [1, true]`, true},
 		{PluginServiceYAML, 200, `key: [`, false},
+		{PluginServiceYAML, 200, "key: 1\n---\nkey: 2\n", false},
+		{PluginServiceYAML, 200, "null\n", true},
 		{PluginServiceTOML, 200, `key = "value"`, true},
 		{PluginServiceTOML, 200, `key = [`, false},
 		{PluginServiceProtoBuf, 200, "\n\x01x", true},

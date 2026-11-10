@@ -1,3 +1,5 @@
+// 本文件会在真实 Electron 中重新执行，那里没有外部的 tsx 钩子，需自行注册后才能加载 TS 模块。
+require("tsx/cjs");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -20,7 +22,8 @@ const runCase = async (sources, options) => {
     const snippets = deferred();
     const calls = [];
     const constants = {LOCAL_ZOOM: "zoom", SIZE_ZOOM: [{zoom: 1, position: {x: 8, y: 8}}],
-        SIYUAN_INIT: "init", TIMEOUT_SNIPPET_LOAD: 5000, TIMEOUT_TRANSITION: 300};
+        SIYUAN_INIT: "init", SIYUAN_CMD: "cmd", SIYUAN_SAVE_CLOSE: "save-close",
+        SIYUAN_READY_TO_SHOW: "siyuan-ready-to-show", TIMEOUT_SNIPPET_LOAD: 5000, TIMEOUT_TRANSITION: 300};
     window.siyuan = {languages: {loading: "Loading...", min: "Min", max: "Max", restore: "Restore", close: "Close"},
         storage: {zoom: 1}, dialogs: [], config: {appearance: {hideToolbar: options.fused, mode: options.dark ? 1 : 0},
             editor: {spellcheckLanguages: ["en-US"]}, system: {os: "windows"}}, menus: {menu: {element: document.createElement("div")}}};
@@ -32,13 +35,26 @@ const runCase = async (sources, options) => {
     const getAllWnds = (_layout, wnds) => { if (wnd) wnds.push(wnd); };
     const functions = {isWindow: () => false, setToolbarLeftMac() {}};
     const tabs = load(sources.tabs, {"../util/functions": functions, "./getAll": {getAllWnds}});
-    const compatibility = {isMac: () => false, isWindows: () => true, applyPlatformClasses() {},
+    const compatibility = {isMac: () => false, isWindows: () => true,
+        applyPlatformClasses() { document.body.classList.add(options.native ? "body--windows" : "body--linux"); },
         initWindowOpenOverride() {}, initNativeDialogOverride() {}};
-    const electron = {ipcRenderer: {send() {}, on() {}, invoke: async (channel, data) => {
+    const listeners = {};
+    const electron = {ipcRenderer: {send(channel, data) {
+        if (channel === constants.SIYUAN_READY_TO_SHOW) {
+            assert.equal(document.getElementById("loading"), null, "native controls appear after the loading screen is removed");
+        }
+        if (channel === constants.SIYUAN_READY_TO_SHOW || channel === constants.SIYUAN_CMD) {
+            require("electron").ipcRenderer.send(channel, data);
+        }
+    }, on(channel, callback) { listeners[channel] = callback; }, invoke: async (channel, data) => {
         if (channel === "init") return {};
         return data.cmd === "isFullScreen" ? state.promise : false;
-    }}, webFrame: {setZoomFactor() {}}};
-    const controls = load(sources.controls, {electron, "../constants": {Constants: constants}, "../util/functions": functions});
+    }}, webFrame: require("electron").webFrame};
+    const overlay = load(sources.overlay, {electron, "../constants": {Constants: constants},
+        "../util/color": load(sources.color),
+        "../layout/util": {resizeTopBar() {}}});
+    const controls = load(sources.controls, {electron, "../constants": {Constants: constants},
+        "../util/functions": functions, "./windowControlsOverlay": overlay});
     const createLayout = () => {
         const element = document.createElement("div");
         element.className = "fn__flex-1 fn__flex";
@@ -54,6 +70,7 @@ const runCase = async (sources, options) => {
         electron, "../constants": {Constants: constants}, "../util/functions": functions,
         "../protyle/util/compatibility": compatibility, "./windowControls": controls,
         "./globalEvent/commonHotkey": {correctHotkey() {}, syncAppMenuShortcuts() {}},
+        "../markdown/keymapSync": {syncMarkdownKeymap() {}},
         "./globalEvent/globalShortcut": {sendGlobalShortcut() {}}, "../util/ensureUILayout": {ensureUILayout() {}},
         "./globalEvent/event": {initWindowEvent() { if (!options.browser) assert.equal(registered, true); }},
         "../util/hostCapabilities": {getHostCapabilities: () => ({}), setHostConnection: () => { registered = true; }},
@@ -80,8 +97,15 @@ const runCase = async (sources, options) => {
     const {initWindowWithLoading} = load(sources.loading, {"../util/windowPaint": {waitForWindowPaint},
         "../constants": {Constants: constants}});
     let renderDone = false;
+    let renderError;
     let done = false;
-    const result = initWindowWithLoading(() => onGetConfig(false, app).then(() => { renderDone = true; }), tabs.setTabPosition)
+    const result = new Function("initWindowWithLoading", "onGetConfig", "response", "setTabPosition", "ipcRenderer", "Constants",
+        "return (async function(){" + sources.ready[options.browser ? "browser" : "app"] + "}).call(this);")
+        .call(app, initWindowWithLoading, (...args) => onGetConfig(...args).then(() => { renderDone = true; }, error => {
+            renderError = error;
+            throw error;
+        }),
+            {data: {start: false}}, tabs.setTabPosition, electron.ipcRenderer, constants)
         .then(() => { done = true; });
     await new Promise(resolve => setTimeout(resolve, 40));
     window.releaseEmoji();
@@ -92,12 +116,12 @@ const runCase = async (sources, options) => {
     assert.ok(document.getElementById("loading"), "loading is not removed after a fixed 160ms");
     gates[options.gate].resolve(false);
     await new Promise(resolve => setTimeout(resolve, 40));
-    assert.equal(renderDone, true);
-    if (!options.browser) {
+    assert.equal(renderDone, true, renderError?.stack);
+    if (!options.browser && !options.native) {
         const close = document.getElementById("closeWindow");
         const bounds = close.getBoundingClientRect();
         assert.ok(document.getElementById("loading").contains(document.elementFromPoint(bounds.x + bounds.width / 2,
-            bounds.y + bounds.height / 2)), "main loading covers native window buttons");
+            bounds.y + bounds.height / 2)), "main loading covers self-drawn window buttons");
     }
     const modal = document.createElement("div");
     modal.className = "b3-dialog b3-dialog--open";
@@ -127,7 +151,13 @@ const runCase = async (sources, options) => {
         assert.equal(wnd.element.classList.contains("layout__wnd--center"), options.fused);
         assert.equal(calls[0], "adjust");
         if (!options.browser) {
-            document.getElementById("closeWindow").click();
+            if (options.native) {
+                assert.equal(document.getElementById("closeWindow"), null);
+                assert.ok(document.getElementById("windowControls").getBoundingClientRect().width > 0);
+                listeners[constants.SIYUAN_SAVE_CLOSE]({}, true);
+            } else {
+                document.getElementById("closeWindow").click();
+            }
             assert.equal(calls.at(-1), "close");
         }
     };
@@ -135,8 +165,10 @@ const runCase = async (sources, options) => {
 };
 
 if (process.versions.electron && process.type === "browser") {
-    const {app, BrowserWindow} = require("electron");
+    const {app, BrowserWindow, ipcMain} = require("electron");
+    const {getTitleBarOverlayOptions, updateTitleBarOverlay} = require("../electron/window/windowControlsOverlay");
     const {createServer} = require("node:http");
+    const {once} = require("node:events");
     app.on("window-all-closed", () => {});
     app.disableHardwareAcceleration();
     app.setPath("userData", process.argv[2]);
@@ -145,12 +177,38 @@ if (process.versions.electron && process.type === "browser") {
         const sources = {};
         const ts = require("typescript");
         for (const [key, file] of Object.entries({host: "boot/onGetConfig.ts", browserHost: "boot/onGetConfig.ts",
-            loading: "boot/loading.ts", paint: "util/windowPaint.ts", controls: "boot/windowControls.ts", tabs: "layout/tabUtil.ts"})) {
+            loading: "boot/loading.ts", paint: "util/windowPaint.ts", controls: "boot/windowControls.ts",
+            overlay: "boot/windowControlsOverlay.ts", tabs: "layout/tabUtil.ts", color: "util/color.ts"})) {
             const source = require("ifdef-loader/preprocessor").parse(fs.readFileSync(path.join(__dirname, "../src", file), "utf8"),
                 {BROWSER: key === "browserHost", MOBILE: false}, false, true);
             sources[key] = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS,
                 target: ts.ScriptTarget.ES2022}}).outputText;
         }
+        sources.ready = {};
+        for (const [name, browser] of [["app", false], ["browser", true]]) {
+            const source = require("ifdef-loader/preprocessor").parse(fs.readFileSync(path.join(__dirname, "../src/index.ts"), "utf8"),
+                {BROWSER: browser, MOBILE: false}, false, true);
+            const entry = ts.createSourceFile("index.ts", source, ts.ScriptTarget.Latest, true);
+            assert.doesNotMatch(entry.statements.filter(statement => !ts.isClassDeclaration(statement))
+                .map(statement => statement.getText(entry)).join("\n"), /ipcRenderer\.send\(Constants\.SIYUAN_READY_TO_SHOW/,
+            "module evaluation must not show a window while its loading screen is present");
+            sources.ready[name] = source.slice(source.indexOf("await initWindowWithLoading("), source.indexOf("                        onSetaccount();"));
+        }
+        // 主进程模块已是 TypeScript：锚点仍按源码文本选取，但执行前必须先去掉类型标注。
+        const main = fs.readFileSync(path.join(__dirname, "../electron/window/mainWindow.ts"), "utf8");
+        const attachReadySource = main.slice(main.indexOf("const attachMainWindowReady ="),
+            main.indexOf("const createMainWindow ="));
+        const attachReady = new Function("electron", "devToolsDock", "Channel",
+            ts.transpileModule(attachReadySource, {compilerOptions: {module: ts.ModuleKind.CommonJS,
+                target: ts.ScriptTarget.ES2022}}).outputText + ";return attachMainWindowReady;")(
+            require("electron"), {openDevTools() {}}, require("../electron/shared/channels").Channel);
+        const bindReady = (win, boot, windowState) => attachReady({
+            window: win, bootWindow: boot, windowState,
+            isOpenAsHidden: () => false, scheduleTimer: setTimeout, cancelTimer: clearTimeout, log: () => {},
+        });
+        ipcMain.on("cmd", (event, data) => {
+            if (data?.cmd === "setTitleBarOverlay") updateTitleBarOverlay(BrowserWindow.fromWebContents(event.sender), data);
+        });
         const css = require("sass").compile(path.join(__dirname, "../src/assets/scss/base.scss"), {logger: {warn() {}, debug() {}}}).css;
         const templates = Object.fromEntries(["app", "desktop"].map(name => [name,
             fs.readFileSync(path.join(__dirname, "../src/assets/template", name, "index.tpl"), "utf8")
@@ -158,7 +216,11 @@ if (process.versions.electron && process.type === "browser") {
         const pending = [];
         const server = createServer((request, response) => {
             const pathname = new URL(request.url, "http://localhost").pathname;
-            if (pathname === "/theme.css") { pending.push(response); return; }
+            if (pathname === "/theme.css") {
+                pending.push(response);
+                server.emit("theme-request");
+                return;
+            }
             if (pathname === "/base.css") {
                 response.setHeader("Content-Type", "text/css");
                 response.end(css);
@@ -172,31 +234,59 @@ if (process.versions.electron && process.type === "browser") {
         });
         await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
         let win;
+        let boot;
         let code = 0;
         try {
             for (const options of [{fused: false, dark: false, browser: false, gate: "state"},
                 {fused: true, dark: true, browser: false, gate: "appearance"},
                 {fused: true, dark: false, browser: true, gate: "snippets"}]) {
-                win = new BrowserWindow({show: false, width: 640, height: 480,
-                    webPreferences: {nodeIntegration: true, contextIsolation: false, offscreen: true}});
+                options.native = !options.browser && process.platform === "win32";
+                boot = new BrowserWindow({show: false, frame: false});
+                win = new BrowserWindow({show: false, width: 640, height: 480, frame: false,
+                    titleBarStyle: "hidden", titleBarOverlay: options.native ? getTitleBarOverlayOptions() : false,
+                    webPreferences: {nodeIntegration: true, contextIsolation: false, backgroundThrottling: false, offscreen: true}});
+                win.webContents.on("console-message", event => {
+                    if (event.level === "error") console.error(event.message);
+                });
+                let shown = false;
+                const show = win.show.bind(win);
+                win.show = () => { shown = true; show(); };
+                if (!options.browser) bindReady(win, boot, {});
                 await win.loadURL(`http://127.0.0.1:${server.address().port}/stage/build/${options.browser ? "desktop" : "app"}/index.html`);
-                await win.webContents.executeJavaScript(`(${runCase.toString()})(${JSON.stringify(sources)}, ${JSON.stringify(options)})`);
+                // 渲染进程插入样式后，请求仍需异步到达主进程中的测试服务器。
+                const themeRequested = once(server, "theme-request", {signal: AbortSignal.timeout(10000)});
+                await Promise.all([
+                    win.webContents.executeJavaScript(`(${runCase.toString()})(${JSON.stringify(sources)}, ${JSON.stringify(options)})`),
+                    themeRequested,
+                ]);
                 assert.equal(pending.length, 1);
+                assert.equal(win.isVisible(), false, "main window and native captions stay hidden during initialization");
+                assert.equal(shown, false);
+                assert.equal(boot.isDestroyed(), false, "the frameless boot window remains until the UI is ready");
                 pending.pop().writeHead(200, {"Content-Type": "text/css"}).end(
                     ":root{--b3-font-size:14px;--b3-toolbar-left-mac:5px;--b3-body-background:#234567;--b3-theme-background:#234567;}");
                 await new Promise(resolve => setTimeout(resolve, 300));
                 assert.equal(await win.webContents.executeJavaScript('!!document.getElementById("loading")'), true);
+                assert.equal(win.isVisible(), false, "appearance completion alone must not expose the loading screen captions");
+                assert.equal(shown, false);
                 await win.webContents.executeJavaScript("window.releaseDocument()");
                 await win.webContents.executeJavaScript("window.mainLoadingResult");
                 assert.equal(await win.webContents.executeJavaScript('!!document.getElementById("loading")'), false);
                 assert.equal(await win.webContents.executeJavaScript('document.body.hasAttribute("aria-busy")'), false);
                 await win.webContents.executeJavaScript("window.assertReady()");
+                if (!options.browser) {
+                    await new Promise(resolve => setImmediate(resolve));
+                    assert.equal(shown, true);
+                    assert.equal(boot.isDestroyed(), true);
+                }
                 win.destroy();
+                if (!boot.isDestroyed()) boot.destroy();
             }
             console.log("Verified 3 main window loading cases");
         } catch (error) { console.error(error); code = 1; }
         finally {
             if (win && !win.isDestroyed()) win.destroy();
+            if (boot && !boot.isDestroyed()) boot.destroy();
             pending.forEach(response => response.end());
             server.close();
             clearTimeout(watchdog);

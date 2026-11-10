@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package proxy
 
@@ -30,12 +18,21 @@ import (
 )
 
 func InitFixedPortService(host string, certPath, keyPath string) {
-	if util.FixedPort != util.ServerPort {
-		if util.IsPortOpen(util.FixedPort) {
+	initFixedPortService(host, certPath, keyPath, util.FixedPort)
+}
+
+func initFixedPortService(host, certPath, keyPath, fixedPort string) {
+	// Only disable the extra proxy; the main server may still use port 6806.
+	if !util.FixedPortEnabled {
+		return
+	}
+
+	if fixedPort != util.ServerPort {
+		if util.IsPortOpen(fixedPort) {
 			return
 		}
 
-		addr := host + ":" + util.FixedPort
+		addr := host + ":" + fixedPort
 
 		// 启动一个固定 6806 端口的反向代理服务器，这样浏览器扩展才能直接使用 127.0.0.1:6806，不用配置端口
 		proxy := newFixedPortReverseProxy(util.ServerURL)
@@ -73,6 +70,8 @@ func newFixedPortReverseProxy(target *url.URL) *httputil.ReverseProxy {
 			request.SetURL(target)
 			request.Out.Host = request.In.Host
 			request.SetXForwarded()
+			// 第三方无法得知该进程内标记，内核仅凭它放行内置代理追加的客户端地址。
+			request.Out.Header.Set(util.LocalProxyHeader, util.LocalProxyToken)
 
 			// 反代以 HTTPS 回源内核，内核据此会把明文客户端的连接误判为 TLS，
 			// 因此显式标记客户端侧的真实连接方式；调用方伪造的同名头部一律清除。

@@ -28,6 +28,7 @@ test("destroying a main Model cancels reconnects, queued messages and late socke
         setTimeout: (callback: () => void) => { timers.set(1, callback); return 1; },
         clearTimeout: (id: number) => timers.delete(id),
         require: () => ({Constants: {SIYUAN_APPID: "test"}, processMessage: (value: unknown) => value,
+            cancelTemplateHTTPExecutions: () => calls.push("cancel-template-http"),
             refreshSettingConfig: () => calls.push("refresh")})});
     const model = new exports.Model({app: {}});
     const options = {id: "test", type: "main", callback: () => calls.push("open"), msgCallback: () => calls.push("message")};
@@ -52,7 +53,7 @@ test("destroying a main Model cancels reconnects, queued messages and late socke
     model.send("test", {});
     model.connect(options);
     assert.equal(sockets.length, 1);
-    assert.deepEqual(calls, ["close"]);
+    assert.deepEqual(calls, ["cancel-template-http", "cancel-template-http", "close"]);
     assert.equal(socket.onopen, null);
     assert.equal(socket.onmessage, null);
     assert.equal(socket.onerror, null);
@@ -80,6 +81,7 @@ test("main socket recovery is recorded and obsolete sockets cannot finish a faul
         document: {getElementById: (): null => null},
         require: (name: string) => {
             if (name === "../constants") return {Constants: {SIYUAN_APPID: "test"}};
+            if (name === "../template/http") return {cancelTemplateHTTPExecutions: () => {}};
             if (name === "../util/kernelFault") return {kernelError: (obsolete: () => boolean) => diagnoses.push(obsolete)};
             if (name === "../util/kernelConnection") return {markKernelConnectionAlive: () => recovered++};
             throw new Error(name);
@@ -98,4 +100,62 @@ test("main socket recovery is recorded and obsolete sockets cannot finish a faul
     sockets[1].onerror({target: {url: "wss://local/ws?app=test&id=test&type=main", readyState: 3}});
     model.destroy();
     assert.equal(diagnoses[1](), true);
+});
+
+test("main windows query their own checkout preparation on startup and reconnect", () => {
+    const sockets: Socket[] = [];
+    const queries: {id: string, reconnect?: boolean}[] = [];
+    const messages: string[] = [];
+    class Socket {
+        static CONNECTING = 0;
+        onopen: () => void;
+        onclose: unknown;
+        onmessage: unknown;
+        onerror: unknown;
+        readyState = 1;
+        constructor(public url: string) { sockets.push(this); }
+        close() {}
+        send(message: string) { messages.push(message); }
+    }
+    const api = {} as {Model: new (options: unknown) => {
+        connect: (options: unknown) => void, flushMainMessages: () => void, destroy: () => void,
+    }};
+    const window = {location: {protocol: "https:", host: "local"}, siyuan: {isReady: false}};
+    runInNewContext(transpileModule(readFileSync("src/layout/Model.ts", "utf8"), {
+        compilerOptions: {module: ModuleKind.CommonJS, target: ScriptTarget.ES2021},
+    }).outputText, {exports: api, WebSocket: Socket, URL, clearTimeout: () => {}, window,
+        document: {getElementById: (): null => null},
+        require: (name: string) => {
+            if (name === "../constants") return {Constants: {SIYUAN_APPID: "test"}};
+            if (name === "../template/http") return {cancelTemplateHTTPExecutions: () => {}};
+            if (name === "../sync/checkoutProgress") return {
+                reconcileSyncCheckout: (id: string, reconnect?: boolean) => queries.push({id, reconnect}),
+            };
+            if (name === "../util/kernelConnection") return {markKernelConnectionAlive: () => {}};
+            if (name === "../config/setting/reset") return {reloadSettingsResetOnReconnect: () => false};
+            if (name === "../config/setting/taskBlocker") return {resetSettingTaskRevision: () => {}};
+            if (name === "../config/setting/sync") return {refreshSettingConfig: async () => {}};
+            throw new Error(name);
+        },
+    });
+    const model = new api.Model({app: {}});
+    model.connect({id: "detached-window", type: "main"});
+    assert.equal(new URL(sockets[0].url).searchParams.get("ready"), "false");
+    sockets[0].onopen();
+    assert.equal(messages.length, 0, "a connected window must not report readiness during initialization");
+    window.siyuan.isReady = true;
+    sockets[0].readyState = Socket.CONNECTING;
+    model.flushMainMessages();
+    assert.equal(messages.length, 0, "readiness must wait for the socket to open");
+    sockets[0].readyState = 1;
+    model.flushMainMessages();
+    sockets[0].onopen();
+    assert.deepEqual(messages.map(message => JSON.parse(message).cmd), ["ready", "ready"]);
+    assert.deepEqual(queries, [{id: "detached-window", reconnect: undefined},
+        {id: "detached-window", reconnect: undefined}, {id: "detached-window", reconnect: true}]);
+    model.connect({id: "detached-window", type: "main"});
+    assert.equal(new URL(sockets[1].url).searchParams.get("ready"), "false");
+    sockets[1].onopen();
+    assert.equal(JSON.parse(messages.at(-1)).cmd, "ready");
+    model.destroy();
 });

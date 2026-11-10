@@ -1,4 +1,34 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package apicontract
+
+import (
+	"encoding/json"
+	"errors"
+)
+
+type DailyNoteCreateResult struct {
+	value   *FileTreeCreateData
+	failure *DocumentSelectionFailure
+}
+
+func NewDailyNoteCreateResult(id string) DailyNoteCreateResult {
+	return DailyNoteCreateResult{value: &FileTreeCreateData{ID: id}}
+}
+func NewDailyNoteSelectionFailure(value DocumentSelectionFailure) DailyNoteCreateResult {
+	return DailyNoteCreateResult{failure: &value}
+}
+func (value DailyNoteCreateResult) MarshalJSON() ([]byte, error) {
+	if value.value != nil {
+		return json.Marshal(value.value)
+	}
+	if value.failure != nil {
+		return json.Marshal(value.failure)
+	}
+	return nil, errors.New("daily note response is not set")
+}
 
 // DailyNoteInfoRequest 查询指定笔记本的日记候选，不创建文档或修改已有日记属性。
 // Date 为本地公历日期 YYYY-MM-DD，省略、空串或 null 时使用当天；日期无效返回 -1。

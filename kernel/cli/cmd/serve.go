@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package cmd
 
@@ -41,6 +29,7 @@ var (
 	serveAttachUI       bool
 	serveSafeMode       bool
 	serveEnablePprof    bool
+	serveFixedPort      bool
 )
 
 var serveCmd = &cobra.Command{
@@ -64,12 +53,12 @@ var serveCmd = &cobra.Command{
 		// --workspace 使用 rootCmd 的 persistent flag，环境变量回退与默认值由 util.BootWithFlags 处理。
 		ws := workspacePath
 
-		util.BootWithFlags(ws, serveWdPath, servePort, serveReadOnly, serveAccessAuthCode, serveLang, serveMode, serveSSL, serveAttachUI, serveSafeMode, serveEnablePprof)
+		util.BootWithFlags(ws, serveWdPath, servePort, serveReadOnly, serveAccessAuthCode, serveLang, serveMode, serveSSL, serveAttachUI, serveSafeMode, serveEnablePprof, serveFixedPort)
 
 		model.InitJwtKey()
 		model.InitConf()
-		go server.Serve(false, model.Conf.CookieKey)
 		model.InitAppearance()
+		go server.Serve(false, model.Conf.CookieKey)
 		sql.InitDatabase(false)
 		sql.InitHistoryDatabase(false)
 		sql.InitAssetContentDatabase(false)
@@ -105,6 +94,7 @@ func init() {
 	// 与 rootCmd.PersistentPreRunE 走同一个 resolveWorkingDir()，确保两条启动路径行为一致。
 	serveCmd.Flags().StringVar(&serveWdPath, "wd", resolveWorkingDir(), "working directory of SiYuan")
 	serveCmd.Flags().StringVar(&servePort, "port", "0", "port of the HTTP server")
+	serveCmd.Flags().BoolVar(&serveFixedPort, "fixed-port", true, "enable the extra port 6806 proxy for browser extensions (does not change --port)")
 	serveCmd.Flags().StringVar(&serveReadOnly, "readonly", "false", "read-only mode")
 	serveCmd.Flags().StringVar(&serveAccessAuthCode, "accessAuthCode", "", "access auth code")
 	serveCmd.Flags().StringVar(&serveLang, "lang", "", "ar/de/en/es/fr/he/hi/id/it/ja/ko/nl/pl/pt-BR/ru/sk/sr/th/tr/uk/zh-CN/zh-TW")

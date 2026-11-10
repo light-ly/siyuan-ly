@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+//go:build unix
+
 package mobilediag
 
 /*
@@ -22,6 +24,12 @@ package mobilediag
 #include <string.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+static int mobilediag_mkdir(const char *path) { return _mkdir(path); }
+#else
+static int mobilediag_mkdir(const char *path) { return mkdir(path, 0755); }
+#endif
 
 static void mobilediag_mark(const char *base, const char *msg) {
 	char path[768];
@@ -61,11 +69,11 @@ __attribute__((constructor)) static void mobilediag_ctor(void) {
 		for (char *p = logdir + 1; *p; p++) {
 			if (*p == '/') {
 				*p = 0;
-				mkdir(logdir, 0755);
+				mobilediag_mkdir(logdir);
 				*p = '/';
 			}
 		}
-		mkdir(logdir, 0755);
+		mobilediag_mkdir(logdir);
 		char logpath[768];
 		snprintf(logpath, sizeof(logpath), "%s/kernel-stderr.log", logdir);
 		int out = open(logpath, O_CREAT | O_TRUNC | O_WRONLY, 0644);

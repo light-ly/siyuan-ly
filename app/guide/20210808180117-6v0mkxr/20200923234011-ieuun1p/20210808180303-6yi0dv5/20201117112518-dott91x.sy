@@ -4,9 +4,9 @@
 	"Type": "NodeDocument",
 	"Properties": {
 		"id": "20201117112518-dott91x",
-		"title": "Embed Content Block",
+		"title": "Embed content blocks",
 		"type": "doc",
-		"updated": "20261016202856"
+		"updated": "20261030073929"
 	},
 	"Children": [
 		{
@@ -15,7 +15,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20201224120448-6jnrawi",
-				"updated": "20210512154707"
+				"updated": "20261024163828"
 			},
 			"Children": [
 				{
@@ -33,12 +33,41 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20210111230452-5lclhuo",
-				"updated": "20220623201506"
+				"updated": "20261024163828"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "The embed content block is mainly used to summarize the required content blocks, use "
+					"Data": "Embedded blocks display blocks selected by a query at the current position. Use them to gather tasks, organize a topic, or view notes from several places together."
+				}
+			]
+		},
+		{
+			"ID": "20261024163828-j88ajws",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261024163828-j88ajws",
+				"updated": "20261024163828"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Insert a SQL embed"
+				}
+			],
+			"HeadingLevel": 3
+		},
+		{
+			"ID": "20261024163828-ls20q8h",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024163828-ls20q8h",
+				"updated": "20261024163828"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Place a SQL query between "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -56,28 +85,38 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " to wrap SQL scripts on a single line: "
+					"Data": " on its own line, for example "
 				},
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "code",
-					"TextMarkTextContent": "{{ SELECT * FROM blocks WHERE content LIKE'%Keyword%' }}"
+					"TextMarkTextContent": "{{ SELECT * FROM blocks WHERE content LIKE '%keyword%' }}"
 				},
 				{
 					"Type": "NodeText",
-					"Data": ", database table please refer to "
+					"Data": ". See "
 				},
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "block-ref",
-					"TextMarkBlockRefID": "20201117103851-gx21lz6",
+					"TextMarkBlockRefID": "20201222100339-i5hzcph",
 					"TextMarkBlockRefSubtype": "s",
-					"TextMarkTextContent": "here"
+					"TextMarkTextContent": "SQL index tables"
 				},
 				{
 					"Type": "NodeText",
-					"Data": ". "
-				},
+					"Data": " for the available tables and fields."
+				}
+			]
+		},
+		{
+			"ID": "20261024163828-j5puxdz",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024163828-j5puxdz",
+				"updated": "20261024163828"
+			},
+			"Children": [
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "tag",
@@ -636,12 +675,91 @@
 			]
 		},
 		{
+			"ID": "20261028115947-9l6y432",
+			"Type": "NodeHeading",
+			"Properties": {
+				"id": "20261028115947-9l6y432",
+				"updated": "20261028115947"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Convert embedded results"
+				}
+			],
+			"HeadingLevel": 2
+		},
+		{
+			"ID": "20261028115947-x0bgqn9",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261028115947-x0bgqn9",
+				"updated": "20261030073929"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Open the embed block menu and choose "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Embed block"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Convert to regular blocks"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " to replace the embed with independent copies of its current results, in display order. Formatting and child blocks, including folded content, are retained. Heading content follows the embed display mode and keeps the source heading levels. Nested references, embeds, and databases retain their own behavior; this operation does not freeze all linked data. Inserted headings follow normal document folding rules, so later blocks may become part of their folded sections."
+				}
+			]
+		},
+		{
+			"ID": "20261028115947-71843i7",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261028115947-71843i7",
+				"updated": "20261028115947"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Choose "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Embed block"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Convert to block references"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " to create one dynamic block reference for each current result, in display order. These references still depend on the source blocks. Both conversions can be undone. Empty results and custom JavaScript output without block results cannot be converted."
+				}
+			]
+		},
+		{
 			"ID": "20260612202529-iytdii0",
 			"Type": "NodeHeading",
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20260612202529-iytdii0",
-				"updated": "20261016202856"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -1020,7 +1138,7 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20260612202529-n0b2kco",
-				"updated": "20261016202856"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -1076,7 +1194,7 @@
 			"IsFencedCodeBlock": true,
 			"Properties": {
 				"id": "20260612202529-mimar76",
-				"updated": "20260612202529"
+				"updated": "20261024162311"
 			},
 			"Children": [
 				{
@@ -1089,7 +1207,48 @@
 				},
 				{
 					"Type": "NodeCodeBlockCode",
-					"Data": "// Synchronous return\nreturn [\"20240601150405-a1b2c3d\", \"20240601150405-e4f5g6h\"];\n\n// Asynchronous return (Promise will be automatically await'd)\nreturn fetchSyncPost(\"/api/search/fulltextSearch\", { query: \"todo\" })\n    .then(r => r.data.blocks.map(b => b.id));\n"
+					"Data": "//!js\n// Synchronous return\nreturn [\"20240601150405-a1b2c3d\", \"20240601150405-e4f5g6h\"];\n"
+				},
+				{
+					"Type": "NodeCodeBlockFenceCloseMarker",
+					"Data": "```"
+				}
+			]
+		},
+		{
+			"ID": "20261024162311-8jqi48e",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261024162311-8jqi48e",
+				"updated": "20261024162311"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "You can also return a Promise. Use the following as a separate alternative to the synchronous example above:"
+				}
+			]
+		},
+		{
+			"ID": "20261024162311-tfmkn0v",
+			"Type": "NodeCodeBlock",
+			"IsFencedCodeBlock": true,
+			"Properties": {
+				"id": "20261024162311-tfmkn0v",
+				"updated": "20261024162311"
+			},
+			"Children": [
+				{
+					"Type": "NodeCodeBlockFenceOpenMarker",
+					"Data": "```"
+				},
+				{
+					"Type": "NodeCodeBlockFenceInfoMarker",
+					"CodeBlockInfo": "anM="
+				},
+				{
+					"Type": "NodeCodeBlockCode",
+					"Data": "//!js\n// Asynchronous return (Promise will be automatically await'd)\nreturn fetchSyncPost(\"/api/search/fulltextSearch\", { query: \"todo\" })\n    .then(r => r.data.blocks.map(b => b.id));\n"
 				},
 				{
 					"Type": "NodeCodeBlockFenceCloseMarker",

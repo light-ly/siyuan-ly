@@ -1,22 +1,11 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package util
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -94,6 +83,31 @@ func TestExtraBodyTransport_ChatPostMerged(t *testing.T) {
 	}
 }
 
+func TestExtraBodyTransportTemperatureOverride(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Error(err)
+		}
+		if string(payload["temperature"]) != "0.5" || string(payload["seed"]) != "9007199254740993" {
+			t.Errorf("extra body temperature must take precedence: %#v", payload)
+		}
+		w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+	transport := &extraBodyTransport{base: server.Client(), extraBody: map[string]any{"temperature": 0.5}}
+	ctx := ContextWithOpenAIChatTemperature(context.Background(), 0)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+"/v1/chat/completions", strings.NewReader(`{"model":"test","seed":9007199254740993}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := transport.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+}
+
 func TestExtraBodyTransport_NonChatPassthrough(t *testing.T) {
 	// 非 chat 请求（如 GET /v1/models）应原样透传，不注入任何字段。
 	var receivedBody []byte
@@ -113,6 +127,7 @@ func TestExtraBodyTransport_NonChatPassthrough(t *testing.T) {
 
 	origBody := `{"hello":"world"}`
 	req, _ := http.NewRequest(http.MethodGet, server.URL+"/v1/models", strings.NewReader(origBody))
+	req = req.WithContext(ContextWithOpenAIChatTemperature(context.Background(), 0))
 	resp, err := transport.Do(req)
 	if err != nil {
 		t.Fatalf("Do failed: %v", err)

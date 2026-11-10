@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import {test} from "node:test";
 import {runInNewContext} from "node:vm";
 import {ModuleKind, ScriptTarget, transpileModule} from "typescript";
+import {renderGutterOnHover} from "../../protyle/gutter/hover";
 
 const buildGlobals = ["SIYUAN_VERSION", "NODE_ENV"].map(name => ({
     name, descriptor: Object.getOwnPropertyDescriptor(globalThis, name),
@@ -42,7 +43,9 @@ const fixture = (paddingLeft: string, hasBlock = true) => {
         },
         getComputedStyle: () => ({paddingLeft}),
         require: () => ({
+            updateStatusBarHover() {},
             isContainerGutterBridge,
+            renderGutterOnHover,
             hasClosestBlock: (target: unknown) => target,
             getAllModels: () => ({editor: [{editor: {protyle}}], backlink: [] as unknown[]}),
         }),

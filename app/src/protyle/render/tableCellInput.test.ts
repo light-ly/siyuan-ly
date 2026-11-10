@@ -9,7 +9,7 @@ import {createSourceFile, forEachChild, isCallExpression, isClassDeclaration, is
 
 const browserCases = async (source: string, queueSource: string, editorSource: string, menuSource: string,
                             transactionSource: string, copyPlainSource: string, gutterSource: string, mouseDownSource: string,
-                            commandSource: string) => {
+                            commandSource: string, columnResizeSource: string) => {
     const check: typeof assert = require("node:assert/strict");
     const noop = () => {};
     const tick = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -17,6 +17,8 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
     const fragmentOwners = new WeakSet<IProtyle>();
     let mobile = true;
     const enteredCells: Element[] = [];
+    const runtimeErrors: string[] = [];
+    window.addEventListener("error", event => runtimeErrors.push(event.message));
     let gutterHidden = false;
     const gutterRenderTarget = new Function("hideElements", gutterSource + "\nreturn render;")(
         () => { gutterHidden = true; });
@@ -31,17 +33,19 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
     }});
     const dependencies = {
         Constants: {ZWSP: "\u200b", ATTRIBUTE_EDITING: "data-editing"},
-        dayjs: () => ({format: () => "20260924120000"}), isMobile: () => mobile,
+        dayjs: () => ({format: () => "20260924120000"}), isMobile: () => mobile, isIOSDevice: () => mobile,
         normalizeSemanticInlineElements: noop, removeEmptySemanticInlineElement: noop,
         getSemanticMarkerPrefixLengthForNode: () => 0, getTextWithoutSemanticMarkers: (node: Node) => node.textContent,
         turnIntoTaskList: () => false, headingTurnIntoList: () => false, isProtyleListItemFirstParagraph: () => false,
         matchHotKey: (binding: {custom?: string}, event: KeyboardEvent) => !!binding?.custom &&
             binding.custom === event.key && event.ctrlKey && !event.altKey && !event.shiftKey && !event.isComposing,
         isNotCtrl: (event: KeyboardEvent) => !event.ctrlKey && !event.metaKey,
-        mathRender: noop, hideElements: (names: string[]) => {
+        mathRender: noop, hideElements: (names: string[], protyle?: IProtyle) => {
             if (names.includes("gutter")) {
                 gutterHidden = true;
             }
+            if (names.includes("toolbar")) protyle?.toolbar?.element?.classList.add("fn__none");
+            if (names.includes("util")) protyle?.toolbar?.subElement?.classList.add("fn__none");
         }, scrollCenter: noop, focusByRange,
         transaction: (_owner: IProtyle, doOperations: IOperation[], undoOperations: IOperation[]) => {
             changes.push({doOperations, undoOperations});
@@ -60,15 +64,16 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
     const api = new Function(...Object.keys(dependencies), source + "\nreturn {input, insertRow, insertRowAbove, insertColumn, " +
         "getAgentLute, configureAVRichTextLute, getTableCellEditorLute, getAVRichTextLute, " +
         "getTableCellRichBlockDOM, serializeTableCellRich, cleanTableCellRichHTML, renderTableCellRich, buildTableGrid, " +
-        "setTableCellRich, getTableCellInlineHTML, getTableCellPlainText, getSelectionOffset, focusByOffset, getTableBlockHTML, updateTableCellEditingValue, fixTable, " +
+        "setTableCellRich, getTableCellInlineHTML, getTableCellPlainText, getSelectionOffset, focusByOffset, getTableBlockHTML, updateTableCellEditingValue, fixTable, isNativeTextSelectionHandleTouch, " +
         "updateTableCellContentLayout, captureRichCellSelection, captureRichCellSelectionAtPoint, restoreRichCellSelection, setTableCellRichEventTarget, " +
-        "LargeTableVirtualizer, getTableVirtualCellIndex, getTableVirtualRowIndex, restoreTableVirtualizationDOM, " +
-        "hasClosestBlock, hasClosestByClassName, hasClosestByTag, setTaskListItemMarker, nextTaskListMarker};")(...Object.values(dependencies)) as
+        "LargeTableVirtualizer, getTableVirtualCellIndex, getTableVirtualRowIndex, restoreTableVirtualizationDOM, finishTableCellEditing, TABLE_DEFAULT_COLUMN_WIDTH, " +
+        "hasClosestBlock, hasClosestByClassName, hasClosestByTag, isInEmbedBlock, getEmbedChildOperationContext, setTaskListItemMarker, nextTaskListMarker};")(...Object.values(dependencies)) as
         typeof import("../wysiwyg/input") & typeof import("../util/table") & typeof import("./setLute") &
         typeof import("./av/richText") & typeof import("./av/richTextValue") & typeof import("../util/tableCellRichLute") &
         typeof import("../util/tableCellRich") & typeof import("../util/selection") & typeof import("../util/tableVirtualizationDOM") &
         typeof import("../wysiwyg/tableVirtualization") & typeof import("../util/tableCellRichContext") & typeof import("../util/tableCellRichSelection") &
-        typeof import("../util/hasClosest") & typeof import("../wysiwyg/list") & typeof import("../wysiwyg/taskListMarker");
+        typeof import("../util/hasClosest") & typeof import("../wysiwyg/getBlock") & typeof import("../wysiwyg/list") &
+        typeof import("../wysiwyg/taskListMarker") & typeof import("../wysiwyg/nativeTextMenu") & typeof import("../util/tableColumnWidth");
     const lute = api.configureAVRichTextLute(api.getAgentLute({emojiSite: "/emojis", emojis: {},
         headingAnchor: false, listStyle: false, paragraphBeginningSpace: true, sanitize: true}));
     const Queue = new Function(queueSource + "\nreturn InputQueue;")() as new () => {
@@ -113,15 +118,30 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
         return {owner, queue, element, wysiwyg, table, range};
     };
     let tableExitTarget: HTMLElement;
+    let adjacentCell: HTMLTableCellElement;
+    const caretScrolls: {owner: IProtyle, direction: string}[] = [];
+    let serializations = 0;
     const editorDependencies = {
         ...dependencies, ...api, TABLE_CELL_INLINE_ATTRIBUTE: "data-sy-table-cell-inline",
-        TABLE_CELL_RICH_ATTRIBUTE: "data-sy-table-cell-rich", TABLE_CELL_SLASH_IDS: new Set(),
+        scheduleCaretScroll: (owner: IProtyle, direction: string) => caretScrolls.push({owner, direction}),
+        serializeTableCellRich: (html: string) => {
+            serializations++;
+            return api.serializeTableCellRich(html);
+        },
+        TABLE_CELL_RICH_ATTRIBUTE: "data-sy-table-cell-rich", filterTableCellSlashMenuItems: (items: IHintData[]) => items,
         hintRef: noop, hintTag: noop, registerBuiltinSlashHint: (callback: unknown) => callback,
         getDefaultToolbar: (): string[] => [], updateOutlineCurrentBlock: noop,
         setMobileToolbarUndo: noop, setTableCellRichContext: noop, bindTableCellRichDrag: noop,
         bindLiteCodeActions: noop, highlightRender: noop, renderTableCellRichElements: noop,
         isTableCellCaretAtBoundary: () => true,
-        getAdjacentRichTableCell: (): undefined => undefined,
+        getAdjacentRichTableCell: () => adjacentCell,
+        focusEditableAtGoalX: (element: Element) => {
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            range.collapse(true);
+            focusByRange(range);
+            return true;
+        },
         getCaretGoalX: () => 80,
         leaveRichTableCell: () => {
             if (!tableExitTarget) {
@@ -161,10 +181,16 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
             });
             const hidden = document.createElement("div");
             hidden.className = "fn__none";
+            const toolbar = host.querySelector<HTMLElement>(".protyle-toolbar");
+            toolbar.classList.add("fn__none");
+            const subElement = document.createElement("div");
+            subElement.className = "protyle-util fn__none";
+            subElement.innerHTML = "<textarea></textarea>";
+            host.append(subElement);
             api.updateTableCellContentLayout(host, options.initialBlockHTML);
             wysiwyg.addEventListener("input", () => options.onChange());
             const protyle = {block: {}, options: {action: []},
-                toolbar: {element: hidden, subElement: hidden}, undo: {clear: noop}} as unknown as IProtyle;
+                toolbar: {element: toolbar, subElement}, undo: {clear: noop}} as unknown as IProtyle;
             fragmentOwners.add(protyle);
             return {
                 wysiwyg, hintElement: hidden,
@@ -186,8 +212,8 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
         cleanListMindmapHTML: (html: string) => html, cleanHeadingNumberHTML: (html: string) => html,
         cleanBlockSelectionModeHTML: (html: string) => html,
         getVisibleFoldHeadingHTML: (html: string) => { snapshotParses++; return html; },
-        getEmbedChildOperationContext: noop,
-        isInEmbedBlock: (element: Element) => element.closest(".protyle-wysiwyg__embed"),
+        getEmbedChildOperationContext: api.getEmbedChildOperationContext,
+        isInEmbedBlock: api.isInEmbedBlock,
         captureBlockSelectionModeState: noop, restoreBlockSelectionModeState: noop,
         disposeCustomBlocksInElement: noop, processRender: noop, highlightRender: noop,
         focusRestoredBlockSelectionMode: noop, syncTrackedRanges: noop, queueTransactionBatch: noop,
@@ -209,6 +235,126 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
         element.remove();
         await tick();
     };
+
+    for (const platform of [false, true]) {
+        mobile = platform;
+        for (const nesting of [0, 1, 2]) {
+            const {owner, element, table} = fixture();
+            const tabs: HTMLElement[] = [];
+            for (let depth = 0; depth < nesting; depth++) {
+                const tab = document.createElement("div");
+                tab.className = "tab-item";
+                tab.dataset.tabsHidden = "false";
+                tab.style.isolation = "isolate";
+                table.before(tab);
+                tab.append(table);
+                tabs.push(tab);
+            }
+            await open(owner, table.querySelector("th"));
+            const host = table.querySelector<HTMLElement>(".table__cell-editor");
+            const toolbar = element.querySelector<HTMLElement>(".protyle-toolbar");
+            const util = (platform ? document.body : element).querySelector<HTMLElement>(".protyle-util");
+            check.equal(toolbar.parentElement, platform ? host : element);
+            check.equal(util.parentElement, platform ? document.body : element);
+            let bubbled = 0;
+            element.addEventListener("pointerdown", () => { bubbled++; });
+            toolbar.dispatchEvent(new PointerEvent("pointerdown", {bubbles: true}));
+            check.equal(host.isConnected, true, "toolbar pointerdown retains the active cell");
+            check.equal(bubbled, 0, "toolbar events must not enter the owning document editor");
+            if (!platform) {
+                const control = document.createElement("div");
+                control.className = "protyle-table-control";
+                control.style.cssText = "position:fixed;z-index:4;left:20px;top:20px;width:100px;height:100px";
+                element.append(control);
+                for (const overlay of [toolbar, util]) {
+                    overlay.style.cssText = "position:fixed;z-index:7;left:20px;top:20px;width:100px;height:100px";
+                    check.ok(overlay.contains(document.elementFromPoint(30, 30)),
+                        `cell overlays cover table controls: ${nesting} ${overlay.className} ${window.innerWidth}x${window.innerHeight} ${document.elementFromPoint(30, 30)?.outerHTML}`);
+                    overlay.style.display = "none";
+                }
+                util.style.display = "block";
+                const input = util.querySelector("textarea");
+                input.dispatchEvent(new PointerEvent("pointerdown", {bubbles: true}));
+                input.focus();
+                check.equal(document.activeElement, input);
+                check.equal(host.isConnected, true, "format input remains in the active editor");
+                input.dispatchEvent(new CompositionEvent("compositionstart", {bubbles: true}));
+                document.body.dispatchEvent(new PointerEvent("pointerdown", {bubbles: true}));
+                check.equal(host.isConnected, true, "overlay composition delays finishing");
+                input.dispatchEvent(new CompositionEvent("compositionend", {bubbles: true}));
+                await tick();
+                check.equal(host.isConnected, false, "composition completion releases a pending finish");
+                await open(owner, table.querySelector("th"));
+                let undoCalls = 0;
+                owner.undo = {undo: () => { undoCalls++; }} as unknown as IProtyle["undo"];
+                const undoInput = element.querySelector(".protyle-util textarea");
+                const undo = new KeyboardEvent("keydown", {key: "Ctrl+Z", ctrlKey: true, bubbles: true, cancelable: true});
+                undoInput.dispatchEvent(undo);
+                check.equal(undo.defaultPrevented, true, "overlay undo is consumed by the cell editor");
+                check.equal(undoCalls, 1, "overlay undo executes exactly once in the owner document");
+                check.equal(table.querySelector(".table__cell-editor"), null);
+                await open(owner, table.querySelector("th"));
+            }
+            if (tabs.length) {
+                const hiddenUtil = (platform ? document.body : element).querySelector<HTMLElement>(".protyle-util");
+                const hiddenInput = hiddenUtil.querySelector("textarea");
+                if (!platform) {
+                    hiddenUtil.classList.remove("fn__none");
+                    hiddenInput.dispatchEvent(new CompositionEvent("compositionstart", {bubbles: true}));
+                }
+                tabs[0].dataset.tabsHidden = "true";
+                await tick();
+                if (!platform) {
+                    check.equal(hiddenUtil.classList.contains("fn__none"), true, "hidden tabs dismiss overlays during composition");
+                    check.ok(table.querySelector(".table__cell-editor"), "composition is retained until it finishes");
+                    hiddenInput.dispatchEvent(new CompositionEvent("compositionend", {bubbles: true}));
+                    await tick();
+                }
+                check.equal(table.querySelector(".table__cell-editor"), null, "hiding an ancestor tab ends cell editing");
+            }
+            await finish(element);
+            check.equal(util.isConnected, false, "detached overlays are released on finish");
+            check.equal(document.querySelector(".protyle-util"), null, "no overlay survives closing its document");
+        }
+        const {owner, element, table} = fixture();
+        const layout = document.createElement("div");
+        element.before(layout);
+        layout.append(element);
+        await open(owner, table.querySelector("th"));
+        const util = (platform ? document.body : element).querySelector<HTMLElement>(".protyle-util");
+        layout.remove();
+        await tick();
+        check.equal(util.isConnected, false, "removing a document layout releases its overlays");
+        check.equal(document.querySelector(".protyle-util"), null);
+    }
+
+    for (const platform of [false, true]) {
+        mobile = platform;
+        for (const rich of [false, true]) {
+            const {owner, element, table} = fixture();
+            const cells = Array.from(table.querySelectorAll<HTMLTableCellElement>("th, td"));
+            if (rich) {
+                cells.forEach(cell => api.setTableCellRich(cell, "**First**\n\nSecond"));
+            }
+            const before = api.cleanTableCellRichHTML(table.outerHTML);
+            serializations = 0;
+            for (const cell of cells) {
+                await open(owner, cell);
+            }
+            check.equal(serializations, 0, "entering and switching unchanged cells skips Markdown serialization");
+            check.equal(changes.length, 0, "navigation must not create document transactions");
+            check.equal(api.cleanTableCellRichHTML(table.outerHTML), before, "navigation preserves stored cell content");
+            const editable = cells[cells.length - 1].querySelector<HTMLElement>('[contenteditable="true"]');
+            editable.textContent = "Edited";
+            // A synchronous switch must save changes even before the MutationObserver callback runs.
+            await open(owner, cells[0]);
+            check.equal(changes.length, 1, "switching captures edits without depending on a dirty flag");
+            check.equal(serializations, 2, "only the original and changed content need serialization");
+            check.match(operationHTML(changes[0].doOperations[0]), /Edited/);
+            await finish(element);
+        }
+    }
+    mobile = true;
 
     const generalKeymap = window.siyuan.config.keymap.editor.general;
     window.siyuan.config.keymap.editor.general = {...generalKeymap,
@@ -301,7 +447,7 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
             check.equal(changes.length, 0);
             editable.dispatchEvent(new CompositionEvent("compositionend", {bubbles: true}));
             await tick();
-            check.equal(changes.length, 1);
+            check.equal(changes.length, 1, "pending cell input reaches the transaction before alignment");
             editable.textContent = "pending before alignment";
             api.focusByOffset(editable, 4, 4);
             editable.dispatchEvent(new KeyboardEvent("keydown", {key: "e", ctrlKey: true, bubbles: true, cancelable: true}));
@@ -446,6 +592,39 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
     }
 
     // 执行外层编辑器的完整鼠标监听器，区分单元格点击与真正的跨单元格拖选。
+    for (const editEmbedded of [false, true]) {
+        const {owner, element, wysiwyg, table} = fixture();
+        const embed = document.createElement("div");
+        embed.className = "protyle-wysiwyg__embed";
+        embed.dataset.id = table.dataset.nodeId;
+        embed.dataset.allowChildOperation = "true";
+        embed.innerHTML = table.outerHTML;
+        const embedBlock = document.createElement("div");
+        embedBlock.dataset.type = "NodeBlockQueryEmbed";
+        embedBlock.dataset.nodeId = "embed";
+        embedBlock.appendChild(embed);
+        wysiwyg.appendChild(embedBlock);
+        const embedded = embed.querySelector<HTMLElement>('[data-type="NodeTable"]');
+        const source = editEmbedded ? embedded : table;
+        const other = editEmbedded ? table : embedded;
+        const range = document.createRange();
+        range.selectNodeContents(other.querySelector("th"));
+        range.collapse(true);
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+        source.querySelector<HTMLElement>("col").style.width = "180px";
+        source.setAttribute("data-editing", "true");
+        transactionAPI.promiseTransaction({protyle: owner, doOperations: [{
+            action: "update", id: source.dataset.nodeId, data: api.getTableBlockHTML(source),
+        }]});
+        check.ok(source.isConnected, "column resizing preserves the explicitly edited occurrence");
+        check.equal(source.querySelector<HTMLElement>("col").style.width, "180px");
+        check.equal(other.isConnected, false, "a stale text selection must not prevent the other occurrence from refreshing");
+        check.equal(wysiwyg.querySelectorAll('[data-type="NodeTable"] col[style*="180px"]').length, 2,
+            "source and embedded column widths synchronize in both directions");
+        element.remove();
+    }
+
     for (const mobile of [false, true]) {
         const {owner, element, wysiwyg, table} = fixture();
         const absent = () => false;
@@ -457,6 +636,12 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
             isOnlyMeta: absent, repairHiddenTabSelection: noop, clearSelect: noop,
             countBlockWord: noop, hideAllElements: noop, globalClickHideMenu: noop,
             dragOverScroll: noop, stopScrollAnimation: noop,
+            updateTransaction: (protyle: IProtyle, node: Element, oldHTML: string) => {
+                const before = changes.length;
+                transactionAPI.updateTransaction(protyle, node, oldHTML);
+                check.equal(changes.length, before + 1, "resizing submits the changed table snapshot");
+                transactionAPI.promiseTransaction({protyle, doOperations: changes.at(-1).doOperations});
+            },
         };
         element.style.cssText = "width:640px;height:480px";
         wysiwyg.style.cssText = "padding:20px 64px;box-sizing:border-box";
@@ -467,7 +652,17 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
         owner.selectElement = document.createElement("div");
         owner.toolbar.isMultiSelectMode = absent;
         const selectedRanges: HTMLTableCellElement[][] = [];
-        owner.wysiwyg.tableControl = {setHidden: noop, clear: noop, hasTouchSelection: absent, selectCellRange: (...cells: HTMLTableCellElement[]) => {
+        const resizeServices = {...services, finishTableCellEditing: api.finishTableCellEditing,
+            restoreTableVirtualizationDOM: api.restoreTableVirtualizationDOM, TABLE_DEFAULT_COLUMN_WIDTH: api.TABLE_DEFAULT_COLUMN_WIDTH};
+        const resizeColumn = new Function(...Object.keys(resizeServices), "getTableNode", columnResizeSource +
+            "\nreturn ColumnResizeController.prototype.startColumnResize;")(...Object.values(resizeServices),
+            (cell: HTMLTableCellElement) => cell?.closest('[data-type="NodeTable"]'));
+        owner.wysiwyg.tableControl = {protyle: owner, wysiwygElement: wysiwyg, touch: mobile ? {} : undefined,
+            startColumnResize: resizeColumn, clearCellSelection: noop, blurTouchEditor: noop,
+            showDimensionFeedback: noop, clearDimensionFeedback: noop, scheduleRender: noop,
+            getColumnRect: (table: HTMLTableElement, _grid: unknown, index: number) =>
+                table.querySelectorAll("col")[index].getBoundingClientRect(),
+            setHidden: noop, clear: noop, hasTouchSelection: absent, selectCellRange: (...cells: HTMLTableCellElement[]) => {
             selectedRanges.push(cells);
             return true;
         }} as unknown as IProtyle["wysiwyg"]["tableControl"];
@@ -503,6 +698,36 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
         mouse(cells[4], "mouseup");
         check.deepEqual(selectedRanges, [[cells[1], cells[4]]]);
         check.equal(wysiwyg.classList.contains("fn__pointer-none"), false);
+        for (const [embeddedSource, allowChildOperation] of [[false, false], [true, false], [false, true], [true, true]]) {
+            const sourceTable = wysiwyg.querySelector<HTMLElement>('[data-type="NodeTable"]');
+            sourceTable.querySelectorAll("th, td").forEach(cell => {cell.textContent = "";});
+            sourceTable.setAttribute("colgroup", Array.from(sourceTable.querySelectorAll("col"))
+                .map(column => column.getAttribute("style") || "").join("|"));
+            const embedBlock = document.createElement("div");
+            embedBlock.dataset.type = "NodeBlockQueryEmbed";
+            embedBlock.dataset.nodeId = "embed";
+            embedBlock.innerHTML = `<div class="protyle-wysiwyg__embed" data-id="${sourceTable.dataset.nodeId}" data-allow-child-operation="${allowChildOperation}">${sourceTable.outerHTML}</div>`;
+            wysiwyg.appendChild(embedBlock);
+            const embeddedTable = embedBlock.querySelector<HTMLElement>('[data-type="NodeTable"]');
+            const source = embeddedSource ? embeddedTable : sourceTable;
+            // 在原块旁插入嵌入块后，未修改的副本可能带有上一笔事务遗留的编辑标记。
+            (embeddedSource ? sourceTable : embeddedTable).setAttribute("data-editing", "true");
+            const handle = source.querySelector<HTMLElement>(".table__resize");
+            const beforeResizeChanges = changes.length;
+            const beforeWidth = source.querySelector<HTMLElement>("col").style.width;
+            const resizeX = handle.getBoundingClientRect().left + handle.getBoundingClientRect().width / 2 + 80;
+            handle.dataset.colIndex = "0";
+            mouse(handle, "mousedown");
+            document.dispatchEvent(new MouseEvent("mousemove", {bubbles: true, clientX: resizeX, clientY: 120}));
+            document.dispatchEvent(new MouseEvent("mouseup", {bubbles: true, clientX: resizeX, clientY: 120}));
+            check.deepEqual(errors, []);
+            check.equal(changes.length, beforeResizeChanges + 1, "the complete mouse gesture submits one resize transaction");
+            const copies = Array.from(wysiwyg.querySelectorAll<HTMLElement>('[data-type="NodeTable"] col:first-child'));
+            check.equal(copies.length, 2);
+            check.notEqual(copies[0].style.width, beforeWidth, "the gesture changes the rendered column width");
+            check.equal(copies[0].style.width, copies[1].style.width, "full mouse resize synchronizes source and embed widths");
+            embedBlock.remove();
+        }
         window.removeEventListener("error", collectError);
         await finish(element);
     }
@@ -552,6 +777,31 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
         releases[1]();
         await switching;
         check.equal(enteredCells.length, 0, "a cancelled Enter must not edit another cell");
+        await finish(element);
+    }
+
+    // 系统选区手柄可落在内嵌编辑器外的单元格留白中，按下时不能关闭编辑器。
+    for (const endpoint of ["start", "end"]) {
+        const {owner, element, table} = fixture();
+        const cell = table.querySelector("th");
+        await open(owner, cell);
+        const host = cell.querySelector(".table__cell-editor");
+        const editable = host.querySelector('[contenteditable="true"]');
+        const range = document.createRange();
+        range.selectNodeContents(editable);
+        focusByRange(range);
+        const rects = Array.from(range.getClientRects()).filter(rect => rect.width > 0 && rect.height > 0);
+        const rect = endpoint === "start" ? rects[0] : rects[rects.length - 1];
+        const pointer = new PointerEvent("pointerdown", {bubbles: true, cancelable: true, pointerType: "touch",
+            clientX: endpoint === "start" ? rect.left : rect.right,
+            clientY: endpoint === "start" ? rect.top - 5 : rect.bottom + 5});
+        cell.dispatchEvent(pointer);
+        check.equal(host.isConnected, true, `${endpoint} handle outside the inner editor retains its host`);
+        check.equal(pointer.defaultPrevented, false, "the native handle gesture remains available");
+        check.equal(getSelection().toString(), "Hello");
+        element.dispatchEvent(new PointerEvent("pointerdown", {bubbles: true, pointerType: "touch",
+            clientX: rect.right + 100, clientY: rect.bottom + 100}));
+        check.equal(host.isConnected, false, "an ordinary outside tap still closes the cell editor");
         await finish(element);
     }
 
@@ -627,6 +877,7 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
 
     {
         const {owner, element, wysiwyg, table} = fixture();
+        snapshotParses = 0;
         await open(owner, table.querySelector("th"));
         const host = table.querySelector(".table__cell-editor");
         const operation = {action: "update", id: table.dataset.nodeId, data: api.getTableBlockHTML(table)};
@@ -845,13 +1096,31 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
         check.ok(cells[1].querySelector(".table__cell-editor"));
         await finish(element);
     }
+    for (const key of ["ArrowUp", "ArrowDown"]) {
+        const {owner, element, table} = fixture();
+        const cells = table.querySelectorAll("td");
+        await open(owner, cells[0]);
+        adjacentCell = cells[1];
+        caretScrolls.length = 0;
+        cells[0].querySelector(".table__cell-editor").dispatchEvent(
+            new KeyboardEvent("keydown", {key, bubbles: true, cancelable: true}));
+        await tick();
+        check.ok(cells[1].querySelector(".table__cell-editor"));
+        check.equal(caretScrolls.length, 1);
+        check.ok(fragmentOwners.has(caretScrolls[0].owner));
+        check.equal(caretScrolls[0].direction, key === "ArrowUp" ? "up" : "down");
+        adjacentCell = undefined;
+        await finish(element);
+    }
     for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
         const {owner, element, table, wysiwyg} = fixture();
         const cell = table.querySelector("td");
         await open(owner, cell);
         const host = cell.querySelector<HTMLElement>(".table__cell-editor");
+        caretScrolls.length = 0;
         host.dispatchEvent(new KeyboardEvent("keydown", {key, bubbles: true, cancelable: true}));
         check.ok(cell.querySelector(".table__cell-editor"), "no adjacent region keeps editing active");
+        check.equal(caretScrolls.length, 0);
         tableExitTarget = document.createElement("div");
         tableExitTarget.contentEditable = "true";
         tableExitTarget.textContent = "Outside";
@@ -864,6 +1133,8 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
         check.ok(cell.textContent.includes("Saved before leaving"));
         check.ok(tableExitTarget.contains(getSelection().anchorNode));
         check.ok(tableExitTarget.contains(owner.toolbar.range.startContainer));
+        check.deepEqual(caretScrolls, key === "ArrowUp" || key === "ArrowDown" ?
+            [{owner, direction: key === "ArrowUp" ? "up" : "down"}] : []);
         tableExitTarget = undefined;
         await finish(element);
     }
@@ -911,9 +1182,10 @@ const browserCases = async (source: string, queueSource: string, editorSource: s
             bubbled = 0;
             const enter = new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true});
             field.dispatchEvent(enter);
+            check.deepEqual(runtimeErrors, [], id);
             check.equal(enter.defaultPrevented, true, id);
             check.equal(bubbled, 0, id);
-            check.equal(removed, 1);
+            check.equal(removed, 1, "table insert Enter removes its menu once");
             check.equal(changes.length, 1, "Enter inserts exactly once");
             check.equal(table.querySelectorAll("tr").length, id.startsWith("insertRow") ? count + 3 : 3);
             check.equal(table.querySelector("tr").cells.length, id.startsWith("insertColumn") ? count + 3 : 3);
@@ -946,10 +1218,16 @@ test("table cell editors preserve input and alignment, and consume table menu En
     const source = ["../util/longTextWrap.ts", "../util/inlineElementBoundary.ts", "../toolbar/fontFamilyCore.ts",
         "../../util/escape.ts", "../util/tableVirtualizationDOM.ts", "setLute.ts", "../wysiwyg/codeBlockUtil.ts", "av/richTextValue.ts", "av/richText.ts",
         "../wysiwyg/taskListMarker.ts", "../util/tableCellRichLute.ts", "../util/tableCellRichValue.ts", "../util/tableCellRich.ts",
-        "../util/tableCellRichContext.ts", "../util/tableCellRichSelection.ts", "../wysiwyg/tableVirtualization.ts",
-        "../util/hasClosest.ts", "../wysiwyg/getBlock.ts", "../util/table.ts", "../wysiwyg/input.ts"]
+        "../util/tableCellRichContext.ts", "../util/tableCellRichSelection.ts", "../util/tableColumnWidth.ts",
+        "../util/tableSelection.ts", "../util/tableRowHeight.ts", "../wysiwyg/tableVirtualization.ts",
+        "../util/hasClosest.ts", "../wysiwyg/getBlock.ts", "../util/table.ts", "../wysiwyg/input.ts", "../wysiwyg/nativeTextMenu.ts"]
         .map(file => compile(read(file))).join("\n") + "\n" + compile(selectionSource) + "\n" + compile(taskSource);
     const wysiwyg = createSourceFile("wysiwyg.ts", read("../wysiwyg/index.ts"), ScriptTarget.Latest, true);
+    const tableControl = createSourceFile("tableControl.ts", read("../util/tableControl.ts"), ScriptTarget.Latest, true);
+    const columnResize = tableControl.statements.find(isClassDeclaration).members.find(member =>
+        member.name?.getText(tableControl) === "startColumnResize");
+    assert.ok(columnResize);
+    const columnResizeSource = compile("class ColumnResizeController {" + columnResize.getText(tableControl) + "}");
     const members = wysiwyg.statements.find(isClassDeclaration).members.filter(member =>
         ["inputTimeout", "pendingInputTimeouts", "runningInputTasks", "scheduleInput", "runInput", "flushPendingInput"]
             .includes(member.name?.getText(wysiwyg)));
@@ -1008,14 +1286,14 @@ test("table cell editors preserve input and alignment, and consume table menu En
 app.setPath("userData", ${JSON.stringify(path.join(temporary, "profile"))});
 app.commandLine.appendSwitch("disable-gpu");
 app.whenReady().then(async () => {
-    const win = new BrowserWindow({show: false, webPreferences: {
+    const win = new BrowserWindow({show: false, width: 1000, height: 800, webPreferences: {
         nodeIntegration: true, contextIsolation: false, offscreen: true, backgroundThrottling: false,
     }});
     try {
         await win.loadURL("data:text/html,<html><body></body></html>");
         await win.webContents.executeJavaScript(require("node:fs").readFileSync(${JSON.stringify(lutePath)}, "utf8"));
         console.log(await win.webContents.executeJavaScript(${JSON.stringify("const __name = value => value; (" +
-        browserCases.toString() + ")(" + [source, queue, compile(read("tableCellRichEditor.ts")), menuSource, transactionSource, copyPlainSource, gutterSource, mouseDownSource, commandSource]
+        browserCases.toString() + ")(" + [source, queue, compile(read("tableCellRichEditor.ts")), menuSource, transactionSource, copyPlainSource, gutterSource, mouseDownSource, commandSource, columnResizeSource]
             .map(value => JSON.stringify(value)).join(",") + ")")}));
         win.destroy();
         app.exit(0);

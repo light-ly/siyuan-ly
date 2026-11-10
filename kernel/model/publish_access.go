@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -36,6 +24,7 @@ import (
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/av"
+	"github.com/siyuan-note/siyuan/kernel/cache"
 	"github.com/siyuan-note/siyuan/kernel/sql"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
 	"github.com/siyuan-note/siyuan/kernel/util"
@@ -112,6 +101,8 @@ func GetPublishAccess() (ret PublishAccess) {
 }
 
 func SetPublishAccess(inputPublishAccess PublishAccess) (err error) {
+	finishDocTreeChange := cache.BeginDocTreeMutation("")
+	defer finishDocTreeChange()
 	now := time.Now().UnixMilli()
 	publishAccessLock.Lock()
 	defer publishAccessLock.Unlock()
@@ -523,7 +514,13 @@ func CheckAbsPathAccessableByPublishAccess(c *gin.Context, absPath string, publi
 		}
 
 		if assetPath, box, ok := AssetPathFromDataRelativePath(relPath); ok {
-			return checkAssetPathAccessableByPublishAccess(c, publishAccess, assetPath, box)
+			// 文档级资源必须由所属文档目录授权，避免同名资源借用其他文档的发布权限
+			// https://github.com/siyuan-note/siyuan/security/advisories/GHSA-xxqp-6jxw-qr84
+			ownerAbsPath := ""
+			if "" != box && !strings.HasPrefix(relPath, box+"/assets/") {
+				ownerAbsPath = absPath
+			}
+			return checkAssetPathAccessableByPublishAccess(c, publishAccess, assetPath, box, ownerAbsPath)
 		}
 
 		if ast.IsNodeIDPattern(pathParts[0]) {
@@ -537,10 +534,9 @@ func CheckAbsPathAccessableByPublishAccess(c *gin.Context, absPath string, publi
 	return false
 }
 
-func checkAssetPathAccessableByPublishAccess(c *gin.Context, publishAccess PublishAccess, assetPath, boxID string) bool {
-	publishIgnore := GetDisablePublishAccess(publishAccess)
+func newPublishAccessItemFilter(c *gin.Context, publishAccess PublishAccess) attributeViewItemFilter {
 	itemAccessCache := map[*av.AttributeView]map[string]bool{}
-	itemFilter := func(attrView *av.AttributeView, itemID string) bool {
+	return func(attrView *av.AttributeView, itemID string) bool {
 		itemAccess := itemAccessCache[attrView]
 		if nil == itemAccess {
 			itemAccess = map[string]bool{}
@@ -554,9 +550,21 @@ func checkAssetPathAccessableByPublishAccess(c *gin.Context, publishAccess Publi
 		itemAccess[itemID] = accessable
 		return accessable
 	}
+}
+
+func checkAssetPathAccessableByPublishAccess(c *gin.Context, publishAccess PublishAccess, assetPath, boxID, ownerAbsPath string) bool {
+	publishIgnore := GetDisablePublishAccess(publishAccess)
+	itemFilter := newPublishAccessItemFilter(c, publishAccess)
 	for _, bt := range treenode.GetBlockTreesByType("d") {
 		if "" != boxID && bt.BoxID != boxID {
 			continue
+		}
+
+		if "" != ownerAbsPath {
+			ownedPath := filepath.Join(util.DataDir, bt.BoxID, filepath.FromSlash(filepath.Dir(bt.Path)), filepath.FromSlash(assetPath))
+			if filepath.Clean(ownedPath) != ownerAbsPath {
+				continue
+			}
 		}
 
 		passwordID, password := GetPathPasswordByPublishAccess(bt.BoxID, bt.Path, publishAccess)
@@ -1730,9 +1738,15 @@ func FilterLocalStorageByPublishAccess(localStorage map[string]any) (ret map[str
 	return
 }
 
+// DocAssetsForPublishAccess 返回发布读者可见的文档资源，属性视图行按其绑定文档的发布访问过滤。
+func DocAssetsForPublishAccess(c *gin.Context, publishAccess PublishAccess, rootID string, retainQueryStr bool) ([]string, error) {
+	return docAssets(rootID, retainQueryStr, newPublishAccessItemFilter(c, publishAccess))
+}
+
 func FilterAssetContentByPublishAccess(c *gin.Context, publishAccess PublishAccess, assetContent []*AssetContent) (ret []*AssetContent) {
 	publishInvisible := GetInvisiblePublishAccess(publishAccess)
 	publishDisable := GetDisablePublishAccess(publishAccess)
+	itemFilter := newPublishAccessItemFilter(c, publishAccess)
 	validAssets := []string{}
 	bts := treenode.GetBlockTreesByType("d")
 	for _, bt := range bts {
@@ -1740,7 +1754,7 @@ func FilterAssetContentByPublishAccess(c *gin.Context, publishAccess PublishAcce
 		if CheckPathAccessableByPublishIgnore(bt.BoxID, bt.Path, publishInvisible) &&
 			CheckPathAccessableByPublishIgnore(bt.BoxID, bt.Path, publishDisable) &&
 			(password == "" || CheckPublishAuthCookie(c, passwordID, password)) {
-			assets, err := DocAssets(bt.ID, false)
+			assets, err := docAssets(bt.ID, false, itemFilter)
 			if err == nil {
 				validAssets = append(validAssets, assets...)
 			}

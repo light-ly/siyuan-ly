@@ -61,7 +61,7 @@ const renderOnboarding = () => {
 <div class="onboarding__title">&#x1F389; ${window.siyuan.languages.onboardingWelcome}</div>
 <div class="onboarding__desc">${window.siyuan.languages.onboardingDescription}</div>
 ${getHostCapabilities().documentImportExport ? `<button class="b3-button b3-button--outline fn__block" data-type="import">
-    <svg><use xlink:href="#iconDownload"></use></svg>${window.siyuan.languages.importExistingData}
+    <svg><use xlink:href="#iconUpload"></use></svg>${window.siyuan.languages.importExistingData}
 </button>` : ""}
 <button class="b3-button b3-button--outline fn__block" data-type="guide">
     <svg><use xlink:href="#iconHelp"></use></svg>${window.siyuan.languages.userGuide}

@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package api
 
 import (
@@ -70,6 +74,7 @@ func TestAPIContractAppearanceSameSelectionRefreshesPackages(t *testing.T) {
 			selected := conf.NewAppearance()
 			selected.ThemeLight, selected.ThemeDark, selected.Icon = "custom", "custom", "custom"
 			selected.ModeOS, selected.HideStatusBar = false, true
+			selected.ShowFloatingStatusBar = true
 			selected.CloseButtonBehavior = 5
 			body, err := json.Marshal(selected)
 			if err != nil {
@@ -100,7 +105,7 @@ func TestAPIContractAppearanceSameSelectionRefreshesPackages(t *testing.T) {
 			assertFallback := func(value *conf.Appearance) {
 				t.Helper()
 				if value.ThemeLight != "daylight" || value.ThemeDark != "midnight" || value.Icon != "litheness" ||
-					value.ThemeVer != "1.0.0" || value.IconVer != "1.0.0" || !value.HideStatusBar || value.CloseButtonBehavior != 0 {
+					value.ThemeVer != "1.0.0" || value.IconVer != "1.0.0" || !value.HideStatusBar || !value.ShowFloatingStatusBar || value.CloseButtonBehavior != 0 {
 					t.Fatalf("refresh did not expose the final fallback snapshot: %+v", value)
 				}
 			}

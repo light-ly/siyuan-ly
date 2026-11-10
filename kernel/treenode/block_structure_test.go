@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package treenode
 
@@ -111,6 +99,55 @@ func TestValidateBlockReplacement(t *testing.T) {
 
 	if err := ValidateBlockReplacement(oldItem, &ast.Node{Type: ast.NodeParagraph, ID: "paragraph"}); nil == err {
 		t.Fatal("expected paragraph replacing a list item to be rejected")
+	}
+}
+
+func TestFixNestedDocumentNodes(t *testing.T) {
+	root := &ast.Node{Type: ast.NodeDocument, ID: "root"}
+	before, after := &ast.Node{Type: ast.NodeParagraph, ID: "before"}, &ast.Node{Type: ast.NodeParagraph, ID: "after"}
+	nested := &ast.Node{Type: ast.NodeDocument, ID: "nested", Spec: "2"}
+	nested.SetIALAttr("id", nested.ID)
+	nested.SetIALAttr("title", "Nested title")
+	nested.SetIALAttr("type", "doc")
+	nested.SetIALAttr("updated", "20260701091344")
+	nested.SetIALAttr("custom-test", "preserved")
+	paragraph := &ast.Node{Type: ast.NodeParagraph, ID: "paragraph"}
+	paragraph.AppendChild(&ast.Node{Type: ast.NodeText, Tokens: []byte("Body")})
+	empty := &ast.Node{Type: ast.NodeDocument, ID: "empty"}
+	nested.AppendChild(paragraph)
+	nested.AppendChild(empty)
+	root.AppendChild(before)
+	root.AppendChild(nested)
+	root.AppendChild(after)
+	if !FixNestedDocumentNodes(root) {
+		t.Fatal("nested document was not repaired")
+	}
+	if root.Type != ast.NodeDocument || root.ID != "root" || before.Next != nested || nested.Next != after {
+		t.Fatal("document identity or sibling order changed")
+	}
+	if nested.Type != ast.NodeSuperBlock || nested.ID != "nested" || nested.Spec != "2" ||
+		nested.IALAttr("id") != nested.ID || nested.IALAttr("title") != "Nested title" ||
+		nested.IALAttr("type") != "doc" || nested.IALAttr("updated") != "20260701091344" ||
+		nested.IALAttr("custom-test") != "preserved" {
+		t.Fatal("nested document lost its attributes")
+	}
+	if nested.FirstChild.Type != ast.NodeSuperBlockOpenMarker ||
+		nested.FirstChild.Next.Type != ast.NodeSuperBlockLayoutMarker || string(nested.FirstChild.Next.Tokens) != "row" ||
+		nested.FirstChild.Next.Next != paragraph || paragraph.Next != empty ||
+		empty.Next != nested.LastChild || nested.LastChild.Type != ast.NodeSuperBlockCloseMarker ||
+		string(paragraph.FirstChild.Tokens) != "Body" {
+		t.Fatal("nested document lost its body or super block markers")
+	}
+	if empty.Type != ast.NodeSuperBlock || empty.ID != "empty" ||
+		empty.FirstChild.Next.Next.Type != ast.NodeParagraph ||
+		empty.FirstChild.Next.Next.Next != empty.LastChild {
+		t.Fatal("empty nested document does not contain an editable paragraph")
+	}
+	if err := ValidateBlockSubtree(root); err != nil {
+		t.Fatal("repaired document has invalid containment", err)
+	}
+	if FixNestedDocumentNodes(root) || FixNestedDocumentNodes(nil) {
+		t.Fatal("repair is not idempotent")
 	}
 }
 

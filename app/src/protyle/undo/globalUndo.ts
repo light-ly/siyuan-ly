@@ -1,12 +1,13 @@
+import {mobileConfirmDialog} from "../../dialog/mobileConfirmDialog";
 import {Constants} from "../../constants";
 import {fetchPost} from "../../util/fetch";
-import {confirmDialog} from "../../dialog/confirmDialog";
 import {showMessage} from "../../dialog/message";
 import {waitForPendingTransactions} from "../util/transactionQueue";
 import {hasClosestByClassName} from "../util/hasClosest";
 import {getUndoFocusTarget} from "../util/selectionFocus";
 import {isKnownTransactionOperation} from "../util/transactionContract";
 import type {APIPOSTRoutes} from "../../types/api";
+import {isUndoViewportPreserved} from "./viewport";
 /// #if !MOBILE
 import {getActiveTab} from "../../layout/tabUtil";
 /// #endif
@@ -25,10 +26,49 @@ interface IUndoStateMirror {
 const undoStateMirror = new Map<string, IUndoStateMirror>();
 const undoStateInitializers = new Map<string, Promise<boolean>>();
 let isUndoing = false; // 防重入：撤销/重做进行中忽略后续触发
+const undoStateListeners = new Map<string, Set<(state: ReturnType<typeof getUndoStateSnapshot>) => void>>();
+
+export const getUndoStateSnapshot = (rootID: string) => ({...getMirror(rootID), pending: isUndoing});
+
+const notifyUndoState = (rootID?: string) => {
+    const notify = (id: string) => {
+        const state = getUndoStateSnapshot(id);
+        undoStateListeners.get(id)?.forEach(listener => {
+            try {
+                listener(state);
+            } catch (error) {
+                console.error(error);
+            }
+        });
+    };
+    if (rootID) {
+        notify(rootID);
+    } else {
+        undoStateListeners.forEach((_listeners, id) => notify(id));
+    }
+};
+
+// 文档菜单订阅共享历史状态，销毁编辑器时解除订阅。
+export const subscribeUndoState = (rootID: string, listener: (state: ReturnType<typeof getUndoStateSnapshot>) => void) => {
+    let listeners = undoStateListeners.get(rootID);
+    if (!listeners) {
+        listeners = new Set();
+        undoStateListeners.set(rootID, listeners);
+    }
+    listeners.add(listener);
+    listener(getUndoStateSnapshot(rootID));
+    return () => {
+        listeners.delete(listener);
+        if (!listeners.size && undoStateListeners.get(rootID) === listeners) {
+            undoStateListeners.delete(rootID);
+        }
+    };
+};
 
 export const markMirror = (rootID: string, state: Partial<IUndoStateMirror>) => {
     const cur = undoStateMirror.get(rootID) || {canUndo: false, canRedo: false};
     undoStateMirror.set(rootID, {...cur, ...state});
+    notifyUndoState(rootID);
 };
 
 export const getMirror = (rootID: string): IUndoStateMirror => {
@@ -77,7 +117,7 @@ export const syncMirrorFromBroadcast = (undoState: { [rootID: string]: { canUndo
         return;
     }
     Object.entries(undoState).forEach(([rootID, state]) => {
-        undoStateMirror.set(rootID, {canUndo: !!state.canUndo, canRedo: !!state.canRedo});
+        markMirror(rootID, {canUndo: !!state.canUndo, canRedo: !!state.canRedo});
     });
 };
 
@@ -90,10 +130,12 @@ export const initMirror = (rootID: string): Promise<boolean> => {
     if (pending) {
         return pending;
     }
+    const before = undoStateMirror.get(rootID);
     const initializer = fetchPost("/api/transactions/undoState", {rootID}, (response) => {
         const data = response.data;
-        if (data) {
-            undoStateMirror.set(rootID, {canUndo: !!data.canUndo, canRedo: !!data.canRedo});
+        // 初始化返回前的本地事务或广播更新优先，避免旧快照覆盖刚产生的历史状态。
+        if (data && undoStateMirror.get(rootID) === before) {
+            markMirror(rootID, {canUndo: !!data.canUndo, canRedo: !!data.canRedo});
         }
     }).then(() => {
         return undoStateMirror.has(rootID);
@@ -114,6 +156,7 @@ const applyUndoButtons = (protyle: IProtyle, rootID: string) => {
     };
     if (protyle.breadcrumb) {
         applyState(protyle.breadcrumb.element.parentElement);
+        protyle.breadcrumb.refreshHistory?.();
     }
     /// #if MOBILE
     const toolbarEditor = getMobileToolbarProtyle();
@@ -188,7 +231,8 @@ const resolveRootNames = async (rootIDs: string[]): Promise<string[]> => {
 const focusRootIDs = (rootIDs: string[], focusBlockId?: string) => {
     // 只滚动发起窗口的焦点 protyle 到变更块；其他文档不强制重开（撤销物理结果在发起文档）
     const protyle = getActiveProtyle();
-    if (protyle && rootIDs.includes(protyle.block?.rootID) && focusBlockId) {
+    if (protyle && !isUndoViewportPreserved(protyle.wysiwyg.element) &&
+        rootIDs.includes(protyle.block?.rootID) && focusBlockId) {
         const targets = Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${focusBlockId}"]`));
         const selection = getSelection();
         const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : undefined;
@@ -251,7 +295,9 @@ export const requestUndo = async (protyle: IProtyle, rootID?: string) => {
 
     // 尽早置锁，阻止确认对话框期间触发新的撤销/重做（含 peek 与确认阶段）
     isUndoing = true;
+    notifyUndoState();
     try {
+        await protyle.title?.flushPendingInput();
         await waitForPendingTransactions(protyle);
 
         // 等待输入事务提交后读取权威状态，避免本地镜像尚未更新时吞掉立即撤销。
@@ -277,7 +323,7 @@ export const requestUndo = async (protyle: IProtyle, rootID?: string) => {
             let confirmed = false;
             try {
                 confirmed = await new Promise<boolean>((resolve) => {
-                    confirmDialog(`⚠️ ${window.siyuan.languages.undo}`,
+                    mobileConfirmDialog(`⚠️ ${window.siyuan.languages.undo}`,
                         `<div data-undo-confirmation="true">${window.siyuan.languages.undoCrossDocConfirm}<div style="margin-top: 8px;">${names.map(n => `• ${n}`).join("<br>")}</div></div>`,
                         () => resolve(true),
                         () => resolve(false));
@@ -330,6 +376,7 @@ export const requestUndo = async (protyle: IProtyle, rootID?: string) => {
         }
     } finally {
         isUndoing = false;
+        notifyUndoState();
     }
 };
 
@@ -343,7 +390,9 @@ export const requestRedo = async (protyle: IProtyle, rootID?: string) => {
     }
 
     isUndoing = true;
+    notifyUndoState();
     try {
+        await protyle.title?.flushPendingInput();
         await waitForPendingTransactions(protyle);
         const state = await fetchUndoState(rootID);
         if (!state) {
@@ -388,5 +437,6 @@ export const requestRedo = async (protyle: IProtyle, rootID?: string) => {
         }
     } finally {
         isUndoing = false;
+        notifyUndoState();
     }
 };

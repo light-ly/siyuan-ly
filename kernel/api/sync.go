@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package api
 
@@ -408,6 +396,16 @@ func getBootSyncContract(c *gin.Context, request apicontract.EmptyRequest) (ret 
 	return
 }
 
+var getSyncSourceState = contractHandler(apicontract.GetSyncSourceState, getSyncSourceStateContract)
+
+func getSyncSourceStateContract(c *gin.Context, _ apicontract.EmptyRequest) apicontract.Response[apicontract.SyncSourceState] {
+	data, err := model.GetSyncSourceState()
+	if err != nil {
+		return apicontract.Failure[apicontract.SyncSourceState](-1, err.Error())
+	}
+	return apicontract.Success(data)
+}
+
 var performSync = contractHandler(apicontract.PerformSync, performSyncContract)
 
 func performSyncContract(c *gin.Context, request apicontract.PerformSyncRequest) (ret apicontract.Response[apicontract.Null]) {
@@ -426,6 +424,22 @@ func performSyncContract(c *gin.Context, request apicontract.PerformSyncRequest)
 		}
 	}
 
+	if request.Source != "" {
+		upload, err := request.UploadDirection()
+		if err != nil {
+			return apicontract.Failure[apicontract.Null](-1, err.Error())
+		}
+		decision := model.SyncSourceDecision{Source: request.Source, LocalID: request.LocalID, CloudID: request.CloudID}
+		if upload {
+			err = model.SyncDataUpload(decision)
+		} else {
+			err = model.SyncDataDownload(decision)
+		}
+		if err != nil {
+			return apicontract.Failure[apicontract.Null](-1, err.Error())
+		}
+		return
+	}
 	if 3 != confSyncSnapshot.Mode {
 		model.SyncData(true)
 		return

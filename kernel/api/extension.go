@@ -1,24 +1,16 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package api
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"io"
+	"mime"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -92,6 +84,19 @@ var extensionCopy = contractHandler(apicontract.ExtensionCopy, func(c *gin.Conte
 
 			symArticleHref = baseURL + articleID
 			clippingSym = true
+		}
+	}
+
+	var md string
+	if clippingSym {
+		var err error
+		md, err = extensionSymMarkdown(c.Request.Context(), symArticleHref)
+		if err != nil {
+			logging.LogWarnf("get [%s] failed: %s", symArticleHref, err)
+		}
+		clippingSym = strings.TrimSpace(md) != ""
+		if !clippingSym {
+			md = ""
 		}
 	}
 
@@ -179,55 +184,43 @@ var extensionCopy = contractHandler(apicontract.ExtensionCopy, func(c *gin.Conte
 
 	luteEngine := util.NewLute()
 	luteEngine.SetHTMLTag2TextMark(true)
-	var md string
 	var withMath bool
 
 	if clippingSym {
-		resp, err := httpclient.NewCloudRequest30s().Get(symArticleHref)
-		if err != nil {
-			logging.LogWarnf("get [%s] failed: %s", symArticleHref, err)
-		} else {
-			bodyData, readErr := io.ReadAll(resp.Body)
-			if nil != readErr {
-				return apicontract.Failure[*apicontract.ExtensionCopyData](-1, "read response body failed: "+readErr.Error())
-			}
-
-			md = string(bodyData)
-			luteEngine.SetIndentCodeBlock(true) // 链滴支持缩进代码块，因此需要开启
-			tree := parse.Parse("", []byte(md), luteEngine.ParseOptions)
-			tree.Box = targetBoxID
-			ast.Walk(tree.Root, func(n *ast.Node, entering bool) ast.WalkStatus {
-				if ast.NodeInlineMath == n.Type {
-					withMath = true
-					return ast.WalkStop
-				} else if ast.NodeCodeBlock == n.Type {
-					if !n.IsFencedCodeBlock {
-						// 将缩进代码块转换为围栏代码块
-						n.IsFencedCodeBlock = true
-						n.CodeBlockFenceChar = '`'
-						n.PrependChild(&ast.Node{Type: ast.NodeCodeBlockFenceInfoMarker})
-						n.PrependChild(&ast.Node{Type: ast.NodeCodeBlockFenceOpenMarker, Tokens: []byte("```"), CodeBlockFenceLen: 3})
-						n.LastChild.InsertAfter(&ast.Node{Type: ast.NodeCodeBlockFenceCloseMarker, Tokens: []byte("```"), CodeBlockFenceLen: 3})
-						code := n.ChildByType(ast.NodeCodeBlockCode)
-						if nil != code {
-							code.Tokens = bytes.TrimPrefix(code.Tokens, []byte("    "))
-							code.Tokens = bytes.ReplaceAll(code.Tokens, []byte("\n    "), []byte("\n"))
-							code.Tokens = bytes.TrimPrefix(code.Tokens, []byte("\t"))
-							code.Tokens = bytes.ReplaceAll(code.Tokens, []byte("\n\t"), []byte("\n"))
-						}
+		luteEngine.SetIndentCodeBlock(true) // 链滴支持缩进代码块，因此需要开启
+		tree := parse.Parse("", []byte(md), luteEngine.ParseOptions)
+		tree.Box = targetBoxID
+		ast.Walk(tree.Root, func(n *ast.Node, entering bool) ast.WalkStatus {
+			if ast.NodeInlineMath == n.Type {
+				withMath = true
+				return ast.WalkStop
+			} else if ast.NodeCodeBlock == n.Type {
+				if !n.IsFencedCodeBlock {
+					// 将缩进代码块转换为围栏代码块
+					n.IsFencedCodeBlock = true
+					n.CodeBlockFenceChar = '`'
+					n.PrependChild(&ast.Node{Type: ast.NodeCodeBlockFenceInfoMarker})
+					n.PrependChild(&ast.Node{Type: ast.NodeCodeBlockFenceOpenMarker, Tokens: []byte("```"), CodeBlockFenceLen: 3})
+					n.LastChild.InsertAfter(&ast.Node{Type: ast.NodeCodeBlockFenceCloseMarker, Tokens: []byte("```"), CodeBlockFenceLen: 3})
+					code := n.ChildByType(ast.NodeCodeBlockCode)
+					if nil != code {
+						code.Tokens = bytes.TrimPrefix(code.Tokens, []byte("    "))
+						code.Tokens = bytes.ReplaceAll(code.Tokens, []byte("\n    "), []byte("\n"))
+						code.Tokens = bytes.TrimPrefix(code.Tokens, []byte("\t"))
+						code.Tokens = bytes.ReplaceAll(code.Tokens, []byte("\n\t"), []byte("\n"))
 					}
 				}
-				return ast.WalkContinue
-			})
-
-			// 链滴/流云整页剪藏时扩展上传的 DOM 资源地址与服务端原始 Markdown 中的地址不一致，
-			// 扩展上传的文件无法匹配；当用户开启“下载资源”时由内核直接下载原始 Markdown 中的网络资源到本地
-			if assetsOn := request.Assets != nil && *request.Assets == "true"; assetsOn {
-				model.DownloadNetAssets2LocalAssets(tree, false, symArticleHref, assets)
 			}
+			return ast.WalkContinue
+		})
 
-			md, _ = lute.FormatNodeSync(tree.Root, luteEngine.ParseOptions, luteEngine.RenderOptions)
+		// 链滴/流云整页剪藏时扩展上传的 DOM 资源地址与服务端原始 Markdown 中的地址不一致，
+		// 扩展上传的文件无法匹配；当用户开启“下载资源”时由内核直接下载原始 Markdown 中的网络资源到本地
+		if assetsOn := request.Assets != nil && *request.Assets == "true"; assetsOn {
+			model.DownloadNetAssets2LocalAssets(tree, false, symArticleHref, assets)
 		}
+
+		md, _ = lute.FormatNodeSync(tree.Root, luteEngine.ParseOptions, luteEngine.RenderOptions)
 	}
 
 	var tree *parse.Tree
@@ -251,7 +244,6 @@ var extensionCopy = contractHandler(apicontract.ExtensionCopy, func(c *gin.Conte
 		}
 
 		if ast.NodeText == n.Type {
-			// 剔除行首空白
 			if ast.NodeParagraph == n.Parent.Type && n.Parent.FirstChild == n {
 				n.Tokens = bytes.TrimLeft(n.Tokens, " \t\n")
 			}
@@ -303,3 +295,39 @@ var extensionCopy = contractHandler(apicontract.ExtensionCopy, func(c *gin.Conte
 	}
 	return apicontract.SuccessWithMessage(data, message)
 })
+
+func extensionSymMarkdown(ctx context.Context, href string) (string, error) {
+	user := model.Conf.GetUser()
+	if user == nil || user.UserToken == "" || !strings.HasPrefix(href, util.GetCloudAccountServer()+"/article/raw/") {
+		return "", nil
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, href, nil)
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("User-Agent", util.UserAgent)
+	request.AddCookie(&http.Cookie{Name: "symphony", Value: user.UserToken})
+
+	// 登录凭据只发送到当前账号所属站点，重定向交由浏览器页面内容回退处理。
+	client := *httpclient.NewCloudRequest30s().GetClient().GetClient()
+	client.Jar = nil
+	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
+	response, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected article response status [%d]", response.StatusCode)
+	}
+	contentType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
+	if err != nil || (contentType != "text/plain" && contentType != "text/markdown") {
+		return "", fmt.Errorf("unexpected article response content type [%s]", response.Header.Get("Content-Type"))
+	}
+	data, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}

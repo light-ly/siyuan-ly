@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
@@ -20,6 +24,9 @@ func ClearSyncProviderConfig(provider int) error {
 	defer release()
 	if provider == Conf.Sync.Load().Provider {
 		if err := requireCompleteAssetDownloads(); err != nil {
+			return err
+		}
+		if err := prepareSyncSourceChange(); err != nil {
 			return err
 		}
 		if err := clearAssetDownloadState(); err != nil {
@@ -64,6 +71,7 @@ func persistClearedSyncProviderConfig(provider int) error {
 	if err = atomicWriteFile(filepath.Join(util.ConfDir, "conf.json"), data); err != nil {
 		return err
 	}
+	util.RestrictConfFilePermissions()
 	recordPersistedConf(data)
 	Conf.Sync.Store(next.Sync.Load())
 	return nil

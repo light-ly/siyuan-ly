@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package model
 
 import (
@@ -129,6 +133,54 @@ func TestDuplicateDocTreeReferencesAndOrder(t *testing.T) {
 	}
 	if sorts[plan.ids[originals[2].ID]] >= sorts[plan.ids[originals[1].ID]] {
 		t.Fatal("child custom order changed")
+	}
+}
+
+func TestDuplicateDocTreeTitleSources(t *testing.T) {
+	for _, kind := range []string{"rich", "empty", "named-placeholder"} {
+		t.Run(kind, func(t *testing.T) {
+			f, trees := duplicateDocTreeFixture(t)
+			root := trees[0]
+			if kind == "rich" {
+				paragraph := &ast.Node{Type: ast.NodeParagraph}
+				paragraph.AppendChild(&ast.Node{Type: ast.NodeTextMark, TextMarkType: "strong", TextMarkTextContent: "Source"})
+				if err := treenode.SetDocumentTitleParagraph(root.Root, paragraph); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				root.Root.SetIALAttr("title", "Historical placeholder")
+				if kind == "empty" {
+					root.Root.SetIALAttr(treenode.DocumentTitleEmptyAttr, "true")
+				}
+			}
+			if _, err := filesys.WriteTree(root); err != nil {
+				t.Fatal(err)
+			}
+			plan, err := prepareDuplicateDocTree(f.box.ID, f.sourcePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = plan.commit(filesys.WriteTree); err != nil {
+				t.Fatal(err)
+			}
+			copy := plan.trees[0]
+			stored, _, err := filesys.ReadTreeSnapshot(copy.Box, copy.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			title := treenode.ReadDocumentTitle(stored.Root)
+			if title.Empty != (kind == "empty") || strings.Contains(title.Text, " (Duplicated ") != (kind != "empty") || copy.HPath != "/"+title.Text {
+				t.Fatalf("inconsistent persisted copy: %+v, %q", title, copy.HPath)
+			}
+			if kind == "rich" && stored.Root.DocumentTitle == nil {
+				t.Fatal("rich source lost")
+			}
+			for _, child := range plan.trees[1:] {
+				if !strings.HasPrefix(child.HPath, copy.HPath+"/") {
+					t.Fatalf("child path does not follow copy: %s", child.HPath)
+				}
+			}
+		})
 	}
 }
 

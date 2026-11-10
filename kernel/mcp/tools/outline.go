@@ -1,22 +1,11 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,6 +15,10 @@ import (
 var OutlineTool = &Tool{
 	Name:        "outline",
 	Description: "Document outline (heading tree). Action: get(id).",
+	EffectScope: EffectScopeLocal,
+	ActionEffects: map[string]ToolEffects{
+		"get": {LocalRead: true},
+	},
 	InputSchema: ToolSchema{
 		Type: "object",
 		Properties: map[string]Property{
@@ -60,12 +53,15 @@ func outlineGet(args map[string]any) (CallToolResult, error) {
 	}
 
 	paths, err := model.Outline(id, false)
+	if errors.Is(err, model.ErrTreeNotFound) {
+		return blockToolError("document not found: " + id)
+	}
 	if err != nil {
 		return CallToolResult{Content: []ContentItem{{Type: "text", Text: "outline failed: " + err.Error()}}, IsError: true}, nil
 	}
 
 	if len(paths) == 0 {
-		return CallToolResult{Content: []ContentItem{{Type: "text", Text: "document not found or has no headings"}}, IsError: true}, nil
+		return CallToolResult{Content: []ContentItem{{Type: "text", Text: "document has no headings"}}}, nil
 	}
 
 	var sb strings.Builder

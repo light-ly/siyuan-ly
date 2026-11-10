@@ -1,11 +1,36 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package util
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/siyuan-note/siyuan/kernel/ocr"
 )
+
+func TestTesseractImageLimitsArePermanent(t *testing.T) {
+	previousContainer, previousEnabled, previousLimit := Container, TesseractEnabled, TesseractMaxSize
+	Container, TesseractEnabled, TesseractMaxSize = ContainerStd, true, 10
+	t.Cleanup(func() {
+		Container, TesseractEnabled, TesseractMaxSize = previousContainer, previousEnabled, previousLimit
+	})
+	path := filepath.Join(t.TempDir(), "image.png")
+	if err := os.WriteFile(path, make([]byte, 11), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{path, path + ".unsupported"} {
+		if _, err := (TesseractProvider{}).Recognize(context.Background(), path); !errors.Is(err, ocr.ErrPermanent) || errors.Is(err, ocr.ErrUnsupportedImage) {
+			t.Fatalf("incorrect Tesseract image limit classification: %v", err)
+		}
+	}
+}
 
 func TestOCRTextReferenceVariants(t *testing.T) {
 	path := "assets/ocr-reference-test.png"

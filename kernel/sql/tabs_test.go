@@ -1,3 +1,7 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package sql
 
 import (
@@ -18,7 +22,7 @@ func TestTabsIndexIncludesEveryTitleAndBody(t *testing.T) {
 		tabs.AppendChild(item)
 	}
 	tabs.SetIALAttr("tabs-active-id", tabs.FirstChild.ID)
-	content := nodeStaticContent(tabs, nil, false, false, false, false)
+	content := nodeStaticContent(tabs, nil, false, false, false, false, true)
 	for _, text := range []string{"First title", "First body", "Second title", "Second body"} {
 		if !strings.Contains(content, text) {
 			t.Fatalf("missing %q in %q", text, content)

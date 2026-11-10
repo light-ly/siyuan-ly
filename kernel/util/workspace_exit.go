@@ -1,6 +1,11 @@
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package util
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -13,17 +18,19 @@ import (
 const workspaceExitFile = "kernel-exit.json"
 
 type WorkspaceExitState struct {
-	Version   int    `json:"version"`
-	PID       int    `json:"pid"`
-	StartedAt int64  `json:"startedAt"`
-	Port      string `json:"port"`
-	Phase     string `json:"phase"`
+	Version          int    `json:"version"`
+	PID              int    `json:"pid"`
+	StartedAt        int64  `json:"startedAt"`
+	Port             string `json:"port"`
+	Phase            string `json:"phase"`
+	ProcessStartedAt int64  `json:"processStartedAt,omitempty"` // 操作系统报告的创建时间；旧版标记缺少此字段。
 }
 
 // MarkWorkspaceExiting 记录当前退出请求，供桌面宿主在重新启动时等待旧内核结束。
 // 该文件只用于提示，工作空间的独占访问仍由文件锁保证。
 func MarkWorkspaceExiting() *WorkspaceExitState {
 	state := &WorkspaceExitState{Version: 2, PID: os.Getpid(), StartedAt: time.Now().UnixMilli(), Port: ServerPort}
+	state.ProcessStartedAt, _ = workspaceExitProcessStart(context.Background(), state.PID)
 	state.SetPhase("exiting")
 	return state
 }

@@ -2,15 +2,24 @@
 
 SiYuan repository guide. Module path `github.com/siyuan-note/siyuan`, license AGPL-3.0.
 
----
+## 1. Start a task
 
-## 1. Non-negotiable constraints
+- **Baseline:** Before each repository task, verify repository, commit, branch, and working tree. For latest-branch work, follow [Git rules](#git) and fetch relevant refs before analysis/editing. Honor requested commits, tags, and PRs: fixed-revision or historical work must not advance/synchronize the branch; fetch only to resolve the revision. If fetch is unavailable, disclose the known commit and freshness limit; read-only analysis may continue, not claim latest-baseline verification
+- **Synchronization:** Follow repository branch and authorized-destination rules. Create an explicitly requested or repository-required task branch from the verified baseline; a worktree neither changes the default branch nor authorizes another push destination. Automatically fast-forward a development branch only if clean and merely behind. Divergent development branches may be rebased while preserving work; this grants no force-push authority. Read-only analysis does not authorize synchronization. If blocked, preserve work and report why; never discard, automatically stash, create merge commits, or silently change push destination
+- **Follow-ups:** Reuse the verified baseline within a task; recheck after a substantial pause, repository/branch switch, or potentially relevant new commits. Unrelated conversation needs no fetch
+- **Evaluate before implementation, proportionate to risk:** For major features, check compliance, licensing, privacy, and cost before design. Inspect relevant implementation, settings, snippets, shortcuts, APIs, or plugins and reproduce behavior where feasible. Check repository rules, encrypted compatibility, `.sy`, and API contracts. Assess proposed implementations against the user's goal/acceptance criteria even if a form such as JS is specified; honor constraints and disclose verification limits
+- **Choose the smallest sufficient approach:** Preserve practices and compatibility; existing functionality, documentation, or no code change may suffice. Compare user effort, persistence, reversibility, and maintenance. For style-only workarounds, consider built-in-toggle CSS snippets before JS injection; explain enable/disable/undo where relevant
+- **Before editing:** Briefly state the conclusion, evidence, and uncertainty; discuss alternatives only for meaningful tradeoffs. If the premise is false or implementation unwarranted, explain and ask unless existing instructions resolve the next step. Ask before changing goal/scope or deciding unresolved product, priority, or compatibility tradeoffs; never silently narrow/broaden the task. Otherwise proceed without another confirmation; an alternative implementation meeting the agreed goal and criteria needs no separate approval
+- **Mechanical edits:** Unambiguous edits without behavioral/compatibility impact need no separate evaluation round, but still require applicable checks; renames, version bumps, and documentation are not automatically exempt
 
-### Verify the code baseline before repository tasks
+## 2. Operation and compatibility boundaries
 
-- Verify repository, commit, branch and working-tree state before each task. For latest-branch work, select the baseline per the Git rules below and fetch the needed refs first. For a fixed-revision review, inspect that revision without advancing or syncing it; fetch only to resolve the requested revision. If fetching is unavailable, report the known commit and freshness limit — read-only analysis may continue, but do not claim the latest baseline was verified
-- Follow the repository's Git rules for working branches and push destinations; create a task branch from the verified baseline only when the user or repository rules require it (an isolated worktree changes neither). Fast-forward a development branch only when its tree is clean and it is merely behind; rebase is allowed for synchronization if existing work is preserved — never force-push rewritten history. Read-only analysis authorizes no synchronization. If synchronization is blocked, preserve work and report — never stash, create merge commits or substitute push destinations
-- Reuse the verified baseline within a task; recheck after a long pause, a branch change, or when newer commits could matter
+- **Authorization:** Never `git commit` or `git push` unless explicitly asked; no exceptions
+- **Product/runtime:** Never use `npx webpack` or `pnpm dev` for verification, or run `pnpm build` (it conflicts with the developer's manual `pnpm dev` and breaks bundles). Run `gofmt` after Go edits, but do not compile the kernel binary or restart its running instance; the developer does both. Isolated regression tests and contract generation are allowed, not replacing the product binary or restarting it
+- **Generated files:** Edit sources and regenerate; do not hand-edit `app/stage/protyle/js/lute/lute.min.js` (upstream `88250/lute`), `app/stage/build/**`, `app/src/types/dist/**`, `app/kernel/SiYuan-Kernel*`, `*.syso`, `kernel/kernel.aar`, `app/pandoc/*`, or anything marked generated. Generate `app/changelogs/**` issue/PR lists with tooling; hand-written upgrade notices/overview prose follow [Changelogs](#changelogs). API declarations/schemas originate in `kernel/apicontract/`, attribute-view capabilities in `kernel/av/capabilities.go`; before changing either, read the [generation instructions and output inventory](docs/API-CONTRACTS.md#generation-and-verification), including Petal synchronization
+- **Encrypted data:** Maintain encrypted notebooks as released functionality. Existing data is the compatibility baseline: preserve access/recovery; never require deletion/recreation or treat it as disposable. Document, asset, attribute-view, key-envelope, backup, history, and sync format changes must retain authenticated reads of supported existing formats or provide recoverable migration before removing a reader
+- **Encrypted migrations:** Envelope, AAD-semantic, and key-derivation changes need an explicit format version and compatibility plan. Authenticate migration sources, preserve recovery material, and remain recoverable after failure/interruption; never regenerate MasterSalt or discard keys to bypass incompatibility. Unknown formats, corruption, or authentication failure must preserve data and return errors, never bypass authentication or fall back to plaintext. Rebuild derived indexes only after source ciphertext authenticates
+- **Encrypted regressions:** Format changes require supported-previous-format fixtures covering affected read/export/history/backup/recovery paths. Keep compatibility policies in `docs/ENCRYPTED-NOTEBOOK.md` and `docs/ENCRYPTED-NOTEBOOK.zh-CN.md` aligned
 
 ### Upstream merges
 
@@ -20,218 +29,175 @@ Merging an upstream tag or branch (e.g. a new SiYuan release) into this custom f
 - Resolve conflicts per its method: measure both deltas (`git diff <merge-base> <ours|theirs> -- <file>`), judge each hunk against the customization scope in [docs/CUSTOM-PATCH-PLAN.zh-CN.md](docs/CUSTOM-PATCH-PLAN.zh-CN.md), take the upstream file wholesale and re-apply custom removals when upstream rewrote the file
 - Keep the guard test `app/src/boot/startupWiring.test.ts` passing, and report the checklist execution in the merge response
 
-### Requirement evaluation
+## 3. Verification and test maintenance
 
-Evaluate the premise and approach before implementing, with effort proportional to complexity and risk:
+- **Final frontend checks:** After frontend code changes, run `pnpm run lint` in `app/` (types, auto-fixing ESLint, CSS/menu/startup-language checks, not behavioral tests). Review its diff, keeping fixes in scope and preserving work. Read-only tasks instead use applicable non-mutating checks such as `pnpm run typecheck` and ESLint without `--fix`/`--cache`; never auto-fixing lint
+- **Scope:** Cover changed behavior, including non-API Go, frontend interactions, and scripts; select by impact/risk, not automatically full-suite. Lint/formatting alone does not prove behavior. Consult `app/scripts/test.mjs` and maintenance guides for discovery/commands
+- **Preview before execution:** In `app/`, use `pnpm run test:changed --explain`; inspect baseline, count, and representative dependency chains. Default `HEAD` compares the working tree; use `--base <revision>` for committed branch changes. `pnpm run test:affected` executes selected tests, tracing imports and source paths tests read/evaluate. Use `pnpm run test:focused <test-file> [...]` for a justified explicit selection; file arguments do not narrow full-suite `pnpm test`
+- **Coverage safeguards:** Investigate unexpectedly broad selections before running; never truncate real dependencies to meet a size target. Broaden checks for uncertain coverage from unmapped changes/dynamic dependencies; run the full suite for changes spanning many modules or shared setup
+- **Docs and reporting:** For documentation-only changes, check accuracy, links, language alignment, and diff, not auto-fixing code checks. Report scope, passed/failed/unrun checks, limits, and unverified behavior; successful CI/release alone does not prove tests passed
+- **Keep tests in sync:** Update tests/fixtures in the same change as code/files. Rename/move/merge/split/delete tests with their source; names must reflect coverage, and stale names or removed-source tests must be repaired/removed. For intentional behavior changes, update assertions, case names, and comments instead of dropping coverage; remove only obsolete cases, preserving adjacent assertions
+- **Doubles and failures:** Keep test doubles aligned with current code; remove mocks of deleted exports/constants/flags/helpers and assertions kept alive by stale stubs. Unrelated existing failures do not excuse new mismatches: report them separately and check whether the change affected their outcome
+- **Merging and rerunning:** Merge test files only for the same subject, eliminating duplication without losing cases/discoverability; otherwise keep them separate. Run affected tests after synchronization and name updated, merged, or deleted files/cases
+- **Browser checks:** Open `/stage/build/desktop/`, not `/`. `kernel/server/serve.go` selects bundles by User-Agent; `Electron` UAs (including VSCode's browser) redirect to Electron-only `/stage/build/app/`, causing `require is not defined` in plain browsers. The Electron main window has no remote-debugging port by default
 
-1. **Compliance first:** for major features, review licensing, privacy risks and costs before technical design
-2. **Check the premise and existing capabilities:** inspect the relevant implementation, settings, APIs or plugin capabilities; reproduce reported behavior when feasible; check repository rules, encrypted-notebook compatibility, the `.sy` format and API contracts. Separate the goal and acceptance criteria from any suggested implementation, and state verification limits
-3. **Smallest sufficient change:** prefer the minimal change consistent with existing practices and compatibility; an existing capability or a documentation correction may already suffice, including making no code change
-4. **Report before editing:** state the conclusion, key evidence and remaining uncertainty in a progress update; discuss alternatives only for meaningful tradeoffs
-5. **Ask only when a decision is needed:** if the premise is false or the change is unwarranted, show the evidence and ask; ask before changing the agreed goal/scope or making unresolved product, priority or compatibility tradeoffs; never silently narrow or broaden the task
-6. **Otherwise proceed:** implement reasonable requirements without another confirmation round; a different implementation meeting the agreed goal needs no approval
+## 4. Code and product conventions
 
-Mechanical edits with no behavioral or compatibility impact skip this round but remain subject to the checks below.
+### Scripting and source style
+- Confirm the shell before using Bash/zsh/PowerShell syntax such as `&&`, heredocs, or `/dev/null`. For simple sequences, use separate calls with their working directory set, not chained `cd`; for multi-step logic, use a temporary Node.js/Python script. Avoid PowerShell on Windows unless necessary
+- Never pass non-ASCII text through shell pipelines, PowerShell here-strings, `python -c`, or `node -e`; create a UTF-8 file with a file-editing tool and read it instead
+- **Comments:** Chinese, wrapped at 120 characters, describing current behavior, not history/comparisons (`不再创建`、`保留旧行为`). Remove comments restating statements, function summaries, or sequence/name/condition/order labels already evident in code. Put implementation details at definitions and flow reasons at calls, without repeating facts. Keep issue links only to explain a current rule. Exception: deprecated data fields/migrations must identify the older shape they read
+- **TypeScript/JavaScript:** semicolons, double quotes, spaces. After moving/extracting a symbol, update all callers to import its defining module; do not retain forwarding re-exports merely to avoid updating callers
 
-### Do not hand-edit
+### UI, CSS and icons
+- No `:has()` (performance). Expand groups to comma-separated selectors, not `:is()` (extra matching cost) or `:where()`; use `:where()` only to reduce a single selector's specificity
+- Before adding/styling controls, reuse components, markup, shared styles/modifiers in `app/src/assets/scss/component/` (`b3-button`, `b3-select`, `b3-text-field`); use `block__icon` for established icon buttons. Inspect/reuse existing menu, dialog, tooltip and drag implementations/APIs before feature-specific replacements
+- Menu single-choice enumerations use checked submenu items, not embedded selects: parent right-arrow, desktop hover, mobile tap, existing menu positioning/implementation
+- Feature styles express layout (placement, widths, gaps, wrapping), not duplication/overrides of shared-control height, padding, typography, colors, borders, shadows or interaction states. Do not use deeper selectors, inline styles or `!important` merely to restyle controls
+- If controls cannot meet a requirement, explain why; prefer reusable shared extensions/modifiers. Scope necessary feature exceptions narrowly, use theme variables, preserve keyboard focus/disabled feedback and useful feature classes as theme hooks. Do not repurpose unrelated components (e.g. menus for forms) and cancel their styles
+- Review shared-control consistency, shared-class theme overrides, light/dark themes, narrow layouts and large editor fonts. Preserve required layout/touch targets; do not indiscriminately remove feature styles
+- Shared-container `position`/`transform`/`contain`/`overflow` changes require checks of descendant reference frames, overlay coverage and clipping. Prefer a dedicated positioning container for local controls. For settings dialogs, check detail overlays, top drag area and scrollbar placement at different widths
+- Do not hand-write SVG. Prefer `app/appearance/icons/litheness/icon.js`; if unsuitable, use official [Lucide](https://lucide.dev/icons/) paths unchanged, adapting only attributes such as stroke width to match the existing style. Add new icons' previews to `app/appearance/icons/index.html` in matching order
+- Shared desktop/mobile changes must inspect and update `app/src/mobile/` in the same task, including menus, toolbars, dialogs, interactions and handlers. Verify both implementations/shared dependencies and platform-appropriate interaction; explain any desktop-only change or absent mobile equivalent
 
-- `app/stage/protyle/js/lute/lute.min.js` (built from upstream `88250/lute`)
-- `app/stage/build/**`, `app/src/types/dist/**`
-- `app/changelogs/**` (generated by separate tooling)
-- `app/kernel/SiYuan-Kernel*`, `*.syso`, `kernel/kernel.aar`
-- `app/pandoc/*`
-- Other generated files: edit their source and regenerate. API declarations and schemas come from `kernel/apicontract/`; attribute-view capability declarations from `kernel/av/capabilities.go`. Before changing either, read the generation instructions and output inventory in [docs/API-CONTRACTS.md](docs/API-CONTRACTS.md#generation-and-verification), including Petal synchronization
+### Configurable menus and docks
+- Menu `data-id` and stable dock keys are persisted identifiers; renaming/reuse requires same-change visibility/order migration. Resolve docks with `getDockEntryKey` in `app/src/config/entryVisibility/catalog.ts`: prefer `data-entry-id`, map plugin runtime types to plugin-name/dock-ID keys, fall back to built-in `data-type`
+- Add/remove/rename/move or mapping changes require same-change catalog updates (type, hierarchy, label, Simple default, default position) and tests. Register each configurable separator with stable `data-id` and type `separator`; catalog order must match declarations to preserve built-in order and custom-profile insertion
+- Keep parent/child paths aligned. Use `dockOrder.ts`'s six scopes for dock visibility/order/movement, not ordinary menu siblings. Preserve placement, hidden entries, unavailable plugin slots and profiles lacking dock orders
+- Test catalog consistency, separators, order migration and plugin slots; no leading/trailing/consecutive separators. `ignore` controls conditional rendering, not exemption from visibility/order configuration
 
-### Verification and prohibited operations
+### Configuration, attributes and storage
+- Set defaults in constructors (`NewAppearance`, `NewEditor`, `NewFileTree`, etc.); shared normalization fills missing containers/values. `InitConf` only projects runtime state and performs versioned migrations; no startup function to patch one default
+- Old `conf.json` lacks new keys and sections unmarshal to zero values. Plain `bool` is valid only for default-false (except below); default-true requires `*bool`, non-zero enum defaults `*int`: initialize in constructors, retain normalization's `nil` branch and saved `false` (`FileTree.CreateDocAtTop`, `Editor.CheckBlockRef`, `Search.HanSensitive`)
+- Exception: default-true plain `bool` is valid when old workspaces must remain false and new ones true (`Appearance.MenuMouseScroll`): zero value serves old workspaces, constructor value new ones
+- `POST /api/setting/set<Section>` merges into current settings: omitted fields retain values; `null` restores defaults. Declare `Merge` on `SettingWrite`, not per-field preservation branches; decode from constructor defaults so `null` never becomes a zero value. Keep API request/response `*bool` where wire `null` matters even with persisted plain `bool` (`apicontract.SettingFileTree`)
+- Non-zero legacy defaults (`OCR.Auto`) belong in the load path that knows whether `conf.json` existed, not globals read by constructors/normalizers. Treat an existing segment missing the decisive field like a missing segment
+- DOM/UI-only attributes use `data-`, without extra `sy` (e.g. `data-ui-density`); built-in persisted notebook/document/block attributes use `custom-sy-`. Preserve existing persisted names/compatibility; DOM renames must not rename them. Define constants in `app/src/constants.ts` beside similar `Constants`, not feature modules
+- Never directly use browser `localStorage`, including `window.localStorage`/`globalThis.localStorage`. New user-facing settings/reader/panel preferences default to `conf.json`: corresponding namespace, kernel normalization, writes through `createConfigNamespaceApi().patch`
+- Reserve `local.json` for growing document/view/transaction-ID mappings, transient/session state (scroll, dialog geometry, restored tabs), usage/reading history and plugin runtime state. Frequency does not determine storage: `uiLayout` already updates frequently with silent notifications. Neither file syncs; configuration export includes `conf.json`
+- Read `window.siyuan.storage`; update memory and persist via `setStorageVal` in `app/src/protyle/util/compatibility.ts` to workspace `data/storage/local.json`. Do not observe this store with browser `storage` events
 
-1. **Frontend verification:** do not verify with `npx webpack` or `pnpm dev`. After frontend changes run `pnpm run lint` from `app/` (type checks, ESLint with autofix, CSS/menu/startup-language checks — not behavioral tests); review the diff and stay within task scope. In read-only tasks use non-mutating checks (`pnpm run typecheck`, ESLint without `--fix`/`--cache`)
-2. **Frontend build:** never run `pnpm build` — it conflicts with the developer's manually running `pnpm dev` and produces broken bundles
-3. **Kernel development:** run `gofmt` after Go changes; do not compile the product kernel binary or restart a running kernel (the developer handles both). Isolated regression tests and contract generation are allowed if they neither replace the product binary nor restart the instance
-4. **Git:** never `git commit`/`git push` unless explicitly asked — no exceptions
-5. **Browser UI verification:** open `/stage/build/desktop/` directly, not `/` — the kernel redirects UAs containing `Electron` to the Electron-only `/stage/build/app/` (fails in plain browsers with `require is not defined`; VSCode's built-in browser sends such a UA). The Electron main window exposes no remote debugging port by default
-6. **Verification scope:** run the checks and regressions applicable to the changed behavior (non-API Go code, frontend interactions, scripts); find test commands via `app/scripts/test.mjs` and the maintenance guides. Scope by impact and risk — lint or formatting alone does not prove behavior. Documentation-only changes: check accuracy, links, language alignment and the diff. Report passed, failed and unrun checks with their limits; a green CI job or release infers nothing by itself
-7. **Test synchronization:** update tests and fixtures in the same change as the code
-   - Rename/move/merge/split/delete test files together with their source, keeping names reflecting the covered code; stale or orphaned test files must be repaired or removed
-   - Intentional behavior changes update assertions, case names and comments to the new contract; removing behavior deletes only the cases covering it
-   - Keep test doubles aligned: remove mocks of exports/constants/flags/helpers that no longer exist; drop assertions kept alive only by stale stubs
-   - A pre-existing unrelated failure is no permission to leave a new mismatch — report it separately and check whether the task changed its outcome
-   - Merge test files only when they cover the same subject and merging removes duplication without losing cases or discoverability
-   - Run affected tests after synchronization and name the updated/merged/deleted files and cases
+### Platform identification
+- Use `applyPlatformClasses()` from `app/src/protyle/util/compatibility.ts` and its mutually exclusive body classes: `body--mac`, `body--windows`, `body--linux`, `body--ios`, `body--android`, `body--harmony`. Legacy `body--win32`/`body--win32-browser` are only for existing third-party themes: no new code or consumers
+- Never infer frontend platform from kernel container or `data-backend` (a remote kernel reports its own host). Root `data-frontend` identifies form (`desktop`, `desktop-window`, `mobile`, `browser-desktop`, `browser-mobile`) for built-in/theme CSS; root `data-backend` is third-party-JavaScript-only, never built-in CSS
 
-### Encrypted notebook compatibility
+### API contracts
+- Follow [docs/API-CONTRACTS.md](docs/API-CONTRACTS.md) for kernel HTTP APIs. Define new endpoints in `kernel/apicontract/`, bind with `contractHandler`, and synchronize existing contracts. Every route needs a typed contract; delete registration and contract together. Never bypass checks with `any`/assertions
+- Preserve input compatibility, response variants, authorization and encrypted-notebook leases; add affected regressions
+- Contract-source comments document behavior, defaults, constraints and compatibility; synchronize plugin-facing declarations in `petal` under its documentation rule below. User instructions belong in bundled guides
+- `docs/API-CONTRACTS.md` and translations are maintenance guides, not routine feature/endpoint behavior, summaries, results or focused commands. Update only for contract mechanism, compatibility policy, generation or test-discovery/verification changes, or explicit user request; align translations
+- New endpoints enter `docs/API.md`, `docs/API.zh-CN.md`, `docs/API.ja.md` only on explicit request; contracts, generated declarations and regressions remain required. Existing endpoint request/response/documented-behavior changes require checking and updating affected entries in all three; do not assume identical endpoint coverage. These scope rules override broader maintenance-guide documentation instructions
+- After contract changes, run `pnpm run api:generate --petal ../../petal` and `pnpm run api:check --petal ../../petal` from `app/`; verify Petal under cross-repo rules first. The example path is relative to the generator's `kernel/` directory and assumes sibling `petal`; substitute the verified path. Synchronize public Petal declarations; never hand-edit generated declarations/schemas
+- Run `pnpm run lint` in `app/`, `go test ./apicontract/...` in `kernel/`, and applicable compatibility/route coverage tests from the guide. Verify CI/documented commands discover new regressions; existing automatic/full-suite discovery suffices without doc edits. Change selections/commands only if they would miss tests. Report task commands/results in the response or PR
 
-- Encrypted notebooks are a released feature; maintain them as such
-- Existing encrypted data is the compatibility baseline: upgrades must preserve access and recovery; never require users to delete or recreate encrypted data
-- Changes to document, asset, attribute-view, key-envelope, backup, history or sync formats must keep authenticated reads of supported existing formats, or provide a recoverable migration before removing any reader
-- Changes to envelopes, AAD semantics or key derivation require an explicit format version and compatibility plan: authenticate the source, preserve recovery material, stay recoverable after failure or interruption; never regenerate MasterSalt or discard keys to work around incompatibility
-- Unknown formats, corruption and authentication failures must preserve the original data and return an error; compatibility never bypasses authentication or falls back to plaintext. Derived indexes may be rebuilt once the source ciphertext authenticates
-- Format changes require regression coverage with fixtures from the supported previous format, covering read, export, history, backup and recovery paths. Keep `docs/ENCRYPTED-NOTEBOOK.md` and `docs/ENCRYPTED-NOTEBOOK.zh-CN.md` aligned
+### Source headers
+`kernel/**/*.go` and `app/electron/main.ts` start with these exact lines, then a blank line:
+```
+// SiYuan - https://github.com/siyuan-note/siyuan
+// Copyright (c) 2020-present, b3log.org
+// SPDX-License-Identifier: AGPL-3.0-or-later
+```
+- Other-language sources have no header; remove existing ones rather than extend the convention. `//go:build` follows a blank line after the header and needs another before `package` or its constraint silently stops applying
+- Exempt `kernel/plugin/encoding/` (`grafana/sobek-webapi-encoding`, Apache-2.0) and `kernel/heif/internal/h265heic/` (`roticv/h265`, MIT): retain their own licenses
+- Before committing header changes, run `scripts/check-license-headers.mjs` (both directions; scopes in `scripts/license-header.mjs`); CI's check is non-blocking
 
----
+## 5. Language and documentation
 
-## 2. Project-specific rules
+### i18n
+- Add new keys at the top of every `langs/*.json` object (reference `en.json`), except `_kernel`: append at the end with the next numeric key. Indent with one tab/level, no spaces. Translate each language; do not copy identical text across languages
+- Use complete translation keys for user-facing phrases; do not concatenate translated words to form a label or sentence. If composition is necessary, use a complete translatable template and verify word order, spacing, punctuation and placeholders in every supported language
+- Ellipses are three ASCII periods (`...`), never `…`/`……`. Setting-description tips and user-facing errors have no terminal period/equivalent (`.`, `。`, `।`); preserve inter-sentence punctuation, including `_kernel` errors
+- Use `ld246.com` only in `zh-CN.json`, `liuyun.io` elsewhere
+- In `zh-TW` and the Traditional Chinese guide, Block is `區塊` (also `子區塊`, `程式碼區塊`, `區塊 ID`), never `塊`; count with `個區塊`. Block Reference is `區塊引用`, Blockquote `引述區塊`; retain unrelated terms such as `分塊` (chunks) and `覈取方塊` (Checkbox)
+- Preserve `_kernel` Go format argument positions/verbs from `en.json`; use explicit indexes (`%[4]s`, `%[3]d`) for reordered translations and retain literal `%%`. After i18n edits run `python scripts/check-lang-keys.py` for key completeness and format compatibility
 
-1. **i18n:**
-   - New keys go at the **top** of each `langs/*.json` object, in every language file (reference `en.json`); exception: inside `_kernel`, append at the **end** with the next incremental numeric key
-   - Indent `langs/*.json` with one tab per nesting level; no spaces
-   - Translate each language properly — never copy the same text across files
-   - Ellipses are three ASCII periods (`...`); never Unicode `…`/`……`
-   - User-facing strings never end with a period or language equivalent (`.`, `。`, `।`): setting-description tips, error messages and list items; preserve punctuation between sentences; apply across all languages including `_kernel`
-   - Domains: `ld246.com` only in `zh-CN.json`; `liuyun.io` in all other languages
-   - In `zh-TW` localization and the Traditional Chinese user guide, translate Block as `區塊` (compounds `子區塊`, `程式碼區塊`, `區塊 ID`); never abbreviate as `塊`; count with `個區塊`. Block Reference is `區塊引用`, Blockquote is `引述區塊`; keep non-content terms `分塊` and `覈取方塊`
-   - Preserve each `_kernel` message's Go format verbs and argument positions from `en.json`; use explicit indexes (`%[4]s`, `%[3]d`) when translation reorders; keep `%%` literal
-   - After modifying i18n files run `python scripts/check-lang-keys.py`
-2. **Cross-platform scripting:**
-   - Never assume the shell — confirm it, or avoid shell-specific syntax (`&&`, heredocs, `/dev/null`). Use separate command calls with the working directory set instead of chaining `cd`; for multi-step logic write a temporary Node.js or Python script. On Windows avoid PowerShell unless necessary
-   - Never pass non-ASCII text through shell pipelines, PowerShell here-strings, `python -c` or `node -e`; write a UTF-8 file with an editing tool and consume that file
-3. **Icons:** no hand-written SVG; reuse `app/appearance/icons/litheness/icon.js` first. Otherwise source from the official [Lucide library](https://lucide.dev/icons/), adapting only attributes such as stroke width while preserving path data. New icons also get a preview entry in `app/appearance/icons/index.html` in the same change, order aligned
-4. **User guide:** follow `docs/SY-FORMAT.md`; changes synchronize across all four bundled languages — English (`app/guide/20210808180117-6v0mkxr`), Simplified Chinese (`app/guide/20210808180117-czj9bvb`), Traditional Chinese (`app/guide/20211226090932-5lcq56f`), Japanese (`app/guide/20240530133126-axarxgx`) — never omit Japanese or match pages only by Chinese/English title. Before finishing, enumerate the language directories, verify the corresponding section in each, translate, preserve existing document/block IDs, generate fresh IDs for new blocks, and validate the changed `.sy` JSON; `docs/` documentation does not replace the bundled guide
-   - Shortcut changes update the guide's shortcut documentation in the same change (ask the user when the section is unclear)
-   - Complete prose paragraphs end with language-appropriate punctuation (`.`, `。`, `?`, `！`) and a colon when introducing content; headings, navigation/reference directories, short labels, standalone links and code/formula/syntax take no mechanical punctuation. List item text never ends with `.`, `。` or `।`
-   - UI navigation paths are segmented `kbd` text marks — one `NodeTextMark` with `TextMarkType: "kbd"` per level, a plain `NodeText` containing ` - ` between levels; separate a `kbd` path from adjacent prose with exactly one ASCII space on each side (except at block boundaries, after full-width punctuation or before any punctuation; half-width punctuation before the path still requires the space)
-5. **Git:**
-   - Baseline: in `siyuan-note/siyuan` use `dev` as baseline and default working branch; never commit on or push to `master` while `dev` exists (with `dev` unavailable, the verified default branch is permitted). Other repositories follow their own branch rules; otherwise prefer `dev`, else the actual default branch — do not export the `master` prohibition or assume the default branch's name
-   - Choose the working branch from the requested outcome: direct commits and authorized pushes use the selected baseline as working branch, commit branch and push destination unless a task branch is requested. Requested PRs create a task branch from the verified baseline as the PR head — a shared baseline such as `dev` (or a fork mirror) is never a PR head, with the sole exception below; verify the head before creating the PR since GitHub cannot change it later. Creating a branch authorizes no commit or push
-   - If the intended branch cannot be determined confidently from the instructions, repository rules and branch information, ask and wait — never guess or silently fall back
-   - Verify repository and branch before editing; re-verify the branch before every authorized commit or push, and the destination remote and branch for a push — never rely on upstream configuration alone. Switch branches without resetting or discarding existing work
-   - **Official releases** (read [docs/RELEASE-VERIFICATION.zh-CN.md](docs/RELEASE-VERIFICATION.zh-CN.md) first): build from a verified `dev` commit kept fixed until the release PR merges; with authorized integration the PR is `dev` → `master` using a merge commit (if merge commits are prohibited, report instead of substituting squash/rebase; the only shared-branch PR exception), and the `master` tree is verified against the build commit before tagging. Release-history synchronization (merging released `master` back into `dev`) requires authorization for both merge and push; the release exception authorizes no direct `master` commits/pushes and no unrequested merges, tags, uploads or publication
-   - Commit style: gitmoji prefix + English subject, like recent commits. Append the full issue/PR URL to the commit title only when a related issue exists (never in the body; never fabricate one). PR titles are plain English describing the final change — no gitmoji prefix and no copied issue URL
-6. **GitHub:** prefer the GitHub CLI (`gh`) for all operations; fall back to the API or web interface
-   - Issues in this repository: English title plus Chinese body whose first paragraph is the Chinese title; do not use the repo's issue templates — write a task-specific body preserving problem, reproduction steps, expected/actual behavior, evidence, agreed approach, constraints, compatibility concerns, alternatives/tradeoffs, acceptance criteria and unresolved questions, without repetition or omissions
-   - Other repositories: read their own `.github/ISSUE_TEMPLATE/` and PR template first and fill every required section; the title/body conventions above do not carry over. Confirm the project accepts issues/PRs and identify the correct tracker and destination (e.g. gopls issues live in `golang/go`, not `golang/tools`)
-   - Renaming an issue: keep the replaced title as the first body paragraph, separated by a blank line; the rest stays unchanged
-   - Replies: conclusion and basis with detail proportional to the task — implementation decisions, behavior changes, compatibility concerns, unresolved issues; report only verification actually performed, disclose material gaps, never imply broader coverage; no routine logs. Invite the user to test implemented changes. Reply in Chinese for Chinese bodies; otherwise reply bilingually
-   - Labels may ride in the same create/update payload; verify issue/PR identity and requested non-label changes — but never verify labels themselves or send follow-ups solely for them (GitHub may silently drop label changes)
-   - Non-ASCII writes on Windows or under uncertain encoding use a file-based workflow: author the UTF-8 payload with an editing tool (never inline shell), store it in the OS temp directory as `siyuan-gh-<operation>-<timestamp>.json`, call `gh api --method <method> "<endpoint>" --input "<absolute-path>"`, then read fields back with separate `gh api` calls and compare the published text exactly (normalize CRLF to LF; one field per `--jq` call) before deleting the payload. Capture `gh` stdout via Node.js/Python as UTF-8; with PowerShell use `Out-File -Encoding utf8` (5.1 defaults to UTF-16LE with BOM and corrupts pipelines — prefer direct process capture). Never put `--jq` on write commands: `gh api` applies it locally after sending, so a failing expression can exit non-zero on success — confirm remote state before retrying to avoid duplicates
-7. **Issue titles:** English, never starting with `Fix`; bugs describe the symptom objectively, improvements prefer `Improve ...`, new capabilities prefer `Support ...`; infer the perspective when unclear. These rules choose wording, not labels
-8. **LD246:** set `User-Agent: SiYuan-Coding-Agent`; read posts via `GET https://ld246.com/api/v2/article/{articleId}?p=1` (`data.article`, `p` paginates replies) and Markdown via `GET https://ld246.com/article/raw/{articleId}`; authenticate both with `Authorization: token <LD_TOKEN>` from the environment (Windows: check process, user, then machine scope); check HTTP status and JSON `code` (`0` = success); never expose the token
-9. **Configurable entries:**
-   - Desktop menu `data-id` values and stable dock entry keys are persisted configuration identifiers. Resolve dock keys through `getDockEntryKey` in `app/src/config/entryVisibility/catalog.ts` (`data-entry-id` first, then plugin-name/dock-ID-derived keys, then the built-in `data-type`). Never rename or reuse persisted keys without migrating existing visibility and order configuration in the same change
-   - Adding/removing/renaming/moving entries or changing identifier mapping updates `app/src/config/entryVisibility/catalog.ts` (type, hierarchy, label, Simple profile default, position) and its tests in the same change. Separators get stable `data-id`s registered as `separator`; catalog order matches the actual menu declaration order; parent/child paths match the real hierarchy; dock visibility, ordering and moves go through the six scopes in `dockOrder.ts`; preserve existing placement, hidden entries, unavailable plugin slots and profiles without dock orders. Tests cover catalog consistency, separator placement, order migration and plugin-slot preservation; configured menus never show leading, trailing or consecutive separators
-   - The menu `ignore` option controls conditional rendering only — never use it to opt an entry out of visibility or order configuration
-10. **API contracts:**
-    - Follow [docs/API-CONTRACTS.md](docs/API-CONTRACTS.md) for kernel HTTP APIs: define new endpoints as typed contracts in `kernel/apicontract/` bound through `contractHandler`, and document behavior, defaults, constraints and compatibility in comments on the declarations (plugin-facing explanations sync to `petal`). Keep contracts synchronized when endpoints change
-    - The contracts guides and localized versions are maintenance guides — update them only for mechanism, compatibility-policy, generation-workflow or test-discovery changes, or on explicit request; keep localized versions aligned. Do not add newly implemented endpoints to `docs/API.md` (or `docs/API.zh-CN.md`/`docs/API.ja.md`) unless requested; but when changing an existing endpoint's request, response or documented behavior, update its affected entries in all three API.md versions together
-    - Preserve input compatibility, response variants, authorization and encrypted-notebook lease behavior; cover changes with regression tests. Every route has a typed contract; deleting a route removes both registration and contract; never bypass contract checks with `any` or type assertions
-    - After contract changes run `pnpm run api:generate --petal ../../petal` and `pnpm run api:check --petal ../../petal` from `app/` (verify the Petal checkout per the cross-repo rules; the example path assumes a sibling `petal` — substitute the verified path), plus `pnpm run lint` from `app/` and `go test ./apicontract/...` from `kernel/`; never hand-edit generated declarations or schemas. Verify existing CI selections and documented commands discover the new regressions (full-suite coverage satisfies this without documentation edits); report task-specific verification commands and results in the response or PR description
-11. **Desktop and mobile parity:** changes to functionality shared by desktop and mobile inspect and update the corresponding `app/src/mobile/` implementation (menus, toolbars, dialogs, interactions, event handlers) in the same task; verify both implementations before finishing, and state why mobile needs no change when the work is desktop-only
-12. **UI copy and user guides:** change wording only when needed, following nearby style; put specific instructions beside the relevant control or in the corresponding guide section — never overload general descriptions with feature lists or implementation details
-13. **Configuration defaults:**
-    - New setting defaults live in the section constructor (`NewAppearance`, `NewEditor`, `NewFileTree`, ...); shared normalization fills missing containers and values; `InitConf` only projects runtime state and runs versioned migrations — no startup function patching a single default
-    - A plain `bool` is correct only when the default is `false`, because old `conf.json` files unmarshal missing keys to zero values. A default of `true` requires `*bool` (a defaulted non-zero enumeration requires `*int`): initialize in the constructor, keep the `nil` branch in normalization, preserve an explicitly saved `false` (see `FileTree.CreateDocAtTop`, `Editor.CheckBlockRef`, `Search.HanSensitive`). The exception keeping a default-`true` plain `bool` is new-workspace-only `true` such as `Appearance.MenuMouseScroll`
-    - `POST /api/setting/set<Section>` merges into the section (omitted fields keep current values, `null` restores the default): declare `Merge` on `SettingWrite` instead of per-field branches; keep `*bool` on API request/response declarations when the wire format must distinguish `null` (see `apicontract.SettingFileTree`)
-    - Legacy non-zero defaults for existing workspaces (e.g. `OCR.Auto`) resolve in the load path that knows whether `conf.json` existed — never from a global inside a constructor or normalization helper; treat a segment lacking the decisive field like a missing segment
+### Writing and guides
+- Use language-appropriate punctuation in UI, comments, guides and docs (Chinese ，。：；！？「」); UI text/punctuation belongs in i18n, not hard-coded. Across all contexts, navigation levels use ` - ` (`设置 - 快捷键 - 通用`), never arrows (`→`). Do not hand-wrap Markdown paragraphs, list items or table rows
+- Change wording only when necessary, following nearby style and preserving guidance/warnings. Put instructions by their control or guide section, not feature lists/implementation details in general descriptions
+- Follow `docs/SY-FORMAT.md`. User-visible code changes require same-change checks of relevant sections in all four bundled guides, including changed/removed/reverted capabilities; remove/revise obsolete descriptions with the implementation
+- Synchronize English `app/guide/20210808180117-6v0mkxr`, Simplified Chinese `app/guide/20210808180117-czj9bvb`, Traditional Chinese `app/guide/20211226090932-5lcq56f`, Japanese `app/guide/20240530133126-axarxgx`. Before finishing, enumerate language directories and verify each counterpart; never omit Japanese or locate counterparts only by Chinese/English title matching
+- Translate content, preserve document/block IDs, generate fresh IDs for new blocks and validate changed `.sy` JSON. Developer `docs/` cannot substitute for bundled guides. Shortcut changes require guide updates; ask if the section is unclear
+- Guide prose outside lists ends with appropriate punctuation (`.`, `。`, `?`, `！`) or a colon before following content. Do not mechanically punctuate headings, navigation/reference directories, short labels, standalone links, code/formulas/technical syntax. List items have no terminal period/equivalent
+- Guide UI paths use one `NodeTextMark` with `TextMarkType: "kbd"` per level, separated by plain `NodeText` ` - `. In every language, use one ASCII space between a kbd path and adjacent prose, except block boundaries, after full-width punctuation or before punctuation; half-width punctuation before it still requires a space. Preserve internal ` - ` spaces
+### Changelogs
+Align current guides/unreleased prose with code, including removals/reversions; generate issue/PR lists with tooling. Revise released notes only on explicit request, synchronizing translations and published copies
 
----
+## 6. Git, releases and external communication
 
-## 3. Coding conventions
+### Git
+- In `siyuan-note/siyuan`, baseline/default work branch is `dev`; if unavailable, use the verified default branch. No commits/pushes to `master` while `dev` exists; `master` is allowed only if `dev` is unavailable and `master` is verified default
+- For direct commits/authorized pushes, use the selected baseline as work/commit/push branch unless a task branch is explicitly requested. For an explicitly requested ordinary development PR, create a task branch from the verified baseline before editing; use it as head even when pushing to a fork. Never use a shared baseline or its fork mirror as PR head except for official releases below. Verify the head before creating a PR (GitHub cannot change it). Branch creation grants no commit/push authority; uncommitted work, remote lag or isolation alone do not justify creating/pushing a task branch
+- Other repositories follow their own rules; absent rules, prefer existing local/remote `dev`, otherwise the actual default branch. Do not extend SiYuan's `master` ban or assume defaults are named `master`/`main`
+- If user instructions, repository rules and branch information do not determine the branch confidently, ask and wait before editing/committing/pushing. Before editing verify repository/branch; before each authorized commit/push recheck branch and, for pushes, destination remote/branch, not just upstream. Switch to the selected work branch or explicitly requested PR/task branch before edits; preserve work, never reset/discard to switch
+- Follow recent commit style: English gitmoji + subject. Only for an existing related issue/PR, append its full URL to the title, never the body or `#NNN`; do not fabricate URLs. PR titles are English descriptions of the final change without gitmoji/emoji or copied commit URL suffixes
+- **Official releases:** before release work, read and follow [docs/RELEASE-VERIFICATION.zh-CN.md](docs/RELEASE-VERIFICATION.zh-CN.md) for preparation, build verification, integration and history sync. Keep the verified build `dev` commit fixed until release PR merge; if it advances, stop and reconcile inputs. Authorized release integration alone permits `dev` head/`master` base; use a merge commit, reporting settings that prohibit it rather than substituting squash/rebase. Verify resulting `master` tree against the package-build commit before tagging
+- **Release history:** before further development, merge released `master` back to `dev`, preserving both histories and checking unchanged released code when no subsequent code changes occurred. This requires merge authorization and explicit push authorization; it grants no direct master commit/push, unrequested PR merge, tag, upload or publication authority
 
-1. **Comments:** Chinese, wrap at 120 characters, describe what the code does — never reference the old implementation
-2. **Punctuation:** language-appropriate punctuation in UI text, comments, guides and documentation (Chinese: ，。：；！？「」); UI text and its punctuation live in i18n language files, never hard-coded
-3. **UI paths:** every context — code comments, UI text, i18n, guides, documentation, issue/PR content, responses — separates navigation levels with a spaced hyphen (`设置 - 快捷键 - 通用`); no arrow symbols such as `→`
-4. **Markdown:** no hand-wrapping; each paragraph, table row and list item stays on a single line
-5. **TypeScript/JavaScript:** semicolons, double quotes, space indentation. Moving or extracting a symbol updates all affected imports to its defining module — no forwarding re-exports left behind
-6. **CSS:** no `:has()` (performance); prefer comma-separated selector lists over `:is()` grouping, and expand groups instead of `:is()`/`:where()` — `:where()` only to drop specificity from a single selector
-   - Reuse first: inspect and reuse shared controls in `app/src/assets/scss/component/` (`b3-button`, `b3-select`, `b3-text-field`, `block__icon`) and existing menu/dialog/tooltip/drag implementations before adding feature-specific replacements
-   - Single-choice enumerations in menus use checked submenu items with a right-arrow indicator on the parent (hover opens on desktop, tap on mobile) — never embedded select controls
-   - Feature styles describe layout (placement, width constraints, gaps, wrapping), not basic control appearance (height, padding, typography, colors, borders, shadows, hover/focus/disabled states); no deeper selectors, inline styles or `!important` merely to restyle a shared control. Unmet reusable needs extend shared components or modifiers; exceptions stay narrow, use theme variables and keep keyboard-focus and disabled feedback. Reuse components by purpose — no borrowed-then-restyled unrelated components (e.g. menu items for a form); preserve useful feature classes as theme hooks
-   - Reviewing control-style changes: check consistency with shared controls, theme overrides through shared classes, light/dark themes, narrow layouts and large editor fonts; keep necessary layout and touch-target constraints — do not strip feature styles indiscriminately
-7. **CSS positioning and scrolling:** changing `position`, `transform`, `contain` or `overflow` on a shared container requires checking descendant positioning reference frames, overlay coverage and clipping; give local controls a dedicated positioning container. Settings-dialog changes verify detail overlays, the top drag area and scrollbar placement at different window widths
-8. **Custom attributes:** DOM/UI-only attributes use a plain `data-` prefix (e.g. `data-ui-density`); attributes persisted in notebook, document or block data use `custom-sy-`, and existing persisted names and compatibility are preserved — DOM/UI naming changes must not rename them. Define attribute-name constants in `app/src/constants.ts`, not in individual feature modules
-9. **Frontend preference storage:** never use browser `localStorage` (including `window.localStorage` and `globalThis.localStorage`). User-facing preferences — settings switches, reader/panel preferences — default to `conf.json` (defined in the configuration namespace, normalized in the kernel, written through `createConfigNamespaceApi().patch`); `local.json` is reserved for ID-keyed mappings, transient/session state (scroll positions, dialog geometry, restored tabs), usage history and reading positions, and plugin runtime state. Write frequency decides nothing (`uiLayout` is already a frequently written config namespace); neither `conf.json` nor `local.json` participates in data sync; configuration export includes `conf.json`. Read via `window.siyuan.storage`; change its in-memory value and persist with `setStorageVal` from `app/src/protyle/util/compatibility.ts`; never observe this store with browser `storage` events
-10. **Frontend platform identification:** use the mutually exclusive `body` classes written by `applyPlatformClasses()` in `app/src/protyle/util/compatibility.ts` — `body--mac`, `body--windows`, `body--linux`, `body--ios`, `body--android`, `body--harmony`; `body--win32` and `body--win32-browser` are legacy for existing third-party themes — no new use, no new consumers. Never derive the frontend platform from the kernel-reported container or `data-backend` (a remote kernel reports its own host). `data-frontend` on the root element reports the frontend form (`desktop`, `desktop-window`, `mobile`, `browser-desktop`, `browser-mobile`) and may be used by built-in styles and third-party theme CSS; `data-backend` is for third-party JavaScript only and must not appear in built-in CSS
+### GitHub
+- Prefer `gh` for all operations (issues, comments, PRs, commits, statuses, metadata); use API/web only if unavailable/unsupported
+- SiYuan-maintained dependencies used by SiYuan have issues in `siyuan-note/siyuan`: identify dependency, implementation and cross-repo work; implement/test in the dependency repo and link commits/PRs back. Do not duplicate issues there or move existing issues without explicit authorization
+- SiYuan issues: English title; Chinese body beginning with its Chinese title; task-specific prose, no repository templates/form fields. Retain relevant problem, reproduction, expected/actual behavior, evidence, approach, constraints, compatibility, alternatives/tradeoffs, acceptance criteria and open questions. Remove repetition/unrelated text, not information needed to understand, evaluate or implement
+- Other repositories: first read `.github/ISSUE_TEMPLATE/` forms/Markdown and PR template, use the appropriate one and fill required sections; SiYuan's language/template exceptions do not apply. Separately confirm issue/PR acceptance and destinations (gopls issues use `golang/go`, not `golang/tools`); mirror status or disabled issues does not establish PR acceptance
+- Renaming an issue: place its replaced title first in the body, followed by a blank line, leaving the remaining body unchanged
+- Replies: explain conclusions/evidence with task-proportionate implementation, behavior, compatibility and unresolved details. Report only performed checks and supported conclusions, not unperformed tests; disclose material verification gaps without implying broader coverage. Omit routine logs/unrelated commands; after implementation invite testing/feedback. Chinese bodies get Chinese replies; others get the body's language plus Chinese
+- Published text must stand alone. Relative references ("previous comment", "earlier estimate", "last time", "as above") require confirmed, unambiguous, linked content on the same item. Edit existing text in place to state corrected facts, not narrate corrections; verify remote existence/counts before mentioning prior comments/edits/discussions or their number
+- Labels may accompany supported create/update payloads. Verify identity and requested non-label changes (title/body/state/base branch); **only labels** are exempt: do not check their application, send label-only follow-ups or claim verification. GitHub may silently drop them without push access
+- For non-ASCII GitHub writes on Windows or with uncertain shell encoding (not ASCII-only requests): create UTF-8 JSON with a file-editing tool, not inline shell; use a unique OS-temp path such as `siyuan-gh-<operation>-<timestamp>.json`, never leave payloads in the repo. Call `gh api --method <method> "<endpoint>" --input "<absolute-json-path>"`; inspect response and read back with `gh api`. Prefer parsed-field comparison to payload, preserving line breaks, non-ASCII, meaningful edge whitespace and blank lines; CRLF may normalize to LF. For `--jq` text reads, one field/call (`.title`, `.body`), removing only the command's final line terminator. Keep payload until comparison passes; then remove payload/read-back files and confirm removal
+- Prefer direct `gh` stdout capture via Node/Python and UTF-8 decoding. PowerShell saves must use `Out-File -Encoding utf8`; Windows PowerShell 5.1 `>`/`Out-File` default to UTF-16LE and UTF-8 includes a BOM that readers must handle. If pipeline decoding already corrupted text, use direct capture; output encoding cannot repair it
+- Omit `--jq` on writes: it runs locally after the request, so failure can follow a successful write. Verify fields via separate reads, and confirm remote state before retrying any failed write to avoid duplicate side effects
+- **Issue titles:** always English when requested, never start `Fix`. Bugs describe symptoms objectively; improvements prefer `Improve ...`, new capabilities `Support ...`; infer unclear type from content. These wording rules do not authorize labels
 
----
+### LD246 and response language
+- Use `User-Agent: SiYuan-Coding-Agent` for `ld246.com`. Details: `GET https://ld246.com/api/v2/article/{articleId}?p=1` (`data.article`; `p` paginates replies). Markdown: `GET https://ld246.com/article/raw/{articleId}`
+- Reply: `POST https://ld246.com/api/v2/comment` with JSON `articleId`, `commentContent`, optionally `commentOriginalCommentId` when replying to an existing comment. Update own reply: `PUT https://ld246.com/api/v2/comment/{commentId}` with `commentContent`; use `commentContentType: "markdown"` for Markdown, omit `commentVisible` to preserve visibility. Read back and verify updates
+- Authenticate with `Authorization: token <LD_TOKEN>` from environment (Windows: process, user, machine scopes in order); never expose token or rely on UA exemptions. Check HTTP status and JSON `code` (`0` success); report missing credentials/auth errors
+- Match the user's language; do not mix languages mid-sentence except proper nouns/identifiers
 
-## 4. Required toolchain
+## 7. Toolchain and repository reference
 
-| Tool | Version | Source of truth |
-|---|---|---|
-| Go | see `go` directive | `kernel/go.mod` |
-| Node (+ pnpm) | see CI matrix | `.github/workflows/cd.yml`, `app/package.json` (`packageManager` field) |
+- Versions: Go directive in `kernel/go.mod`; Node/pnpm from `.github/workflows/cd.yml` and `app/package.json` (`packageManager`). Product versions also appear in `kernel/util/working.go`
+- Architecture: Go kernel (`kernel/`) + TypeScript/Electron/web frontend (`app/`). `app/appearance/`: themes/icons/i18n (`appearance/langs/*.json`); `app/stage/`: kernel-served builds; `app/changelogs/`: version Markdown; `.github/`: contribution/security/templates/CI; `scripts/`: release packaging/changelog/language checks
 
----
-
-## 5. Repository layout
-
-**Architecture:** Go kernel (`kernel/`) + TypeScript frontend (`app/`); read versions from `kernel/go.mod`, `app/package.json`, `kernel/util/working.go`.
-
-| Path | Contents |
+| Kernel path (under `kernel/`) | Role |
 |---|---|
-| `kernel/` | Go backend — server, data engine, API, all domain logic |
-| `app/` | TypeScript frontend (Electron/web), built by webpack into `app/stage/build/` |
-| `app/appearance/` | Themes, icons, **i18n** (`appearance/langs/*.json`) |
-| `app/stage/` | Build output served by the kernel |
-| `app/changelogs/` | Per-version changelog markdown |
-| `.github/` | Contribution and security policies, issue/PR templates, CI workflows |
-| `scripts/` | Release packaging, changelog generation, language-key checks |
-
-### Major `kernel/` packages
-
-| Package | Responsibility |
-|---|---|
-| `main.go` (`//go:build !mobile`) | Desktop entry point, delegates to `cli/cmd` |
-| `cli/cmd/` | Cobra CLI subcommands |
-| `model/` | Core domain: blocks, transactions, indexing, search, attribute views, export, history, sync, flashcards, AI, CalDAV/CardDAV, auth |
-| `treenode/` | In-memory tree over the Lute AST + `blocktree.db` |
-| `av/` | **Attribute View** (database) engine: values, filters, sorts, layouts (table/kanban/gallery) |
-| `sql/` | **Embedded SQLite** (`siyuan.db`, `history.db`, `asset_content.db`) + FTS5; async index queues |
-| `search/` | FTS tokenizer helpers, CJK conversion (`hanconv.go`) |
-| `bazaar/` | Marketplace: plugins/widgets/themes/icons/templates |
-| `filesys/` | Read/write `.sy` files on disk (via `filelock`) |
-| `server/` | Gin server bootstrap (`serve.go`): middleware, TLS/cmux, WebDAV/CalDAV/CardDAV, WebSocket, MCP |
-| `api/` | HTTP route registration (`router.go::ServeAPI`) + per-area handlers |
-| `conf/` | Configuration structs |
-| `util/` | Cross-cutting: `working.go` (workspace, `Boot()`), `lute.go`, `i18n.go`, `websocket.go` (melody push), `result.go` (API envelope) |
-| `plugin/` | Plugin subsystem (kernel side) |
-| `mcp/` | MCP (Model Context Protocol) server |
-| `agent/` | AI agent runtime |
+| `main.go` (`//go:build !mobile`), `cli/cmd/` | Desktop entry delegates to Cobra CLI |
+| `model/` | Blocks, transactions, indexing/search, attribute views, export/history/sync, flashcards, AI, CalDAV/CardDAV, auth |
+| `treenode/` | Lute AST tree + `blocktree.db` |
+| `av/` | Attribute View values/filters/sorts, table/kanban/gallery |
+| `sql/` | SQLite (`siyuan.db`, `history.db`, `asset_content.db`), FTS5, async index queues |
+| `search/`, `bazaar/` | FTS/CJK (`hanconv.go`); marketplace plugins/widgets/themes/icons/templates |
+| `filesys/` | `.sy` read/write via `filelock` |
+| `server/` | Gin `serve.go`: middleware, TLS/cmux, WebDAV/CalDAV/CardDAV, WebSocket, MCP |
+| `api/`, `conf/` | HTTP `router.go::ServeAPI` + handlers; config structs |
+| `util/` | `working.go` workspace/Boot, `lute.go`, `i18n.go`, `websocket.go` melody, `result.go` API envelope |
+| `plugin/`, `mcp/`, `agent/` | Kernel plugins, MCP server, AI agent runtime |
 | `mobile/`, `harmony/` | `//go:build mobile` gomobile bindings for Android/iOS/HarmonyOS |
 
-### Frontend (`app/src/`) highlights
-
-| Dir | Purpose |
+| Frontend path (under `app/src/`) | Role |
 |---|---|
-| `index.ts` | Main `App` class — boots SPA, opens main WebSocket, handles WS push events |
-| `window/` | Detached Electron window variant |
-| `protyle/` | Block editor; rich-content rendering in `render/`, attribute-view rendering in `render/av/` |
+| `index.ts`, `window/` | App SPA boot/main WebSocket/push; detached Electron windows |
+| `protyle/` | Block editor; rich rendering in `render/`, AV in `render/av/` |
 | `editor/`, `layout/`, `menus/`, `dialog/`, `config/`, `mobile/`, `ai/`, `sync/`, `history/`, `search/`, `card/` | Feature modules |
-| `util/fetch.ts` | `fetchGet`/`fetchPost` — all kernel calls |
-| `layout/Model.ts` | WebSocket client all UI binds to |
-| `constants.ts` | Global constants (version, IDs, storage keys) |
+| `util/fetch.ts`, `layout/Model.ts`, `constants.ts` | Kernel `fetchGet`/`fetchPost`; shared UI WebSocket client; version/ID/storage constants |
 
-Four webpack configs emit bundles to `app/stage/build/{app,desktop,mobile,export}/`; the kernel's `serveAppearance` selects the app bundle by User-Agent. The `export` bundle is a rendering library (global `Protyle`, entry `app/src/protyle/method.ts`) for code, math and diagrams, loaded by pages assembled in `app/src/protyle/export/index.ts` for desktop PDF preview and standalone exported HTML.
+Four webpack configs emit `app/stage/build/{app,desktop,mobile,export}/`; kernel `serveAppearance` chooses by User-Agent. `export` is the code/math/diagram rendering library (`Protyle`, entry `app/src/protyle/method.ts`); `app/src/protyle/export/index.ts` pages load it for desktop PDF preview and standalone HTML export.
 
----
-
-## 6. Related repositories (navigation)
-
-| Repo | Role / what to know |
+| Related repo | Role/constraint |
 |---|---|
-| `siyuan-android` / `siyuan-ios` / `siyuan-harmony` | Native apps wrapping the gomobile kernel; read each project's README for platform-specific build, kernel-binding and integration steps |
-| `siyuan-chrome` | Independent TypeScript browser extension (web clipper); interacts with the running kernel only through the HTTP API in `docs/API.md` |
-| `siyuan-testing` | Playwright end-to-end tests for a running SiYuan instance; test data belongs in the `SiYuan Testing` notebook — see that repository's `AGENTS.md` |
-| `petal` | SiYuan Plugin API declaration (the plugin system is named "petal"); consumed by plugins, not a kernel Go dependency |
-| `lute` | Markdown/Kramdown AST engine for the editor and `.sy` format; source of `lute.min.js`. The maintainer's default checkout is `$GOPATH/src/github.com/88250/lute`, not a sibling repo — verify the actual checkout before use |
-| `dejavu` | Data repo / sync engine (encrypted snapshots) |
-| `riff` | Spaced-repetition (SRS) flashcard scheduler |
-| `gulu` / `eventbus` / `filelock` / `httpclient` / `logging` | General utilities, in-process events, file locking, HTTP client and logging |
-| `go-sqlite3` / `pdfcpu` | Maintainer's forks, pulled in via permanent `replace` in `kernel/go.mod` (keep those) |
-| `epub` / `clipboard` / `go-humanize` / `vitess-sqlparser` / `dataparser` / `encryption` | Smaller Go libraries (export / clipboard / formatting / SQL parse / data parse / crypto) |
+| `siyuan-android`, `siyuan-ios`, `siyuan-harmony` | Native gomobile wrappers; read each README for build/bindings/integration |
+| `siyuan-chrome` | Independent TypeScript web clipper; kernel access only via HTTP API in `docs/API.md` |
+| `siyuan-testing` | Playwright for running SiYuan; data only in `SiYuan Testing` notebook; follow its `AGENTS.md` |
+| `petal` | SiYuan Plugin API declarations, not a kernel Go dependency |
+| `lute` | Markdown/Kramdown AST + `.sy`, source of `lute.min.js`; verify checkout, normally `$GOPATH/src/github.com/88250/lute`, not a sibling |
+| `dejavu`, `riff` | Encrypted snapshots/sync; spaced-repetition flashcards |
+| `gulu`, `eventbus`, `filelock`, `httpclient`, `logging` | General utilities, events, locking, HTTP, logging |
+| `go-sqlite3`, `pdfcpu` | Maintainer forks; preserve permanent `kernel/go.mod` replacements |
+| `epub`, `clipboard`, `go-humanize`, `vitess-sqlparser`, `dataparser`, `encryption` | Smaller format/clipboard/formatting/SQL/parsing/crypto libraries |
 
-All Go libraries above are dependencies in `kernel/go.mod`. GitHub org: `siyuan-note/*` for the `siyuan-` apps and most libs; `88250/*` for lute, gulu and the forks (go-sqlite3 / pdfcpu).
+All listed Go libraries are `kernel/go.mod` dependencies. GitHub orgs: `siyuan-note/*` for `siyuan-` apps and most libraries; `88250/*` for lute, gulu and forks (`go-sqlite3`, `pdfcpu`).
 
-### Cross-repo notes
-
-- **Checkout availability:** before cross-repo work, verify each checkout's path, identity, branch, baseline and existing changes under its own rules; if a checkout is unavailable, finish independent work and report the exact synchronization or verification blocker — never claim full synchronization. These rules do not authorize creating or downloading another repository
-- **Editing Go dependencies:** test local changes with a temporary `replace` in `kernel/go.mod` pointing at the local checkout; **never commit that temporary `replace`**
-- **Rebuilding `lute.min.js`:** change `lute`, rebuild with GopherJS, copy the artifact into `app/stage/protyle/js/lute/`
-- **Type declarations:** changes under `app/src/types/` or other TypeScript declarations and constants exposed to plugins synchronize to the corresponding declarations and constants in `petal` in the same task
-- **Petal changelog:** changes in `petal` update `petal/CHANGELOG.md` in the same task — a concise entry under the current unreleased version before committing
-- **Petal documentation:** keep `petal/README.md` to the project title and the `plugin-sample` link; document API behavior, constraints and lifecycle in comments on the API declarations in `petal`, with executable examples in `plugin-sample` source
-
----
-
-## 7. Response style
-
-1. **Language:** match the user's language; do not mix languages mid-sentence (keep proper nouns / identifiers in their original form)
+**Cross-repo rules:**
+- Before work, verify each checkout's path, identity, branch, baseline and existing changes under its own rules. If unavailable, finish independent work and report exact sync/verification blockers, not full synchronization. This grants no automatic repo creation/download authority
+- Test local Go dependencies with temporary `kernel/go.mod` replacements; **never commit them**. Rebuild `lute.min.js` in `lute` with GopherJS, then copy to `app/stage/protyle/js/lute/`
+- Changes to `app/src/types/` or other plugin-public TypeScript declarations/constants require same-task Petal synchronization. Every Petal change also adds a concise `petal/CHANGELOG.md` entry under the current unreleased version before committing
+- Keep `petal/README.md` to title and `plugin-sample` link: no feature descriptions, API explanations or examples. Put API behavior/constraints/lifecycle in maintained Petal declaration comments and executable usage examples in actual `plugin-sample` code

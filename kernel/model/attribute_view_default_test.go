@@ -1,26 +1,46 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
 import (
 	"testing"
 
+	"github.com/88250/lute/ast"
 	"github.com/siyuan-note/siyuan/kernel/av"
+	"github.com/siyuan-note/siyuan/kernel/sql"
 )
+
+func TestAddingWithEmptyFilterGroupsKeepsRenderedViewCache(t *testing.T) {
+	setupAttributeViewValidationTest(t)
+	for _, filters := range [][]*av.ViewFilter{
+		{{Combination: av.FilterCombinationAnd}},
+		{{Combination: av.FilterCombinationOr, Filters: []*av.ViewFilter{{Combination: av.FilterCombinationAnd}}}},
+	} {
+		database := av.NewAttributeView(ast.NewNodeID())
+		itemID := ast.NewNodeID()
+		primary := database.GetBlockKeyValues()
+		primary.Values = append(primary.Values, &av.Value{ID: ast.NewNodeID(), KeyID: primary.Key.ID,
+			BlockID: itemID, Type: av.KeyTypeBlock, IsDetached: true, Block: &av.ValueBlock{Content: "existing"}})
+		key := av.NewKey(ast.NewNodeID(), "Display", "", av.KeyTypeTemplate)
+		key.Template = `.action{printf "computed"}`
+		value := &av.Value{ID: ast.NewNodeID(), KeyID: key.ID, BlockID: itemID, Type: key.Type,
+			Template: &av.ValueTemplate{Content: "unevaluated"}}
+		database.KeyValues = append(database.KeyValues, &av.KeyValues{Key: key, Values: []*av.Value{value}})
+		view := database.Views[0]
+		view.ItemIDs, view.Filters = []string{itemID}, filters
+		view.Table.Columns = append(view.Table.Columns, &av.ViewTableColumn{BaseField: &av.BaseField{ID: key.ID}})
+		cached := sql.RenderGroupView(database, view, view, "")
+		if database.RenderedViewables[view.ID] != cached {
+			t.Fatal("rendered view cache fixture is missing")
+		}
+		values := getAttrViewAddingBlockDefaultValues(database, view, view, "", ast.NewNodeID(), true, false)
+		if len(values) != 0 || database.RenderedViewables[view.ID] != cached {
+			t.Fatal("empty filter groups invalidated the full rendered view while adding an entry")
+		}
+	}
+}
 
 func TestApplyFilterDefaultValuesUsesFirstOrBranch(t *testing.T) {
 	attrView := &av.AttributeView{KeyValues: []*av.KeyValues{

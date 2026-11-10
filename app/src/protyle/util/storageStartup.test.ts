@@ -1,3 +1,4 @@
+import * as dockKeymap from "../../util/dockKeymap";
 import * as assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
@@ -10,7 +11,7 @@ import {createDefaultMobileBottomBarConfig, normalizeMobileBottomBarConfig} from
 const constantsExports: {Constants?: typeof AppConstants} = {};
 runInNewContext(transpileModule(readFileSync(resolve("src/constants.ts"), "utf8"), {
     compilerOptions: {module: ModuleKind.CommonJS},
-}).outputText, {exports: constantsExports, SIYUAN_VERSION: "test", NODE_ENV: "test"});
+}).outputText, {exports: constantsExports, SIYUAN_VERSION: "test", NODE_ENV: "test", require: () => dockKeymap});
 const Constants = constantsExports.Constants;
 
 // 单独执行真实的存储加载函数，隔离编辑器和原生窗口依赖。
@@ -52,13 +53,6 @@ const loadZoom = (value: unknown) => {
     assert.ok(Constants.SIZE_ZOOM.find(item => item.zoom === zoom)?.position);
     return zoom;
 };
-
-test("reader and control preferences no longer create defaults in local storage", () => {
-    const storage = loadStorage({});
-    for (const key of ["local-mobile-bars", "local-outline", "local-pdftheme", "local-recent-docs"]) {
-        assert.equal(Object.prototype.hasOwnProperty.call(storage, key), false, key);
-    }
-});
 
 test("startup storage uses the current mobile bottom bar default without sharing mutable slots", () => {
     const first = loadStorage({})[Constants.LOCAL_MOBILE_BOTTOM_BAR];

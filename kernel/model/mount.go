@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package model
 
@@ -30,10 +18,13 @@ import (
 
 	"github.com/88250/gulu"
 	"github.com/88250/lute/ast"
+	"github.com/88250/lute/render"
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/av"
 	"github.com/siyuan-note/siyuan/kernel/cache"
+	"github.com/siyuan-note/siyuan/kernel/documentaddressing"
+	"github.com/siyuan-note/siyuan/kernel/filesys"
 	"github.com/siyuan-note/siyuan/kernel/sql"
 	"github.com/siyuan-note/siyuan/kernel/task"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
@@ -103,7 +94,12 @@ func createBox(name string, initializeBoxDoc bool) (id string, err error) {
 		logging.LogErrorf("save box conf [%s] failed: %s", id, err)
 	}
 	if initializeBoxDoc {
-		if _, err = ensureBoxDoc0(id); err != nil {
+		_, err = ensureBoxDoc0(id)
+		if err == nil {
+			// 新笔记本的源摘要已补齐，后续挂载重建会在排队时撤销就绪状态。
+			err = treenode.SetDocumentMetadataState(id, "ready")
+		}
+		if err != nil {
 			treenode.RemoveBlockTreesByBoxID(id)
 			sql.DeleteBoxQueue(id)
 			if removeErr := filelock.Remove(boxLocalPath); nil != removeErr {
@@ -150,15 +146,35 @@ func RenameBox(boxID, name string) (err error) {
 		return
 	}
 
+	if box.Exist(boxDocPath(boxID)) {
+		current, readErr := GetDocTitle(boxID, boxID)
+		if readErr != nil {
+			return readErr
+		}
+		if current.Source != nil {
+			summary := current.Text
+			if summary == "" {
+				summary = Conf.Language(16)
+			}
+			if summary != name {
+				return &TxErr{code: TxErrCodePushMsg, msg: Conf.Language(446), cause: treenode.ErrRichDocumentTitleWrite}
+			}
+			return nil
+		}
+		paragraph := &ast.Node{Type: ast.NodeParagraph}
+		paragraph.AppendChild(&ast.Node{Type: ast.NodeText, Tokens: []byte(name)})
+		source, sourceErr := render.NewDocumentTitle(paragraph)
+		if sourceErr != nil {
+			return sourceErr
+		}
+		return PerformTxSync(&Transaction{DoOperations: []*Operation{{Action: "setDocTitle", ID: boxID,
+			Data: map[string]any{"source": source, "expectedRevision": current.Revision}}}})
+	}
 	boxConf := box.GetConf()
 	boxConf.Name = name
 	box.Name = name
 	if err = box.SaveConf(boxConf); err != nil {
 		logging.LogErrorf("save box conf [%s] failed: %s", boxID, err)
-		return
-	}
-	if err = renameBoxDoc(boxID, name); err != nil {
-		logging.LogErrorf("rename box document [box=%s] failed: %s", boxID, err)
 		return
 	}
 	IncSync()
@@ -167,9 +183,9 @@ func RenameBox(boxID, name string) (err error) {
 }
 
 func normalizeBoxName(name string) string {
-	name = normalizeDocTitle(name)
+	name = normalizeTitleText(name)
 	if "" == name {
-		name = normalizeDocTitle(Conf.language(105))
+		name = normalizeTitleText(Conf.language(105))
 	}
 	return name
 }
@@ -271,6 +287,12 @@ func RemoveBox(boxID string) (err error) {
 	if !ast.IsNodeIDPattern(boxID) {
 		return errors.New("invalid notebook ID")
 	}
+	localPath := filepath.Join(util.DataDir, boxID)
+	_, statErr := os.Lstat(localPath)
+	localExists := !os.IsNotExist(statErr)
+	if statErr != nil && localExists {
+		return statErr
+	}
 	if _, loaded := boxLock.LoadOrStore(boxID, true); loaded {
 		err = errors.New(Conf.language(239))
 		return
@@ -289,8 +311,7 @@ func RemoveBox(boxID string) (err error) {
 		return fmt.Errorf("query database-bound blocks in notebook [%s] failed: %w", boxID, err)
 	}
 	isUserGuide := IsUserGuide(boxID)
-	localPath := filepath.Join(util.DataDir, boxID)
-	if !filelock.IsExist(localPath) {
+	if !localExists {
 		removeHPathRefreshBox(boxID)
 		forgetRuntimeNormalBox(boxID)
 		removeMasterPasswordMigrationBox(boxID)
@@ -359,6 +380,12 @@ func RemoveBox(boxID string) (err error) {
 			for _, paths := range pages {
 				for _, filename := range paths {
 					tree, loadErr := loadTree(filename, util.NewLute())
+					if errors.Is(loadErr, treenode.ErrSpecTooNew) || errors.Is(loadErr, documentaddressing.ErrInvalidTitle) {
+						if err = backupUnsupportedNotebookAttributeViews(historyDir); err != nil {
+							return err
+						}
+						continue
+					}
 					if loadErr != nil {
 						return loadErr
 					}
@@ -506,6 +533,9 @@ func Mount(boxID string) (alreadyMount bool, err error) {
 }
 
 func mountBox(boxID string) (alreadyMount bool, err error) {
+	if err = checkMountDocumentAddressing(boxID); err != nil {
+		return
+	}
 	confFileTreeSnapshot := Conf.LoadFileTree()
 
 	if _, loaded := boxLock.LoadOrStore(boxID, true); loaded {
@@ -541,6 +571,9 @@ func mountBox(boxID string) (alreadyMount bool, err error) {
 
 		p := filepath.Join(util.WorkingDir, "guide", boxID)
 		if err = filelock.Copy(p, localPath); err != nil {
+			return
+		}
+		if err = filesys.CheckDocumentAddressing(boxID); err != nil {
 			return
 		}
 
@@ -600,9 +633,10 @@ func mountBox(boxID string) (alreadyMount bool, err error) {
 	}
 
 	// 缓存根一级的文档树展开
-	files, _, _ := ListDocTree(box.ID, "/", util.SortModeUnassigned, false, false, confFileTreeSnapshot.MaxListCount)
+	ListDocTree(box.ID, "/", util.SortModeUnassigned, false, false, confFileTreeSnapshot.MaxListCount)
 	box = Conf.Box(boxID)
-	if 0 < len(files) || (nil != box && box.Exist(boxDocPath(box.ID))) {
+	// 空笔记本也须完成索引初始化，否则结构化创建接口会一直等待元数据就绪。
+	if nil != box {
 		box.Index()
 	}
 	if Conf.Box(boxID) != nil {
@@ -616,6 +650,21 @@ func mountBox(boxID string) (alreadyMount bool, err error) {
 }
 
 var userGuideIDs = []string{"20210808180117-6v0mkxr", "20210808180117-czj9bvb", "20211226090932-5lcq56f", "20240530133126-axarxgx"}
+
+func checkMountDocumentAddressing(boxID string) error {
+	if err := filesys.CheckDocumentAddressing(boxID); err != nil {
+		return err
+	}
+	if IsUserGuide(boxID) {
+		source := filepath.Join(util.WorkingDir, "guide", boxID)
+		if _, err := os.Stat(source); err == nil {
+			return checkDocumentAddressingCopy(source, boxID)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
 
 func IsUserGuide(boxID string) bool {
 	return slices.Contains(userGuideIDs, boxID)

@@ -25,27 +25,57 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         (name: string) => name === "../../dialog/processSystem" ? progress : {});
     const mobileEvents = mobileModule.exports as typeof import("../../mobile/util/onMessage");
     const requests: {callback: (response: unknown) => void, fail: (response: unknown) => void,
-        signal: AbortSignal, resolve: () => void}[] = [];
+        signal: AbortSignal, resolve: () => void, url: string, data: unknown}[] = [];
     let confirmations = 0;
     let refreshed = 0;
     let failures = 0;
-    Object.assign(window, {siyuan: {languages: {download: "Download", cancel: "Cancel", loading: "Loading..."},
+    let mobileFrontend = false;
+    const tooltipElement = document.createElement("div");
+    tooltipElement.id = "tooltip";
+    tooltipElement.className = "tooltip fn__none";
+    document.body.append(tooltipElement);
+    Object.assign(window, {DOMPurify: {sanitize: (value: string) => value}});
+    const tooltipModule = {exports: {}};
+    new Function("exports", "require", sources.tooltip)(tooltipModule.exports, (name: string) => {
+        if (name === "../util/functions") return {isMobile: () => mobileFrontend};
+        if (name === "../util/hoverInput") return {initHoverInput() {}, isTouchHoverInput: () => false};
+        if (name === "../plugin/EventBusCore") return {emitToPlugins() {}, forEachPluginSubscriber() {}};
+        throw new Error(`Unexpected tooltip dependency: ${name}`);
+    });
+    (tooltipModule.exports as typeof import("../../dialog/tooltip")).initTooltips();
+    const checkTooltip = (element: HTMLElement, message = "") => {
+        tooltipElement.className = "tooltip fn__none";
+        tooltipElement.textContent = "";
+        element.dispatchEvent(new MouseEvent("mouseover", {bubbles: true}));
+        check.equal(tooltipElement.classList.contains("fn__none"), mobileFrontend || !message,
+            "Progress controls suppress visual tooltips while idle warnings keep their existing behavior");
+        if (!mobileFrontend && message) check.equal(tooltipElement.textContent, message);
+    };
+    Object.assign(window, {siyuan: {languages: {download: "Download", cancel: "Cancel", bazaarInstalling: "Installing...",
+        update: "Update", updateAll: "Update all"},
         config: {bazaar: {petalDisabled: false}}}});
     const style = document.createElement("style");
     style.textContent = css + ":root {--b3-theme-primary:#3573f0;--b3-theme-on-primary:#fff;}";
     document.head.append(style);
     const externals = {
+        "./filterMenu": {bindBazaarFilterMenu() {}},
         "./installTask": tasks,
         "./packageConfig": {BAZAAR_PACKAGE_CONFIG: {plugins: {tabType: "plugin", api: {install: "/api/bazaar/installBazaarPlugin"}}},
             isBazaarPackageType: (value: string) => value === "plugins", getBazaarTypeByMyType: (): undefined => undefined},
         "./rating": {syncRatingUser: () => false},
         "../../protyle/util/hasClosest": {hasClosestByAttribute: (element: HTMLElement, attribute: string) => element.closest(`[${attribute}]`)},
         "../../util/functions": {getFrontend: () => "browser-mobile"},
-        "../../dialog/confirmDialog": {confirmDialog: () => confirmations++},
+        "../../dialog/mobileConfirmDialog": {mobileConfirmDialog: (title: string, _text: string, confirm: () => void) => {
+            if (title.startsWith("⬆️")) {
+                confirm();
+            } else {
+                confirmations++;
+            }
+        }},
         "../../dialog/message": {showMessage: () => failures++},
-        "../../util/fetch": {fetchPost: (_url: string, _data: unknown, callback: (response: unknown) => void,
+        "../../util/fetch": {fetchPost: (url: string, data: unknown, callback: (response: unknown) => void,
             _headers: unknown, fail: (response: unknown) => void, signal: AbortSignal) => new Promise<void>(resolve => {
-            requests.push({callback, fail, signal, resolve});
+            requests.push({callback, fail, signal, resolve, url, data});
             signal.addEventListener("abort", () => resolve(), {once: true});
         })},
     };
@@ -53,6 +83,8 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
     new Function("exports", "require", sources.events)(eventModule.exports, (name: string) => externals[name as keyof typeof externals] || {});
     const events = eventModule.exports as typeof import("./events");
     const item = {name: "sample", repoURL: "https://github.com/owner/repo", repoHash: "hash"};
+    const updatedItem = {installed: item, available: {...item, repoURL: "https://github.com/new-owner/repo", outdated: true}};
+    const otherUpdatedItem = {installed: {...item, name: "other"}, available: {...item, name: "other", repoURL: "https://github.com/owner/other"}};
     const root = document.createElement("div");
     document.body.append(root);
     const mount = {element: root, generation: 1};
@@ -60,21 +92,28 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         element: root, _data: {plugins: [item]}, _getPackageDetail: (): undefined => undefined,
         _beginBazaarRequest: () => mount, _isMountCurrent: () => true,
         _onBazaar() {}, _genMyHTML() {}, _refreshReadmeDetail: () => refreshed++,
+        _getUpdatedItem: () => updatedItem, _getBatchUpdateItems: () => [
+            {type: "plugins", item: updatedItem}, {type: "plugins", item: otherUpdatedItem},
+        ], _checkUpdate() {},
     };
-    const render = (mobile: boolean, disabled = false) => {
+    const render = (mobile: boolean, disabled = false, update = false, icon = false) => {
         root.innerHTML = `<div>
             <div class="config-bazaar__panel" data-type="plugin"><input class="b3-text-field"></div>
-            <div id="configBazaarReadme"><div class="item__side" data-name="sample" data-package-type="plugins"></div>
-            <div class="item__actions${mobile ? " item__actions--mobile" : ""}" data-name="sample" data-package-type="plugins" data-from="bazaar">
-            <button class="b3-button" data-type="install" ${disabled ? "disabled" : ""}>Download</button></div></div></div>`;
+            <div id="configBazaarReadme"><div class="item__side" data-name="sample" data-package-type="plugins" data-repourl="${update ? updatedItem.available.repoURL : item.repoURL}"></div>
+            <div class="item__actions${mobile ? " item__actions--mobile" : ""}" data-name="sample" data-package-type="plugins" data-from="${update ? "updated" : "bazaar"}">
+            ${icon ? '<span data-type="install-t" class="block__icon ariaLabel" aria-label="Update"><svg></svg></span>' :
+        `<button class="b3-button ariaLabel" data-type="${update ? "install-t" : "install"}" ${disabled ? 'disabled aria-label="Incompatible package"' : ""}>${update ? "Update" : "Download"}</button>`}
+            <button data-type="skip-batch-update" role="switch" aria-checked="false">Skip Update all</button>
+            </div></div><button class="b3-button" data-type="install-all">Update all</button></div>`;
         events.bindBazaarEvents(controller as unknown as Parameters<typeof events.bindBazaarEvents>[0], {} as App, mount);
         tasks.renderBazaarInstall(root);
-        return root.querySelector<HTMLButtonElement>("button");
+        return root.querySelector<HTMLElement>(update ? '[data-type="install-t"]' : '[data-type="install"]') as HTMLButtonElement;
     };
     const settle = async () => {
         for (let i = 0; i < 5; i++) await Promise.resolve();
     };
     for (const mobile of [false, true]) {
+        mobileFrontend = mobile;
         document.documentElement.style.setProperty("--b3-theme-primary", mobile ? "#375278" : "#3573f0");
         const pushProgress = (percent: number) => {
             const data = {id: item.repoURL, percent};
@@ -89,6 +128,8 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         button.click();
         check.equal(requests.length, initialRequests + 1);
         check.equal(button.textContent, "Cancel 0%", "The first click immediately shows cancellable progress");
+        check.equal(button.getAttribute("aria-label"), "Cancel 0%", "Accessible progress labels are retained");
+        checkTooltip(button);
         check.equal(button.disabled, false);
         check.equal(tasks.beginBazaarInstall("plugins", item.name, item.repoURL), undefined, "A pending package cannot start again");
         check.equal(tasks.updateBazaarInstallProgress({id: "another", percent: .8}), false);
@@ -120,7 +161,9 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         pushProgress(Number.POSITIVE_INFINITY);
         check.equal(button.textContent, "Cancel 0%");
         pushProgress(1);
-        check.equal(button.textContent, "Loading...");
+        check.equal(button.textContent, "Installing...");
+        check.equal(button.getAttribute("aria-label"), "Installing...");
+        checkTooltip(button);
         check.equal(button.disabled, true, "Installation after downloading is not presented as cancellable");
         tasks.cancelBazaarInstall("plugins", item.name);
         check.equal(requests.at(-1).signal.aborted, false);
@@ -131,6 +174,7 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         await settle();
         check.equal(confirmations, mobile ? 2 : 1, "Successful installation asks to enable the plugin once");
         check.equal(button.textContent, "Download");
+        check.equal(button.classList.contains("ariaLabel"), true, "Success restores the original tooltip trigger");
 
         button.click();
         requests.at(-1).fail({msg: "network"});
@@ -138,28 +182,172 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         await settle();
         check.equal(button.disabled, false, "Network errors release the package lock");
         check.equal(button.textContent, "Download");
+        check.equal(button.classList.contains("ariaLabel"), true, "Failure restores the original tooltip trigger");
         check.equal(tasks.getBazaarInstallTask("plugins", item.name), undefined);
     }
     check.equal(refreshed, 6);
     check.equal(failures, 2);
-    const pending = tasks.beginBazaarInstall("plugins", item.name, item.repoURL);
-    const disabledButton = render(true, true);
-    check.equal(disabledButton.disabled, false, "An unavailable package can still cancel its pending download");
-    tasks.finishBazaarInstall("plugins", item.name, pending);
-    tasks.renderBazaarInstall(root);
-    check.equal(disabledButton.disabled, true, "Settling an installation preserves the current package availability");
+    for (const mobile of [false, true]) {
+        mobileFrontend = mobile;
+        for (const icon of [false, true]) {
+            const initialRequests = requests.length;
+            const original = render(mobile, false, true, icon);
+            checkTooltip(original, icon ? "Update" : "");
+            original.click();
+            let button = root.querySelector<HTMLButtonElement>('[data-type="install-t"]');
+            check.equal(requests.length, initialRequests + 1);
+            check.equal(requests.at(-1).url, "/api/bazaar/updateBazaarPackage");
+            check.equal(button.tagName, "BUTTON", "Card icons use a full progress button while updating");
+            check.equal(button.textContent, "Cancel 0%");
+            checkTooltip(button);
+            const data = {id: updatedItem.available.repoURL, percent: .53};
+            if (mobile) mobileEvents.onMessage({} as App, {cmd: "downloadProgress", data} as IWebSocketData);
+            else progress.downloadProgress(data);
+            check.equal(button.textContent, "Cancel 53%", "Updates track the available repository even after a repository move");
+            check.equal(button.getAttribute("aria-label"), "Cancel 53%");
+            render(mobile, false, true, icon);
+            button = root.querySelector<HTMLButtonElement>('[data-type="install-t"]');
+            check.equal(button.textContent, "Cancel 53%", "Pending updates survive rerendering");
+            button.click();
+            await settle();
+            check.equal(requests.at(-1).signal.aborted, true);
+            check.equal(requests.length, initialRequests + 1);
+            const restored = root.querySelector<HTMLElement>('[data-type="install-t"]');
+            check.equal(restored.tagName, icon ? "SPAN" : "BUTTON");
+            check.equal(restored.hasAttribute("disabled"), false);
+            checkTooltip(restored, icon ? "Update" : "");
+            const idleHTML = restored.outerHTML;
+            progress.downloadProgress({id: updatedItem.available.repoURL, percent: .9});
+            check.equal(restored.outerHTML, idleHTML, "Late progress after cancellation cannot overwrite idle update controls");
+            restored.click();
+            button = root.querySelector<HTMLButtonElement>('[data-type="install-t"]');
+            progress.downloadProgress({id: updatedItem.available.repoURL, percent: 1});
+            check.equal(button.textContent, "Installing...");
+            checkTooltip(button);
+            check.equal(button.disabled, true);
+            requests.at(-1).callback({code: 0, data: {packages: []}});
+            requests.at(-1).resolve();
+            await settle();
+            check.equal(requests.length, initialRequests + 2);
+            check.equal(confirmations, 2, "Updates do not ask to enable an already installed plugin");
+        }
+        render(mobile, false, true);
+        let all = root.querySelector<HTMLButtonElement>('[data-type="install-all"]');
+        all.click();
+        check.equal(requests.at(-1).url, "/api/bazaar/batchUpdatePackage");
+        check.equal(all.textContent, "Cancel 0%");
+        check.equal(root.querySelector<HTMLButtonElement>('[data-type="skip-batch-update"]').disabled, true);
+        checkTooltip(all);
+        checkTooltip(root.querySelector('[data-type="install-t"]'));
+        check.equal(root.querySelector<HTMLButtonElement>('[data-type="install-t"]').disabled, true);
+        progress.downloadProgress({id: updatedItem.available.repoURL, percent: .7});
+        check.equal(all.textContent, "Cancel 35%", "Batch progress includes packages still waiting to download");
+        render(mobile, false, true);
+        all = root.querySelector<HTMLButtonElement>('[data-type="install-all"]');
+        check.equal(all.textContent, "Cancel 35%");
+        const title = all.parentElement;
+        title.classList.add("config-bazaar__title");
+        const updateTab = document.createElement("button");
+        updateTab.setAttribute("data-type", "myUpdate");
+        updateTab.classList.add("b3-button--outline");
+        title.append(updateTab);
+        all.click();
+        await settle();
+        check.equal(requests.at(-1).signal.aborted, true);
+        check.equal(all.textContent, "Update all");
+        check.equal(all.classList.contains("fn__none"), true, "Finishing a batch does not leave Update all visible in another tab");
+        check.equal(root.querySelector<HTMLButtonElement>('[data-type="install-t"]').disabled, false);
+        all.click();
+        requests.at(-1).resolve();
+        await settle();
+        check.equal(tasks.getBazaarBatchUpdate(), undefined, "A failed batch releases all package locks");
+        const skip = root.querySelector<HTMLButtonElement>('[data-type="skip-batch-update"]');
+        check.equal(skip.disabled, false, "A completed batch restores preference controls");
+        skip.setAttribute("aria-busy", "true");
+        tasks.renderBazaarInstall(root);
+        check.equal(skip.disabled, true, "Install refresh cannot re-enable a pending preference save");
+    }
+    for (const mobile of [false, true]) {
+        mobileFrontend = mobile;
+        const pending = tasks.beginBazaarInstall("plugins", item.name, item.repoURL);
+        const disabledButton = render(mobile, true);
+        check.equal(disabledButton.disabled, false, "An unavailable package can still cancel its pending download");
+        checkTooltip(disabledButton);
+        tasks.finishBazaarInstall("plugins", item.name, pending);
+        tasks.renderBazaarInstall(root);
+        check.equal(disabledButton.disabled, true, "Settling an installation preserves the current package availability");
+        check.equal(disabledButton.getAttribute("aria-label"), "Incompatible package");
+        checkTooltip(disabledButton, "Incompatible package");
+    }
+    let finishPreferenceSave: () => void;
+    const preferenceController = new Function("isBazaarBatchUpdateExcluded", "getBazaarBatchUpdate",
+        "isBazaarPackageType", "bazaarConfigApi", "showMessage", "renderBazaarInstall", sources.preferenceController + "; return result;")(
+        (excluded: Record<string, Record<string, boolean>>, type: string, name: string) => excluded?.[type]?.[name] === true,
+        tasks.getBazaarBatchUpdate, (type: string) => type === "plugins", {
+            patch: (_path: string, value: Record<string, boolean>) => new Promise<void>(resolve => {
+                finishPreferenceSave = () => {
+                    window.siyuan.config.bazaar.batchUpdateExcluded = {plugins: value};
+                    resolve();
+                };
+            }),
+        }, () => {}, tasks.renderBazaarInstall) as typeof import("../bazaar").bazaar;
+    preferenceController.element = root;
+    preferenceController._isUpdatePanelActive = () => false;
+    window.siyuan.languages.bazaarSkipBatchUpdate = "Skip Update all";
+    root.innerHTML = `<div data-name="sample" data-package-type="plugins" data-package-source="updated">
+        ${preferenceController._genBatchUpdatePreferenceHTML("plugins", "sample")}</div><input id="other-control">`;
+    const preferenceButton = root.querySelector<HTMLButtonElement>('[data-type="skip-batch-update"]');
+    preferenceButton.focus();
+    const savingPreference = preferenceController._toggleBatchUpdatePreference("plugins", "sample", preferenceButton);
+    check.equal(preferenceButton.disabled, true);
+    const otherControl = root.querySelector<HTMLInputElement>("#other-control");
+    otherControl.focus();
+    finishPreferenceSave();
+    await savingPreference;
+    check.equal(document.activeElement, otherControl, "Saving must not steal focus moved to another control");
+    check.equal(preferenceButton.getAttribute("aria-checked"), "true");
+    preferenceButton.focus();
+    const restoringPreference = preferenceController._toggleBatchUpdatePreference("plugins", "sample", preferenceButton);
+    finishPreferenceSave();
+    await restoringPreference;
+    check.equal(document.activeElement, preferenceButton, "Keyboard focus returns to the initiating switch");
+    check.equal(preferenceButton.getAttribute("aria-checked"), "false");
+    check.equal(preferenceButton.disabled, false);
+    for (const width of [320, 840]) {
+        root.style.width = `${width}px`;
+        root.innerHTML = '<div id="configBazaarDownloaded"><div class="b3-card" data-name="sample" ' +
+            'data-package-type="plugins" data-package-source="downloaded"><div class="b3-card__actions b3-card__actions--right">' +
+            '<span class="block__icon block__icon--show" data-type="uninstall"><svg></svg></span>' +
+            preferenceController._genUpdateButtonHTML(undefined, "plugins", true) +
+            '<input class="b3-switch" type="checkbox"></div></div></div>';
+        for (const outdated of [false, true, false]) {
+            preferenceController._getUpdatedItem = () => outdated ? updatedItem as IUpdatedBazaarItem : undefined;
+            preferenceController._syncDownloadedUpdateButtons();
+            const update = root.querySelector<HTMLElement>('[data-type="install-t"]');
+            check.ok(update, "background checks retain an update slot to refresh");
+            check.equal(update.getBoundingClientRect().width > 0, outdated,
+                "an unavailable update does not reserve a gap between card actions");
+            check.equal(getComputedStyle(update).display === "none", !outdated);
+        }
+    }
     check.deepEqual(errors, []);
     return "Bazaar install interaction cases passed";
 };
 
-test("marketplace install progress, cancellation and retry on desktop and mobile", {
-    skip: process.platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY,
+test("marketplace installation, single update and batch update progress and cancellation on desktop and mobile", {
+    skip: process.platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY && !process.env.SIYUAN_ELECTRON_HEADLESS,
     timeout: 45000,
 }, async () => {
     const sources = Object.fromEntries(["installTask", "events"].map(name => [name,
         transpileModule(readFileSync(path.join(__dirname, name + ".ts"), "utf8"), {
             compilerOptions: {target: ScriptTarget.ES2021, module: ModuleKind.CommonJS},
         }).outputText]));
+    const bazaarSource = createSourceFile("bazaar.ts", readFileSync(path.join(__dirname, "../bazaar.ts"), "utf8"), ScriptTarget.Latest, true);
+    const bazaarDeclaration = bazaarSource.statements.filter(isVariableStatement)
+        .flatMap(statement => [...statement.declarationList.declarations]).find(item => item.name.getText(bazaarSource) === "bazaar");
+    sources.preferenceController = transpileModule(`const bazaar = ${bazaarDeclaration.initializer.getText(bazaarSource)}; const result = bazaar;`, {
+        compilerOptions: {target: ScriptTarget.ES2021, module: ModuleKind.CommonJS},
+    }).outputText;
     const systemSource = createSourceFile("processSystem.ts", readFileSync(path.join(__dirname, "../../dialog/processSystem.ts"), "utf8"), ScriptTarget.ES2021, true);
     const progress = systemSource.statements.find(statement => isVariableStatement(statement) &&
         statement.declarationList.declarations.some(item => item.name.getText(systemSource) === "downloadProgress"));
@@ -169,7 +357,11 @@ test("marketplace install progress, cancellation and retry on desktop and mobile
     sources.mobile = transpileModule(readFileSync(path.join(__dirname, "../../mobile/util/onMessage.ts"), "utf8"), {
         compilerOptions: {target: ScriptTarget.ES2021, module: ModuleKind.CommonJS},
     }).outputText;
-    const css = compile(path.join(__dirname, "../../assets/scss/component/_button.scss"), {logger: Logger.silent}).css;
+    sources.tooltip = transpileModule(readFileSync(path.join(__dirname, "../../dialog/tooltip.ts"), "utf8"), {
+        compilerOptions: {target: ScriptTarget.ES2021, module: ModuleKind.CommonJS},
+    }).outputText;
+    const css = ["component/_button.scss", "component/_card.scss", "business/_block.scss", "util/_function.scss"].map(name =>
+        compile(path.join(__dirname, "../../assets/scss", name), {logger: Logger.silent}).css).join("\n");
     const source = `const __name = value => value; (${browserCases.toString()})(${JSON.stringify(sources)}, ${JSON.stringify(css)})`;
     const temporary = mkdtempSync(path.join(tmpdir(), "siyuan-bazaar-install-test-"));
     const script = path.join(temporary, "run.cjs");
@@ -192,8 +384,9 @@ app.whenReady().then(async () => {
 });`, "utf8");
     const env = {...process.env};
     delete env.ELECTRON_RUN_AS_NODE;
+    const headless = process.env.SIYUAN_ELECTRON_HEADLESS ? ["--ozone-platform=headless"] : [];
     try {
-        const result = await promisify(execFile)(require("electron") as unknown as string, [script],
+        const result = await promisify(execFile)(require("electron") as unknown as string, [...headless, script],
             {env, timeout: 40000, windowsHide: true});
         assert.match(result.stdout, /Bazaar install interaction cases passed/);
     } finally {

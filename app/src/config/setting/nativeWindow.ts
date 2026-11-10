@@ -13,9 +13,11 @@ import {hasPluginSetting} from "../../plugin";
 import {getWorkspaceName} from "../../util/processTitle";
 import {getDockEntryOrderSnapshot} from "../entryVisibility/dockOrder";
 import {getEditorToolbarCatalogSnapshot} from "../../protyle/toolbar/catalogSnapshot";
+import {getBreadcrumbButtonCatalogSnapshot} from "../../plugin/breadcrumbButtonRegistry";
 import {hasNativeSettingTasks} from "./taskBlocker";
 import {openBazaarPath} from "../bazaar/openPath";
 import {acceptSettingInterfaceRevision, watchSettingInterface} from "./interface";
+import {isCompactModeEnabled} from "../tabs/compactMode";
 import type {App} from "../../index";
 import type {ISettingsWindowHost} from "./windowContext";
 import type {TSettingTab} from "./tabs";
@@ -106,6 +108,13 @@ export const openNativeSettings = async (app: App, command: ISettingsCommand = {
     hosts.set(token, {key, dispose});
     const host: ISettingsWindowHost = {
         app, title, isActive, dispose: close,
+        reopenSettings: async settingsWindow => {
+            const {openSetting} = await import("../index");
+            if (!isActive()) return;
+            window.siyuan.config.system.settingsWindow = settingsWindow;
+            openSetting(app, "app");
+            ipcRenderer.send(Constants.SIYUAN_CMD, "show");
+        },
         exportLayout: options => { assertActive(); return exportLayout(options); },
         suspendLayoutSaving: () => { assertActive(); return suspendLayoutSaving(); },
         reload: () => { assertActive(); return reloadUI(); },
@@ -114,6 +123,10 @@ export const openNativeSettings = async (app: App, command: ISettingsCommand = {
         getEditorToolbarCatalogSnapshot: () => {
             assertActive();
             return getEditorToolbarCatalogSnapshot(app.plugins);
+        },
+        getBreadcrumbButtonCatalogSnapshot: () => {
+            assertActive();
+            return getBreadcrumbButtonCatalogSnapshot();
         },
         openBazaarPath: (type, name, storage) => { assertActive(); openBazaarPath(type, name, storage); },
         exit: setCurrentWorkspace => { assertActive(); return exitSiYuan(setCurrentWorkspace); },
@@ -177,6 +190,8 @@ export const openNativeSettings = async (app: App, command: ISettingsCommand = {
         const prepared = await ipcRenderer.invoke("siyuan-settings-prepare", {
             token, key, command, title,
             geometry: key === "builtin" ? window.siyuan.storage[geometryKey] : undefined,
+            // 原生设置窗口需要按当前界面密度预留窗口按钮区，避免加载完成后按钮跳变。
+            compactMode: isCompactModeEnabled(),
         });
         if (!prepared.create) {
             dispose(false, false);

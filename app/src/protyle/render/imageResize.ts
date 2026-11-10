@@ -12,16 +12,34 @@ export const getImageResizeWidth = (width: number, height: number, deltaX: numbe
 };
 
 export const bindImageResize = (root: HTMLElement) => {
-    const images = new Map<HTMLImageElement, {frame: HTMLElement, container: HTMLElement}>();
-    const position = (image: HTMLImageElement, frame: HTMLElement) => {
-        image.parentElement.classList.toggle("protyle-image-container--compact", image.clientWidth < 96 || image.clientHeight < 48);
-        // 说明文字按图片显示宽度缩放，派生样式只写入说明节点，避免影响图片容器的宽度规则。
-        image.parentElement.querySelectorAll<HTMLElement>(":scope > .img__name, :scope > .protyle-action__title, :scope > .img__alt")
-            .forEach(caption => caption.style.setProperty("--protyle-image-font-size", Math.max(8, image.clientWidth / 10) + "px"));
-        frame.style.left = image.offsetLeft + "px";
-        frame.style.top = image.offsetTop + "px";
-        frame.style.width = image.clientWidth + "px";
-        frame.style.height = image.clientHeight + "px";
+    const images = new Map<HTMLImageElement, {
+        frame: HTMLElement, container: HTMLElement, captions: HTMLElement[], captionText: string[],
+    }>();
+    const pending = new Set<HTMLImageElement>();
+    let positionFrame = 0;
+    const schedulePosition = (image: HTMLImageElement) => {
+        pending.add(image);
+        if (positionFrame) {
+            return;
+        }
+        positionFrame = requestAnimationFrame(() => {
+            positionFrame = 0;
+            // 全部图片先读取布局，再统一写入控件，避免逐张图片触发同步重排。
+            const positions = Array.from(pending).filter(image => images.has(image) && root.contains(image))
+                .map(image => ({image, frame: images.get(image).frame, width: image.clientWidth,
+                    height: image.clientHeight, left: image.offsetLeft, top: image.offsetTop}));
+            pending.clear();
+            positions.forEach(({image, frame, width, height, left, top}) => {
+                image.parentElement.classList.toggle("protyle-image-container--compact", width < 96 || height < 48);
+                // 说明文字按图片显示宽度缩放，派生样式只写入说明节点，避免影响图片容器的宽度规则。
+                image.parentElement.querySelectorAll<HTMLElement>(":scope > .img__name, :scope > .protyle-action__title, :scope > .img__alt")
+                    .forEach(caption => caption.style.setProperty("--protyle-image-font-size", Math.max(8, width / 10) + "px"));
+                frame.style.left = left + "px";
+                frame.style.top = top + "px";
+                frame.style.width = width + "px";
+                frame.style.height = height + "px";
+            });
+        });
     };
     const resizeObserver = new ResizeObserver(entries => {
         entries.forEach(entry => {
@@ -29,7 +47,7 @@ export const bindImageResize = (root: HTMLElement) => {
                 entry.target.querySelector<HTMLImageElement>(":scope > img");
             const state = images.get(image);
             if (state) {
-                position(image, state.frame);
+                schedulePosition(image);
             }
         });
     });
@@ -42,9 +60,20 @@ export const bindImageResize = (root: HTMLElement) => {
         if (container.parentElement?.getAttribute("data-type") !== "img") {
             return;
         }
+        const captions = Array.from(container.querySelectorAll<HTMLElement>(":scope > .protyle-action__title, :scope > .img__alt"));
+        const previous = images.get(image);
+        if (previous?.container === container && container.classList.contains("protyle-image-container") &&
+            previous.frame.parentElement === container &&
+            previous.frame.className === "protyle-action__drag protyle-image-resize" &&
+            previous.frame.contentEditable === "false" && previous.frame.childElementCount === 3 &&
+            captions.length === previous.captions.length && captions.every((caption, index) =>
+                caption === previous.captions[index] && caption.textContent === previous.captionText[index])) {
+            schedulePosition(image);
+            return;
+        }
         container.classList.add("protyle-image-container");
         let firstCaption = true;
-        container.querySelectorAll<HTMLElement>(":scope > .protyle-action__title, :scope > .img__alt").forEach(caption => {
+        captions.forEach(caption => {
             const visible = !!caption.textContent;
             caption.classList.toggle("protyle-image-caption", visible && firstCaption);
             if (visible) {
@@ -56,8 +85,12 @@ export const bindImageResize = (root: HTMLElement) => {
             frame = image.ownerDocument.createElement("span");
             container.appendChild(frame);
         }
-        frame.className = "protyle-action__drag protyle-image-resize";
-        frame.contentEditable = "false";
+        if (frame.className !== "protyle-action__drag protyle-image-resize") {
+            frame.className = "protyle-action__drag protyle-image-resize";
+        }
+        if (frame.contentEditable !== "false") {
+            frame.contentEditable = "false";
+        }
         for (const axis of ["width", "height", "both"]) {
             if (frame.querySelector(`[data-resize-axis="${axis}"]`)) {
                 continue;
@@ -68,7 +101,6 @@ export const bindImageResize = (root: HTMLElement) => {
             handle.setAttribute("data-prevent-swipe", "true");
             frame.appendChild(handle);
         }
-        const previous = images.get(image);
         if (!previous) {
             resizeObserver.observe(image);
         }
@@ -78,16 +110,18 @@ export const bindImageResize = (root: HTMLElement) => {
             }
             resizeObserver.observe(container);
         }
-        images.set(image, {frame, container});
-        position(image, frame);
+        images.set(image, {frame, container, captions, captionText: captions.map(caption => caption.textContent)});
+        schedulePosition(image);
     };
-    const renderAdded = (element: Element) => {
+    const collectImages = (element: Element, collected: Set<HTMLImageElement>) => {
         if (element.matches(".img img")) {
-            render(element as HTMLImageElement);
+            collected.add(element as HTMLImageElement);
         }
-        element.querySelectorAll<HTMLImageElement>(".img img").forEach(render);
+        element.querySelectorAll<HTMLImageElement>(".img img").forEach(image => collected.add(image));
     };
     const observer = new MutationObserver(records => {
+        const added = new Set<Element>();
+        const removed = new Set<HTMLImageElement>();
         const remove = (image: HTMLImageElement) => {
             const state = images.get(image);
             if (state && !root.contains(image)) {
@@ -97,28 +131,57 @@ export const bindImageResize = (root: HTMLElement) => {
             }
         };
         records.forEach(record => {
+            // 控件自身追加的节点只参与派生 UI，不触发图片重新初始化。
+            if (record.target instanceof Element && record.target.closest(".protyle-image-resize") ||
+                record.removedNodes.length === 0 && record.addedNodes.length > 0 &&
+                Array.from(record.addedNodes).every(node => node instanceof Element && node.matches(".protyle-image-resize"))) {
+                return;
+            }
             const parent = record.target instanceof Element ? record.target.closest(".img") : null;
-            parent?.querySelectorAll<HTMLImageElement>("img").forEach(render);
+            if (parent) {
+                added.add(parent);
+            }
             record.addedNodes.forEach(node => {
                 if (node instanceof Element) {
-                    renderAdded(node);
+                    added.add(node);
                 }
             });
             record.removedNodes.forEach(node => {
                 if (node instanceof HTMLImageElement) {
-                    remove(node);
+                    removed.add(node);
                 } else if (node instanceof Element) {
-                    node.querySelectorAll<HTMLImageElement>("img").forEach(remove);
+                    node.querySelectorAll<HTMLImageElement>("img").forEach(image => removed.add(image));
                 }
             });
         });
+        const changed = new Set<HTMLImageElement>();
+        added.forEach(element => {
+            if (!root.contains(element)) {
+                return;
+            }
+            // 同批次的祖先节点已包含整个子树，图片只需扫描和初始化一次。
+            let parent = element.parentElement;
+            while (parent) {
+                if (added.has(parent)) {
+                    return;
+                }
+                parent = parent.parentElement;
+            }
+            collectImages(element, changed);
+        });
+        removed.forEach(remove);
+        changed.forEach(render);
     });
     // 在图片插入、替换和撤销后初始化派生控件，不依赖图片的具体插入入口。
     observer.observe(root, {childList: true, subtree: true});
-    renderAdded(root);
+    const initial = new Set<HTMLImageElement>();
+    collectImages(root, initial);
+    initial.forEach(render);
     return () => {
         observer.disconnect();
         resizeObserver.disconnect();
+        cancelAnimationFrame(positionFrame);
+        pending.clear();
         images.clear();
     };
 };

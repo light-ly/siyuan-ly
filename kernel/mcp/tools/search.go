@@ -1,18 +1,6 @@
-// SiYuan - From thought to insight, with agents
+// SiYuan - https://github.com/siyuan-note/siyuan
 // Copyright (c) 2020-present, b3log.org
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 package tools
 
@@ -25,14 +13,14 @@ import (
 
 var SearchTool = &Tool{
 	Name:        "search",
-	Description: "Search. Actions: fulltext(query, page=1, pageSize=20, notebook?, path?, type?, subtype?, method?, orderBy?, groupBy?), semantic(query, page=1, pageSize=20, notebook?, path?, type?, subtype?) — semantic needs AI embedding configured; asset(query, page=1, pageSize=32, ext?, method?, orderBy?) — full-text search inside asset file contents (PDF/Word/Excel/txt etc.), returns matched snippets with <mark> tags; getasset(path) — get the full indexed content of one asset file by its path (e.g. 'assets/foo.pdf').",
+	Description: "Search. Actions: fulltext(query, page=1, pageSize=32, notebook?, path?, type?, subtype?, method?, orderBy?, groupBy?), semantic(query, page=1, pageSize=32, notebook?, path?, type?, subtype?) — semantic needs AI embedding configured; asset(query, page=1, pageSize=32, ext?, method?, orderBy?) — full-text search inside asset file contents (PDF/Word/Excel/txt etc.), returns matched snippets with <mark> tags; getasset(path) — get the full indexed content of one asset file by its path (e.g. 'assets/foo.pdf').",
 	InputSchema: ToolSchema{
 		Type: "object",
 		Properties: map[string]Property{
 			"action":   {Type: "string", Description: "Operation: fulltext, semantic, asset, or getasset", Enum: []string{"fulltext", "semantic", "asset", "getasset"}},
 			"query":    {Type: "string", Description: "Search keywords (required for fulltext/semantic/asset)"},
 			"page":     {Type: "number", Description: "Page number (default 1)"},
-			"pageSize": {Type: "number", Description: "Results per page (default 20 for fulltext/semantic, 32 for asset)"},
+			"pageSize": {Type: "number", Description: "Results per page (default 32 for fulltext, semantic and asset; values below 1 also use 32)"},
 			"notebook": {Type: "string", Description: "Comma-separated notebook IDs to filter (optional, fulltext/semantic only)"},
 			"path":     {Type: "string", Description: "Comma-separated path prefixes to filter (optional, fulltext/semantic only); for getasset, a single asset file path like 'assets/foo.pdf'"},
 			"type":     {Type: "string", Description: "Comma-separated block types to filter, e.g. 'document,heading,paragraph' (optional, fulltext/semantic only)"},

@@ -1,12 +1,9 @@
 import * as assert from "node:assert/strict";
-import {readFileSync} from "node:fs";
 import {test} from "node:test";
-import {runInNewContext} from "node:vm";
-import {ModuleKind, ScriptTarget, transpileModule} from "typescript";
+import {ScriptTarget} from "typescript";
+import {compileModule, evaluateModule} from "../testSupport/loadModule";
 
-const source = transpileModule(readFileSync("src/util/kernelFault.ts", "utf8"), {
-    compilerOptions: {module: ModuleKind.CommonJS, target: ScriptTarget.ES2021},
-}).outputText;
+const source = compileModule("src/util/kernelFault.ts", ScriptTarget.ES2021);
 
 const fixture = (platform = "desktop", probe: () => Promise<boolean> = async () => false) => {
     const state = {quitting: false, probes: 0};
@@ -17,7 +14,7 @@ const fixture = (platform = "desktop", probe: () => Promise<boolean> = async () 
     }
     const dependencies: Record<string, unknown> = {
         "../constants": {Constants: {SIYUAN_VERSION: "test", DIALOG_KERNELFAULT: "dialog-kernelfault"}},
-        "../dialog": {Dialog},
+        "../dialog/mobileDialog": {MobileDialog: Dialog},
         "../dialog/processSystem": {isHostQuitStarted: () => state.quitting},
         "./functions": {isBrowser: () => platform === "browser", isMobile: () => platform === "mobile",
             isKernelInContainer: () => false},
@@ -25,8 +22,8 @@ const fixture = (platform = "desktop", probe: () => Promise<boolean> = async () 
             isInMobileApp: () => platform === "mobile" || platform === "ios"},
         "./kernelConnection": {checkKernelConnection: () => { state.probes++; return probe(); }},
     };
-    const api = {} as typeof import("./kernelFault");
-    runInNewContext(source, {exports: api, require: (name: string) => dependencies[name],
+    const api = evaluateModule<typeof import("./kernelFault")>(source, {
+        require: (name: string) => dependencies[name],
         document: {querySelector: () => dialogs.find(dialog => dialog.element.id === "errorLog")},
         window: {siyuan: {languages: new Proxy({}, {get: (_target, key) => key})}},
     });

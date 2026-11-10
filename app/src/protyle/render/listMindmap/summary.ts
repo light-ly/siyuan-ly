@@ -1,4 +1,4 @@
-import type {ListMindmapModel, ListMindmapPosition} from "./model";
+import type {ListMindmapModel, ListMindmapNodeStyle, ListMindmapPosition} from "./model";
 
 export interface ListMindmapSummary {
     id: string;
@@ -23,6 +23,18 @@ export interface ListMindmapSummaryRange {
     parentId: string;
     nodeIds: string[];
 }
+
+export const resolveListMindmapSummaryStyle = (model: ListMindmapModel, summary: ListMindmapSummary,
+                                              themed: Map<string, ListMindmapNodeStyle>) => {
+    const id = summary.nodeIds[0];
+    const style = model.metadata.nodes[id];
+    const theme = themed.get(id);
+    return {
+        textColor: summary.color || style?.textColor || theme?.textColor,
+        lineColor: summary.color || style?.lineColor || theme?.lineColor,
+        backgroundColor: id === model.root.id ? style?.backgroundColor || theme?.backgroundColor : undefined,
+    };
+};
 
 export const isListMindmapSummaryCrossing = (a: string[], b: string[]) => {
     const members = new Set(a);
@@ -120,6 +132,7 @@ export const getListMindmapSummaryRange = (model: ListMindmapModel, from: string
 
 // 框选只保留最外层的选中节点，并按父节点及连续范围分组。
 export const getListMindmapSummarySelection = (model: ListMindmapModel, selected: Set<string>) => {
+    selected = new Set([...selected].filter(id => model.nodes.has(id) && !model.nodes.get(id).virtual));
     const groups: ListMindmapSummaryRange[] = [];
     getListMindmapSiblingIDs(model).forEach((ids, parentId) => {
         let group: string[] = [];
@@ -221,7 +234,7 @@ export const layoutListMindmapSummaries = (model: ListMindmapModel, positions: M
             right = Math.max(right, position.x + position.width);
             const y = position.y - (id === model.root.id ? 1 : 3);
             top = Math.min(top, y);
-            bottom = Math.max(bottom, y + position.height);
+            bottom = Math.max(bottom, position.y + position.height);
         });
         result.forEach(inner => {
             if ([...coverage.get(inner.id)].every(id => members.has(id))) {

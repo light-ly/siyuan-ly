@@ -34,11 +34,11 @@ describe("desktop startup wiring", () => {
     });
 
     it("checks for a settings reset after the main window becomes ready", () => {
-        assert.match(mainEntry, /mainWs\.flushMainMessages\(\);\s*exitAfterSettingsReset\(\);/);
+        assert.match(mainEntry, /mainWs\.flushMainMessages\(\);\s*bootSync\(\);\s*exitAfterSettingsReset\(\);/);
     });
 
     it("registers desktop back navigation in the browser build", () => {
-        assert.match(mainEntry, /#if BROWSER\s*registerDesktopBackNavigation\(\);/);
+        assert.match(mainEntry, /#if BROWSER\s*registerDesktopBackNavigation\(siyuanApp\);/);
     });
 
     it("passes the upstream fetchAppId arguments in both entries", () => {

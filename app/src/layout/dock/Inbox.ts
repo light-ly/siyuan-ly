@@ -9,9 +9,11 @@ import {fetchPost, fetchSyncPost} from "../../util/fetch";
 import {updateHotkeyAfterTip} from "../../protyle/util/compatibility";
 import {Model} from "../Model";
 import {MenuItem} from "../../menus/Menu";
-import {confirmDialog} from "../../dialog/confirmDialog";
-import {replaceFileName} from "../../editor/rename";
-import {getDisplayName, movePathTo, pathPosix} from "../../util/pathName";
+import {mobileConfirmDialog as confirmDialog} from "../../dialog/mobileConfirmDialog";
+import {normalizeDocumentTitle} from "../../editor/rename";
+import {movePathTo} from "../../util/pathName";
+import {documentCreateRequest} from "../../util/documentCreate";
+import {createConfiguredDocument} from "../../util/configuredDocument";
 import type {App} from "../../index";
 import {hasClosestByClassName} from "../../protyle/util/hasClosest";
 import {escapeHtml, escapeMarkdownPlainText} from "../../util/escape";
@@ -25,6 +27,8 @@ export class Inbox extends Model {
     private currentPage = 1;
     private pageCount = 1;
     private data: { [key: string]: IInbox } = {};
+    private moveTargets = new Map<string, {notebook: string; path: string; id: string; committed?: boolean}>();
+    private moving = false;
 
     constructor(app: App, tab: Tab | Element) {
         super({app});
@@ -49,7 +53,7 @@ export class Inbox extends Model {
     <svg data-type="more" class="toolbar__icon fn__none"><use xlink:href='#iconMore'></use></svg>
 </div>
 <div class="fn__loading fn__none">
-    <img width="64px" src="/stage/loading-pure.svg"></div>
+    <span class="b3-loading" aria-hidden="true"></span></div>
 </div>
 <div class="fn__flex-1 fn__none inboxDetails fn__flex-column" style="min-height: auto;background-color: var(--b3-theme-background)"></div>
 <div class="fn__flex-1"></div>`;
@@ -71,7 +75,7 @@ export class Inbox extends Model {
     <span data-type="min" class="block__icon ariaLabel" data-position="north" aria-label="${window.siyuan.languages.min}${updateHotkeyAfterTip(window.siyuan.config.keymap.general.closeTab.custom)}"><svg><use xlink:href="#iconMin"></use></svg></span>
 </div>
 <div class="fn__loading fn__none">
-    <img width="64px" src="/stage/loading-pure.svg"></div>
+    <span class="b3-loading" aria-hidden="true"></span></div>
 </div>
 <div class="fn__flex-1 fn__none inboxDetails fn__flex-column" style="min-height: auto;background-color: var(--b3-theme-background)"></div>
 <div class="fn__flex-1"></div>`;
@@ -214,7 +218,7 @@ export class Inbox extends Model {
     <span data-type="back" class="toolbar__text fn__flex-1">${data.shorthandTitle}</span>
     ${linkHTML}
 </div>
-<div class="b3-typography b3-typography--default" style="padding: 0 8px 8px">
+<div class="b3-typography b3-typography--default" style="padding: 0 8px calc(8px + var(--android-navigation-bar-height, 0px))">
 ${data.shorthandContent}
 </div>`);
         /// #else
@@ -369,6 +373,9 @@ ${data.shorthandContent}
             if (response.code !== 0) {
                 return;
             }
+            for (const id of removeIds || this.selectIds) {
+                this.moveTargets.delete(id);
+            }
             if (removeIds) {
                 this.back();
                 for (let i = this.selectIds.length - 1; i >= 0; i--) {
@@ -388,28 +395,76 @@ ${data.shorthandContent}
     private move(ids: string[]) {
         movePathTo({
             cb: async (toPath, toNotebook) => {
-                for (let i = 0; i < ids.length; i++) {
-                    const idItem = ids[i];
-                    const response = await fetchSyncPost("/api/inbox/getShorthand", {
-                        id: idItem
-                    });
-                    if (response.code !== 0 || !response.data) {
-                        return;
-                    }
-                    this.data[response.data.oId] = response.data;
-                    let md = response.data.shorthandMd;
-                    if ("" === md && "" === response.data.shorthandContent && "" != response.data.shorthandURL) {
-                        md = "[" + response.data.shorthandTitle + "](" + response.data.shorthandURL + ")";
-                    }
-                    await fetchSyncPost("/api/filetree/createDoc", {
-                        notebook: toNotebook[0],
-                        path: pathPosix().join(getDisplayName(toPath[0], false, true), Lute.NewNodeID() + ".sy"),
-                        title: replaceFileName(response.data.shorthandTitle),
-                        md,
-                        listDocTree: true,
-                    });
+                if (this.moving) {
+                    return;
                 }
-                this.remove(ids);
+                this.moving = true;
+                const created: string[] = [];
+                let finished = false;
+                try {
+                    for (let i = 0; i < ids.length; i++) {
+                        const idItem = ids[i];
+                        let target = this.moveTargets.get(idItem);
+                        if (target && (target.notebook !== toNotebook[0] || target.path !== toPath[0])) {
+                            showMessage(`${escapeHtml(window.siyuan.languages.documentCreationRecovery)} ` +
+                                `<a href="siyuan://blocks/${target.id}">${target.id}</a>`, 0, "error");
+                            break;
+                        }
+                        if (target?.committed) {
+                            created.push(idItem);
+                            continue;
+                        }
+                        const response = await fetchSyncPost("/api/inbox/getShorthand", {
+                            id: idItem
+                        });
+                        if (response.code !== 0 || !response.data) {
+                            break;
+                        }
+                        this.data[response.data.oId] = response.data;
+                        let md = response.data.shorthandMd;
+                        if ("" === md && "" === response.data.shorthandContent && "" != response.data.shorthandURL) {
+                            md = "[" + response.data.shorthandTitle + "](" + response.data.shorthandURL + ")";
+                        }
+                        if (!target) {
+                            if ([...this.moveTargets.values()].filter(value => !value.committed).length >= 32) {
+                                showMessage(window.siyuan.languages.documentCreationLimit, 0, "error");
+                                break;
+                            }
+                            target = {notebook: toNotebook[0], path: toPath[0], id: Lute.NewNodeID()};
+                            this.moveTargets.set(idItem, target);
+                        }
+                        const request = documentCreateRequest(target.notebook, target.path, target.id,
+                            normalizeDocumentTitle(response.data.shorthandTitle), md);
+                        let completed = false;
+                        await createConfiguredDocument({
+                            notebook: target.notebook, contextID: request.parentID, purpose: "document",
+                            placement: "child", id: target.id, title: request.title.text,
+                        }, {
+                            plan: {notebook: target.notebook, title: request.title.text, steps: [request]},
+                            listDocTree: true,
+                            onCreated: () => {
+                                target.committed = true;
+                                completed = true;
+                                if (finished) {
+                                    this.remove([idItem]);
+                                } else {
+                                    created.push(idItem);
+                                }
+                            },
+                        });
+                        if (!completed) {
+                            break;
+                        }
+                    }
+                } catch (error) {
+                    showMessage(escapeHtml(error instanceof Error ? error.message : String(error)), 0, "error");
+                } finally {
+                    this.moving = false;
+                    finished = true;
+                    if (created.length) {
+                        this.remove(created);
+                    }
+                }
             },
             flashcard: false
         });

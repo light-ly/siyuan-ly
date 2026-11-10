@@ -1,6 +1,6 @@
 import * as assert from "node:assert/strict";
 import {execFile} from "node:child_process";
-import {mkdtempSync, readFileSync, rmSync, writeFileSync} from "node:fs";
+import {mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import * as path from "node:path";
 import {test} from "node:test";
@@ -8,7 +8,8 @@ import {promisify} from "node:util";
 import {compile, Logger} from "sass";
 import {ModuleKind, ScriptTarget, transpileModule} from "typescript";
 
-const browserCases = async (sources: Record<string, string>, css: string) => {
+const browserCases = async (sources: Record<string, string>, css: string,
+                            themeLabels: {language: string, labels: Record<string, string>}[]) => {
     const check: typeof assert = require("node:assert/strict");
     let mobile = false;
     let mobileApp = false;
@@ -23,9 +24,10 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         "protyle/util/compatibility": {getEventName: () => "click", isInMobileApp: () => mobileApp, isPhablet: () => false,
             updateHotkeyTip: (value: string) => value},
         "util/functions": {isMobile: () => mobile},
-        "util/zIndex": {isScrollAboveMenu: () => false},
         "layout/getTopBarHeight": {getTopBarHeight: () => 32},
-        constants: {Constants: {TIMEOUT_DBLCLICK: 10, ATTRIBUTE_MENU_KEYMAP: "data-keymap"}},
+        constants: {Constants: {TIMEOUT_DBLCLICK: 10, ATTRIBUTE_MENU_KEYMAP: "data-keymap",
+            CUSTOM_SY_EMBED_BREADCRUMB_PARENT_PATH: "custom-sy-embed-breadcrumb-parent-path"}},
+        "protyle/render/blockRender": {blockRender() {}},
         "protyle/undo": {electronUndo() {}},
         "util/escape": {escapeAttr: (value: string) => value || "", escapeHtml: (value: string) => value || ""},
         "menus/menuKeyboard": {setMenuInputCurrent() {}},
@@ -46,12 +48,14 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         "protyle/render/av/panels/inputs": {bindAVPanelInputs() {}},
         "protyle/render/av/viewType": {},
         "protyle/wysiwyg/transaction": {},
-        "util/fetch": {fetchSyncPost: async (url: string) => {
+        "util/fetch": {fetchPost: (_url: string, _data: unknown, callback: () => void) => callback(),
+            fetchSyncPost: async (url: string) => {
             check.equal(url, "/api/av/getAttributeViewCalendarUndated");
             return {code: 0, data: {rows: calendarRows, total: calendarRows.length}};
         }},
         "protyle/render/av/automationPosition": {},
         "protyle/render/av/select": {},
+        "protyle/render/av/cell": {},
         "protyle/render/av/filter": {},
         "protyle/ui/hideElements": {},
         "protyle/render/av/mobilePanel": {},
@@ -61,6 +65,7 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         "protyle/render/av/groups": {getPageSize: () => ({})},
         "protyle/render/av/color": {applyAVColorPalette() {}, getAVCustomColors: (): string[] => []},
         "protyle/render/av/panelTarget": {},
+        "protyle/render/av/host": {getAVRelationHost: (): undefined => undefined, getAVHostIdentity: (): undefined => undefined},
         "protyle/render/av/selectPosition": {},
         "protyle/render/av/calendar/date": {},
         "protyle/render/av/calendar/hitTest": {},
@@ -71,6 +76,7 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         "layout/dock/agent/path": {},
         "util/pathName": {},
         "util/upDownHint": {},
+        "dialog/message": {},
         "util/hostCapabilities": {getHostCapabilities: () => ({localFileSystem: false})},
         "asset/pdf/internal_evt.js": {internalOpt: {}},
         "asset/pdf/pdf_viewer.js": {PagesCountLimit: {FORCE_SCROLL_MODE_PAGE: 10000}},
@@ -117,7 +123,7 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
     document.head.append(style);
     Object.assign(window, {siyuan: {languages: {back: "Back"}, zIndex: 0, storage: {}, config: {appearance: {}},
         mobile: {size: {portrait: {height1: innerHeight}}}, menus: {}}});
-    const {Menu, MenuItem}: typeof import("./Menu") = load("menus/Menu");
+    const {Menu, MenuItem, markMenuInnerScroll}: typeof import("./Menu") = load("menus/Menu");
     const {Menu: PluginMenu}: typeof import("../plugin/Menu") = load("plugin/Menu");
     const settle = async () => {
         for (let i = 0; i < 3; i++) {
@@ -153,6 +159,36 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
         menu.remove();
         menu.element.remove();
     };
+
+    const {embedBreadcrumbMenu}: typeof import("../protyle/gutter/embedBreadcrumbMenu") = load("protyle/gutter/embedBreadcrumbMenu");
+    Object.assign(window.siyuan.languages, {embedBlockBreadcrumb: "Breadcrumb", embedBlockBreadcrumbParentPath: "Parent path",
+        enable: "Enable", disable: "Disable", default: "Default"});
+    for (const touch of [false, true]) {
+        mobile = touch;
+        const embed = document.createElement("div");
+        embed.dataset.nodeId = "embed";
+        for (const [index, attribute] of ["breadcrumb", "custom-sy-embed-breadcrumb-parent-path"].entries()) {
+            for (const [choice, value] of [[0, "true"], [1, "false"], [2, null]] as const) {
+                const instance = createMenu();
+                instance.addItem(embedBreadcrumbMenu({} as IProtyle, embed)[index]);
+                instance.popup({x: 40, y: 40});
+                const parent = instance.element.querySelector<HTMLElement>(".b3-menu__item");
+                check.ok(parent.querySelector(":scope > svg:not(.b3-menu__icon--small)"),
+                    "breadcrumb menus reserve the leading icon space to align with adjacent entries");
+                check.equal(parent.querySelector(":scope > .b3-menu__icon--small use")?.getAttribute("xlink:href"), "#iconRight",
+                    "breadcrumb submenu retains the standard arrow");
+                parent.dispatchEvent(new MouseEvent(touch ? "click" : "mouseover", {bubbles: true}));
+                await settle();
+                check.ok(parent.classList.contains("b3-menu__item--show"), "desktop hover and mobile tap open the submenu");
+                const options = parent.querySelectorAll<HTMLElement>(".b3-menu__submenu .b3-menu__item");
+                check.equal(options.length, 3);
+                options[choice].click();
+                check.equal(embed.getAttribute(attribute), value);
+                dispose(instance);
+            }
+        }
+    }
+    mobile = false;
 
     const menu = createMenu();
     addItems(menu, 2);
@@ -255,6 +291,103 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
     submenus.resetPosition();
     fitsViewport(submenu);
     dispose(submenus);
+
+    const appearance: typeof import("../protyle/render/listMindmap/appearance") = load("protyle/render/listMindmap/appearance");
+    for (const touch of [false, true]) {
+        mobile = touch;
+        await require("electron").ipcRenderer.invoke("resize-menu-test", touch ? 360 : 640, 520);
+        await settle();
+        window.siyuan.mobile.size.portrait.height1 = innerHeight;
+        for (const {fontSize, language, labels} of [16, 24].flatMap(fontSize => themeLabels.map(data => ({fontSize, ...data})))) {
+            document.documentElement.style.setProperty("--b3-font-size", `${fontSize}px`);
+            const instance = createMenu();
+            const metadata: import("../protyle/render/listMindmap/model").ListMindmapMetadata = {version: 1, nodes: {}, relations: []};
+            let changes = 0;
+            const menu = appearance.getListMindmapAppearanceMenu(metadata, update => { update(metadata); changes++; },
+                labels, {id: "connectorStyle"});
+            instance.addItem((menu.submenu as IMenu[]).find(item => item.id === "theme"));
+            if (touch) {
+                instance.fullscreen("bottom");
+            } else {
+                instance.popup({x: 280, y: 90});
+            }
+            const parent = instance.element.querySelector<HTMLElement>('[data-id="theme"]');
+            parent.dispatchEvent(new MouseEvent(touch ? "click" : "mouseover", {bubbles: true}));
+            await settle();
+            if (touch) {
+                for (let attempt = 0; attempt < 20 && instance.element.style.transform !== "translateY(0px)"; attempt++) {
+                    await settle();
+                }
+                check.equal(instance.element.style.transform, "translateY(0px)");
+                instance.element.getAnimations({subtree: true}).forEach(animation => animation.finish());
+                await settle();
+            }
+            const panel = parent.querySelector<HTMLElement>(":scope > .b3-menu__submenu");
+            const items = panel.querySelector<HTMLElement>(":scope > .b3-menu__items");
+            check.equal(items.children.length, appearance.LIST_MINDMAP_PALETTES.length + 1);
+            check.ok(items.scrollHeight > items.clientHeight, "theme choices scroll inside a bounded menu");
+            if (!touch) {
+                fitsViewport(panel);
+                check.ok(items.clientHeight <= Math.min(480, innerHeight * .6) + 1,
+                    "desktop themes keep the preferred height within viewport limits");
+            } else {
+                const bounds = panel.getBoundingClientRect();
+                check.ok(bounds.top >= 0 && bounds.bottom <= innerHeight + 1,
+                    "mobile theme choices fit the visible sheet after its opening transition");
+                check.ok(bounds.left >= 0 && bounds.right <= innerWidth + 1, "mobile themes fit a narrow screen");
+            }
+            const widestRow = Math.max(...Array.from(items.children, row => {
+                const label = row.querySelector<HTMLElement>(".b3-menu__label");
+                const range = document.createRange();
+                range.selectNodeContents(label);
+                const textWidth = range.getBoundingClientRect().width;
+                check.ok(textWidth <= label.getBoundingClientRect().width + 1,
+                    `${language} ${fontSize}px: localized theme names remain fully visible`);
+                const padding = getComputedStyle(row);
+                const controlsWidth = Array.from(row.children).filter(child => child !== label).reduce((sum, child) => {
+                    const style = getComputedStyle(child);
+                    return sum + child.getBoundingClientRect().width + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
+                }, 0);
+                return textWidth + controlsWidth + parseFloat(padding.paddingLeft) + parseFloat(padding.paddingRight);
+            }));
+            for (const [index, preset] of appearance.LIST_MINDMAP_PALETTES.entries()) {
+                const row = items.children[index + 1];
+                const preview = row.querySelector<HTMLElement>(".mindmap-view__theme-preview");
+                const label = row.querySelector<HTMLElement>(".b3-menu__label");
+                check.equal(preview.getAttribute("aria-hidden"), "true");
+                check.ok(getComputedStyle(preview).backgroundImage.startsWith("linear-gradient("));
+                check.ok(new Set(getComputedStyle(preview).backgroundImage.match(/rgb\([^)]+\)/g)).size >= 3,
+                    "the preview shows multiple representative theme colors");
+                check.equal(preview.getBoundingClientRect().width, 48);
+                check.ok(label.getBoundingClientRect().left >= preview.getBoundingClientRect().right);
+                check.equal(label.textContent, labels[preset.label]);
+            }
+            if (!touch) {
+                const padding = getComputedStyle(items);
+                const chromeWidth = panel.getBoundingClientRect().width - items.clientWidth +
+                    parseFloat(padding.paddingLeft) + parseFloat(padding.paddingRight);
+                check.ok(panel.getBoundingClientRect().width <= widestRow + chromeWidth + 1,
+                    `${language} ${fontSize}px: the menu fits its content without a fixed label spacer`);
+            }
+            const selected = items.querySelector<HTMLElement>(".b3-menu__checked");
+            const selectedLabel = selected.previousElementSibling.getBoundingClientRect();
+            check.ok(selected.getBoundingClientRect().left >= selectedLabel.right, "the checkmark does not overlap the name");
+            const last = items.lastElementChild as HTMLElement;
+            items.scrollTop = items.scrollHeight;
+            const lastBounds = last.getBoundingClientRect();
+            check.ok(lastBounds.bottom <= items.getBoundingClientRect().bottom + 1,
+                "the final theme remains reachable without expanding the menu");
+            last.click();
+            check.equal(changes, 1);
+            check.deepEqual(metadata.appearance.palette, appearance.LIST_MINDMAP_PALETTES.at(-1).colors);
+            dispose(instance);
+        }
+    }
+    document.documentElement.style.setProperty("--b3-font-size", "16px");
+    mobile = false;
+    await require("electron").ipcRenderer.invoke("resize-menu-test", 1000, 800);
+    await settle();
+    window.siyuan.mobile.size.portrait.height1 = innerHeight;
 
     const shared = createMenu();
     const independent = new PluginMenu(undefined, undefined, true);
@@ -363,6 +496,32 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
     check.equal(clicked, Number(nativeHit.textContent.trim().replace("Mouse item ", "")), "Native click selects the visible item");
     dispose(following);
 
+    const abovePointer = createMenu();
+    addItems(abovePointer, 80);
+    abovePointer.popup({x: 60, y: innerHeight - 30, h: 20});
+    await settle();
+    const aboveItems = abovePointer.element.lastElementChild as HTMLElement;
+    check.ok(aboveItems.getBoundingClientRect().bottom <= innerHeight - 30);
+    for (const entry of [.99, .7, .4]) {
+        aboveItems.scrollTop = 0;
+        abovePointer.resetMouseScroll();
+        pointer(aboveItems, entry);
+        check.equal(aboveItems.scrollTop, 0, "Opening above the pointer still starts at the first item");
+        pointer(aboveItems, entry - .05);
+        check.ok(aboveItems.scrollTop > 0, "Moving upward after entry follows the pointer without a wheel event");
+        pointer(aboveItems, .99);
+        check.equal(aboveItems.scrollTop, aboveItems.scrollHeight - aboveItems.clientHeight);
+        pointer(aboveItems, .01);
+        check.equal(aboveItems.scrollTop, 0);
+    }
+    aboveItems.scrollTop = aboveItems.scrollHeight - aboveItems.clientHeight;
+    abovePointer.resetMouseScroll();
+    pointer(aboveItems, .01);
+    pointer(aboveItems, .06);
+    check.ok(aboveItems.scrollTop < aboveItems.scrollHeight - aboveItems.clientHeight,
+        "Moving downward after entry at the last item also follows the pointer");
+    dispose(abovePointer);
+
     window.siyuan.config.appearance.menuMouseScroll = true;
     const mouseSubmenus = createMenu();
     mouseSubmenus.addItem({label: "Scrollable children", submenu: Array.from({length: 80}, (_, i) => ({label: `Child ${i}`}))});
@@ -398,6 +557,11 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
     check.ok(lazyScroll > 0, "Asynchronous submenu loading preserves the parent's scroll position");
     const loadedMenu = lazyItems.querySelector(".b3-menu__item--show > .b3-menu__submenu");
     check.match(loadedMenu.textContent, /Loaded \d+/, "The item under a scrolled pointer loads its asynchronous submenu");
+    const loadedRect = loadedMenu.getBoundingClientRect();
+    const loadedParentRect = loadedMenu.parentElement.getBoundingClientRect();
+    check.ok(Math.abs(loadedRect.top - Math.max(32,
+        Math.min(loadedParentRect.top - 9, innerHeight - loadedRect.height - 1))) < 2,
+    "The first loaded submenu aligns with its parent after restoring the parent's scroll position");
     pointer(lazyItems, .75);
     check.ok(lazyItems.scrollTop > lazyScroll, "Loading a child does not interrupt scrolling of its unchanged parent");
     dispose(lazyMouse);
@@ -477,6 +641,43 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
     check.ok(visibleItems.scrollTop > 0, "A hidden sibling must not intercept the visible list's scrolling");
     check.equal(hiddenItems.scrollTop, 0);
     dispose(multiple);
+
+    const innerScroll = createMenu();
+    const openModelPicker = new Function("toggleMenu", "Menu", "markMenuInnerScroll", "escapeHTML", "upDownHint",
+        sources.modelPicker + "\nreturn openAvailableModelMenu;")(
+        ({build}: {build: (menu: unknown, session: {show: (show: () => void) => void}) => void}) =>
+            build(undefined, {show: show => show()}), PluginMenu, markMenuInnerScroll, (value: string) => value, () => {});
+    const modelInput = document.createElement("input");
+    modelInput.style.cssText = "position:fixed;left:40px;top:40px;height:28px";
+    document.body.append(modelInput);
+    openModelPicker(modelInput, Array.from({length: 60}, (_, index) => `Model ${index}`));
+    check.ok(innerScroll.element.querySelector(".b3-menu__filter").getBoundingClientRect().height > innerHeight * .5 + 20,
+        "the model picker must enable inner scrolling before popup measures its height");
+    fitsViewport(innerScroll.element);
+    modelInput.style.top = "580px";
+    innerScroll.resetPosition();
+    const modelSearch = innerScroll.element.querySelector<HTMLInputElement>(".b3-menu__filter input");
+    for (const keyword of ["Model 59", "not-found", ""]) {
+        modelSearch.value = keyword;
+        modelSearch.dispatchEvent(new InputEvent("input", {bubbles: true}));
+        await settle();
+        const menuRect = innerScroll.element.getBoundingClientRect();
+        const inputRect = modelInput.getBoundingClientRect();
+        check.ok(Math.abs(menuRect.bottom - inputRect.top) < 1 || Math.abs(menuRect.top - inputRect.bottom) < 1,
+            "filtered model menus stay attached to their input, including empty results and restoring the full list");
+    }
+    const innerScrollItems = markMenuInnerScroll(innerScroll.element);
+    innerScroll.popup({x: 40, y: 40});
+    await settle();
+    check.ok(innerScrollItems === innerScroll.element.lastElementChild,
+        "markMenuInnerScroll returns the content container");
+    check.ok(innerScrollItems.classList.contains("b3-menu__items--inner-scroll"), "the container is marked for inner scrolling");
+    check.equal(getComputedStyle(innerScrollItems).overflow, "visible", "the container does not scroll by itself");
+    innerScroll.remove();
+    check.equal(innerScrollItems.classList.contains("b3-menu__items--inner-scroll"), false,
+        "closing the menu clears the inner scroll marker");
+    dispose(innerScroll);
+    modelInput.remove();
 
     const {getPdfViewerHTML} = load("asset/pdf/viewerTemplate");
     const {SecondaryToolbar} = load("asset/pdf/secondary_toolbar.js");
@@ -630,11 +831,16 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
     pointer(mobilePDF.items, .7);
     check.equal(mobilePDF.items.scrollTop, 0, "Mobile PDF menus preserve their touch interaction");
     mobilePDF.host.remove();
+    const keyboardToolbar = document.createElement("div");
+    keyboardToolbar.id = "keyboardToolbar";
+    keyboardToolbar.style.cssText = "position:fixed;bottom:0;height:40px;width:100%";
+    document.body.append(keyboardToolbar);
     const sheet = createMenu();
     sheet.element.classList.add("b3-menu--fit");
     addItems(sheet, 2);
     sheet.fullscreen("bottom", undefined, {preserveKeyboard: true});
     await settle();
+    check.equal(keyboardToolbar.classList.contains("keyboard--sheet-open"), true);
     const sheetHeight = sheet.element.getBoundingClientRect().height;
     const resetSheet = sheet.resetPosition.bind(sheet);
     let sheetResets = 0;
@@ -656,6 +862,50 @@ const browserCases = async (sources: Record<string, string>, css: string) => {
     await settle();
     check.equal(sheetResets, 1, "Closing cancels the pending layout update");
     sheet.element.remove();
+    check.equal(keyboardToolbar.classList.contains("keyboard--sheet-open"), false);
+    keyboardToolbar.remove();
+
+    const scrim = document.createElement("div");
+    scrim.id = "commonMenuScrim";
+    scrim.className = "b3-menu__scrim fn__none";
+    const background = document.createElement("div");
+    const overlay = document.createElement("div");
+    document.body.append(scrim, background, overlay);
+    const touchMove = (target: Element) => {
+        const event = new Event("touchmove", {bubbles: true, cancelable: true});
+        target.dispatchEvent(event);
+        return event.defaultPrevented;
+    };
+    const localSheet = createMenu();
+    localSheet.addItem({label: "Parent", submenu: [{label: "Child"}]});
+    localSheet.fullscreen("bottom", undefined, {preserveKeyboard: true});
+    await settle();
+    check.equal(touchMove(background), false, "Sheet scroll guards do not cover the underlying document tree");
+    check.equal(touchMove(scrim), true, "The scrim blocks background scrolling");
+    check.equal(touchMove(localSheet.element.lastElementChild), false, "Sheet items remain scrollable");
+    check.equal(touchMove(localSheet.element.querySelector(".b3-menu__submenu")), false,
+        "Nested menu items retain their scrolling");
+    overlay.style.zIndex = String(window.siyuan.zIndex + 1);
+    check.equal(touchMove(overlay), false, "Overlays above the sheet retain their scrolling");
+    localSheet.remove();
+    check.equal(touchMove(scrim), false, "Removing a sheet releases its scrim scroll guard");
+    addItems(localSheet, 2);
+    localSheet.fullscreen("bottom", () => {}, {preserveKeyboard: true});
+    localSheet.closeSheet();
+    check.equal(touchMove(scrim), false, "Keyboard restoration releases scroll guards immediately");
+    localSheet.element.remove();
+    scrim.remove();
+
+    const unmaskedSheet = createMenu();
+    unmaskedSheet.element.id = "independentSheet";
+    addItems(unmaskedSheet, 2);
+    unmaskedSheet.fullscreen("bottom", undefined, {preserveKeyboard: true});
+    check.equal(touchMove(background), true, "Sheets without a scrim still block background scrolling");
+    check.equal(touchMove(unmaskedSheet.element.lastElementChild), false);
+    dispose(unmaskedSheet);
+    check.equal(touchMove(background), false, "Unmasked sheets release the window scroll guard when removed");
+    background.remove();
+    overlay.remove();
 
     const mobileCommon = createMenu();
     const mobileCalendar = createCalendarMenu();
@@ -689,17 +939,27 @@ test("menus adapt to layout changes and optional whole-menu mouse scrolling", {
     skip: process.platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY,
     timeout: 45000,
 }, async () => {
-    const sources = Object.fromEntries(["menus/Menu", "menus/menuPosition", "menus/menuMouseScroll", "menus/menuGroup", "menus/sheetOpen", "menus/sheetActions",
-        "util/setPosition", "protyle/util/hasClosest", "plugin/Menu", "protyle/render/av/openMenuPanel",
-        "asset/pdf/viewerTemplate", "asset/pdf/secondary_toolbar.js", "protyle/render/av/calendar/undated",
-        "layout/dock/agent/AgentSessionPanel"].map(name => [name,
+    const sources = Object.fromEntries(["menus/Menu", "menus/menuPosition", "menus/menuMouseScroll", "menus/menuGroup", "menus/sheetOpen", "menus/sheetActions", "mobile/util/mobileSheetGesture", "mobile/util/keyboardSheetState",
+        "util/setPosition", "util/zIndex", "protyle/util/hasClosest", "plugin/Menu", "protyle/render/av/openMenuPanel", "protyle/render/av/renderData",
+        "asset/pdf/viewerTemplate", "asset/pdf/secondary_toolbar.js", "protyle/render/av/calendar/undated", "protyle/gutter/embedBreadcrumbMenu",
+        "layout/dock/agent/AgentSessionPanel", "protyle/render/listMindmap/appearance"].map(name => [name,
         transpileModule(readFileSync(path.join(__dirname, "..", name.endsWith(".js") ? name : name + ".ts"), "utf8"), {
             compilerOptions: {target: ScriptTarget.ES2021, module: ModuleKind.CommonJS},
         }).outputText]));
+    const providerSource = readFileSync(path.join(__dirname, "../config/tabs/ai/aiProviderUi.ts"), "utf8");
+    sources.modelPicker = transpileModule(providerSource.slice(providerSource.indexOf("const openAvailableModelMenu ="),
+        providerSource.indexOf("const showTestResult =")), {
+        compilerOptions: {target: ScriptTarget.ES2021, module: ModuleKind.CommonJS},
+    }).outputText;
     const css = ["component/_menu.scss", "component/_list.scss", "component/_text-field.scss", "util/_function.scss",
-        "business/_av.scss", "business/_av-calendar.scss", "business/_ai_agent.scss", "pdf/_pdf.scss"].map(name =>
+        "business/_av.scss", "business/_av-calendar.scss", "business/_ai_agent.scss", "pdf/_pdf.scss",
+        "protyle/_mindmap-view.scss"].map(name =>
         compile(path.join(__dirname, "../assets/scss", name), {logger: Logger.silent}).css).join("\n");
-    const source = `const __name = value => value; (${browserCases.toString()})(${JSON.stringify(sources)}, ${JSON.stringify(css)})`;
+    const languagesPath = path.join(__dirname, "../../appearance/langs");
+    const themeLabels = readdirSync(languagesPath).filter(name => name.endsWith(".json")).map(name => ({
+        language: name.replace(".json", ""), labels: JSON.parse(readFileSync(path.join(languagesPath, name), "utf8")),
+    }));
+    const source = `const __name = value => value; (${browserCases.toString()})(${JSON.stringify(sources)}, ${JSON.stringify(css)}, ${JSON.stringify(themeLabels)})`;
     const temporary = mkdtempSync(path.join(tmpdir(), "siyuan-menu-layout-test-"));
     const script = path.join(temporary, "run.cjs");
     writeFileSync(script, `const {app, BrowserWindow, ipcMain} = require("electron");

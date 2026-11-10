@@ -1,6 +1,6 @@
+import {mobileConfirmDialog} from "../../../dialog/mobileConfirmDialog";
 import {escapeHtmlTextAndAttr} from "../../../util/escape";
 import {bindPasswordIconaToggle, genConfigItemMainHtml} from "../../render/fragments";
-import {confirmDialog} from "../../../dialog/confirmDialog";
 import {fetchPost} from "../../../util/fetch";
 import {aiConfigApi, AI_CONFIG_CHANGED_EVENT} from "./aiRuntime";
 import {createProviderView, removeProviderView} from "./aiProviderUi";
@@ -27,7 +27,7 @@ const PROVIDER_DETAILS: Record<DecisionProvider, {title: string; icon: string; e
         ],
     },
     openai: {
-        title: "OpenAI Decisions API (Beta)",
+        title: "OpenAI Decisions API",
         icon: "/stage/images/ai-providers/openai.svg",
         endpointTip: "decisionOpenAIEndpointTip",
         defaults: {endpoint: "https://api.openai.com/v1/decisions", apiKey: "", name: "gpt-6-luna", timeout: 30},
@@ -193,7 +193,7 @@ const openDecisionProfile = (root: HTMLElement, provider: DecisionProvider) => {
     const close = () => {
         if (saving || closed || !canEdit()) { return; }
         if (JSON.stringify(draft) !== initial) {
-            confirmDialog(window.siyuan.languages.confirm, window.siyuan.languages.discardUnsavedChanges, leave);
+            mobileConfirmDialog(window.siyuan.languages.confirm, window.siyuan.languages.discardUnsavedChanges, leave);
         } else { leave(); }
     };
     const back = view.querySelector<HTMLElement>("[data-action='back']");

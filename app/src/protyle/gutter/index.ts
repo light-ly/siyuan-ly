@@ -1,5 +1,5 @@
 import {toggleMenu} from "../../menus/menuToggle";
-import {copyBlockSelection} from "../util/blockClipboard";
+import {copyBlockSelection, cutBlockSelection} from "../util/blockClipboard";
 import {
     hasClosestBlock,
     hasClosestByAttribute,
@@ -46,6 +46,9 @@ import {hideElements} from "../ui/hideElements";
 import {isGutterTouchDragging, markGutterForFoldRestore} from "../ui/gutterVisibility";
 import {highlightRender} from "../render/highlightRender";
 import {blockRender} from "../render/blockRender";
+import {embedBreadcrumbMenu} from "./embedBreadcrumbMenu";
+import {embedOpenMenu} from "./embedOpenMenu";
+import {embedConversionMenu} from "./embedConversion";
 import {toggleListMindmap} from "../render/listMindmap";
 import {getBlockHeightTarget, setBlockHeight} from "./height";
 import {orderGutterTurnIntoItems} from "./turnIntoMenu";
@@ -163,7 +166,8 @@ const restoreGutterRange = (protyle: IProtyle) => {
         range.setStart(mindmap, 0);
         range.collapse(true);
         protyle.toolbar.range = range;
-        focusByRange(range);
+        // 脑图容器内的原生光标会使 Chromium 在菜单悬停时反复进行昂贵的布局和绘制。
+        window.getSelection()?.removeAllRanges();
         return;
     }
     const range = protyle.toolbar.range;
@@ -864,7 +868,7 @@ export class Gutter {
 
     public isMatchNode(item: Element) {
         const itemRect = item.getBoundingClientRect();
-        // 原本为4，由于 https://github.com/siyuan-note/siyuan/issues/12166 改为 6
+        // 命中偏移 6px，见 https://github.com/siyuan-note/siyuan/issues/12166
         let gutterTop = this.element.getBoundingClientRect().top + 6;
         if (itemRect.height < Math.floor(window.siyuan.config.editor.fontSize * 1.625) + 8) {
             gutterTop = gutterTop - (itemRect.height - this.element.clientHeight) / 2;
@@ -1390,7 +1394,7 @@ export class Gutter {
                 icon: "iconCut",
                 click: () => {
                     focusBlock(selectsElement[0]);
-                    document.execCommand("cut");
+                    cutBlockSelection(selectsElement[0]);
                 }
             }).element);
             window.siyuan.menus.menu.append(new MenuItem({
@@ -1532,10 +1536,7 @@ export class Gutter {
         }
         const embedID = (element as HTMLElement).dataset.embedId;
         const viewOccurrenceID = (element as HTMLElement).dataset.viewOccurrenceId;
-        return Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${id}"]`)).find(item => {
-            if (!this.isMatchNode(item)) {
-                return false;
-            }
+        const candidates = Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${id}"]`)).filter(item => {
             if (viewOccurrenceID && encodeURIComponent(getViewFoldOccurrenceID(protyle, item)) !== viewOccurrenceID) {
                 return false;
             }
@@ -1546,6 +1547,11 @@ export class Gutter {
             }
             return !embedElement;
         });
+        // 完整层级的整列位置可能偏离内容行，唯一的上下文匹配直接使用块身份定位。
+        if (this.element.classList.contains("protyle-gutters--full") && candidates.length === 1) {
+            return candidates[0];
+        }
+        return candidates.find(item => this.isMatchNode(item));
     }
 
     public renderMenu(protyle: IProtyle, buttonElement: Element) {
@@ -2049,7 +2055,7 @@ export class Gutter {
                 accelerator: "⌘X",
                 click: () => {
                     focusBlock(nodeElement);
-                    document.execCommand("cut");
+                    cutBlockSelection(nodeElement);
                 }
             }).element);
         }
@@ -2498,15 +2504,14 @@ export class Gutter {
                     protyle.toolbar.showRender(protyle, nodeElement);
                 }
             }).element);
-        } else if (type === "NodeBlockQueryEmbed" && !protyle.disabled) {
+        } else if (type === "NodeBlockQueryEmbed") {
             window.siyuan.menus.menu.append(new MenuItem({id: "separator_blockEmbed", type: "separator"}).element);
-            const breadcrumb = nodeElement.getAttribute("breadcrumb");
             window.siyuan.menus.menu.append(new MenuItem({
                 id: "blockEmbed",
                 type: "submenu",
                 icon: "iconSQL",
                 label: window.siyuan.languages.blockEmbed,
-                submenu: [{
+                submenu: protyle.disabled ? [embedOpenMenu(protyle, nodeElement)] : [{
                     id: "refresh",
                     icon: "iconRefresh",
                     label: `${window.siyuan.languages.refresh} SQL`,
@@ -2521,30 +2526,10 @@ export class Gutter {
                     click() {
                         protyle.toolbar.showRender(protyle, nodeElement);
                     }
-                }, {
+                }, embedOpenMenu(protyle, nodeElement), {
                     id: "separator_breadcrumb",
                     type: "separator"
-                }, {
-                    id: "embedBlockBreadcrumb",
-                    label: `<div class="fn__flex" style="margin-bottom: 4px"><span>${window.siyuan.languages.embedBlockBreadcrumb}</span><span class="fn__space fn__flex-1"></span>
-<input type="checkbox" class="b3-switch fn__flex-center"${breadcrumb === "true" ? " checked" : ((window.siyuan.config.editor.embedBlockBreadcrumb && breadcrumb !== "false") ? " checked" : "")}></div>`,
-                    bind(element) {
-                        element.addEventListener("click", (event: MouseEvent & { target: HTMLElement }) => {
-                            const inputElement = element.querySelector("input");
-                            if (event.target.tagName !== "INPUT") {
-                                inputElement.checked = !inputElement.checked;
-                            }
-                            nodeElement.setAttribute("breadcrumb", inputElement.checked.toString());
-                            fetchPost("/api/attr/setBlockAttrs", {
-                                id,
-                                attrs: {breadcrumb: inputElement.checked.toString()}
-                            });
-                            nodeElement.removeAttribute("data-render");
-                            blockRender(protyle, nodeElement);
-                            window.siyuan.menus.menu.remove();
-                        });
-                    }
-                }, {
+                }, ...embedBreadcrumbMenu(protyle, nodeElement), {
                     id: "headingEmbedMode",
                     label: window.siyuan.languages.headingEmbedMode,
                     type: "submenu",
@@ -2629,7 +2614,7 @@ export class Gutter {
                             });
                         }
                     }))
-                }]
+                }, ...embedConversionMenu(protyle, nodeElement)]
             }).element);
         } else if (type === "NodeHeading" && !protyle.disabled) {
             window.siyuan.menus.menu.append(new MenuItem({id: "separator_1", type: "separator"}).element);
@@ -3718,10 +3703,24 @@ export class Gutter {
         const fullGutter = !isMultiSelect && window.siyuan.config.editor.blockGutterMode;
         let html = "";
         let nodeElement = selectedElement || element;
+        const foldedListItem = fullGutter ? nodeElement.closest('[data-type="NodeListItem"][fold="1"]') : null;
+        if (foldedListItem) {
+            nodeElement = foldedListItem;
+        }
         const listItemContainer = isMultiSelect ? undefined : getListItemGutterContainer(nodeElement, fullGutter);
-        if (listItemContainer && (nodeElement === listItemContainer.parentElement ||
+        if (listItemContainer && !foldedListItem && (nodeElement === listItemContainer.parentElement ||
             nodeElement.classList.contains("protyle-action"))) {
             nodeElement = listItemContainer;
+        }
+        if (fullGutter) {
+            while (["NodeList", "NodeListItem", "NodeBlockquote", "NodeSuperBlock"].includes(nodeElement.getAttribute("data-type")) &&
+                nodeElement.getAttribute("fold") !== "1" && nodeElement.getAttribute(Constants.CUSTOM_SY_LIST_MINDMAP) !== "1") {
+                const first = nodeElement.querySelector(":scope > [data-node-id]");
+                if (!first) {
+                    break;
+                }
+                nodeElement = first;
+            }
         }
         const mindmapElement = (nodeElement.getAttribute("data-type") === "NodeMindmap" ||
             nodeElement.getAttribute("data-type") === "NodeList" &&
@@ -3894,12 +3893,11 @@ data-type="fold"${viewOccurrenceID ? ` data-view-occurrence-id="${encodeURICompo
                 while (previousBlock && !previousBlock.getAttribute("data-node-id")) {
                     previousBlock = previousBlock.previousElementSibling;
                 }
-                // 精简模式的正文块标只显示到当前页签项，页签栏用于操作整个容器。
+                // 页签栏和提示标题有独立的操作入口，正文块标在所属内容边界结束。
                 const isTabItemBoundary = type === "NodeTabItem" && nodeElement.parentElement.classList.contains("tabs");
                 if ((previousBlock && previousBlock.getAttribute("data-node-id")) ||
                     nodeElement.parentElement.classList.contains("callout-content") || isTabItemBoundary) {
-                    // 前一个块存在时，精简模式只显示到当前层级。
-                    hideParent = !fullGutter;
+                    hideParent = true;
                     // 由于折叠块的第二个子块在界面上不显示，因此移除块标 https://github.com/siyuan-note/siyuan/issues/14304
                     if (parentElement && parentElement.getAttribute("fold") === "1") {
                         return;
@@ -3959,6 +3957,7 @@ data-type="fold"${viewOccurrenceID ? ` data-view-occurrence-id="${encodeURICompo
         const wasCompressed = this.element.style.width === "24px";
         const previousScrollTop = this.element.scrollTop;
         this.element.classList.toggle("protyle-gutters--full", fullGutter);
+        this.element.style.flexDirection = "";
         this.element.style.maxHeight = "";
         this.element.style.overflowY = "";
         delete this.element.dataset.scrollable;
@@ -4006,8 +4005,7 @@ data-type="fold"${viewOccurrenceID ? ` data-view-occurrence-id="${encodeURICompo
                 horizontalAnchorLeft = action.getBoundingClientRect().left;
                 space = 0;
             }
-        }
-        if (listItem && element.classList.contains("protyle-action") &&
+        } else if (listItem && element.classList.contains("protyle-action") &&
             element.parentElement.getAttribute("data-type") === "NodeListItem") {
             const listItemElement = element.parentElement;
             const contentElement = listItemElement.querySelector<HTMLElement>(":scope > [data-node-id]");
@@ -4065,11 +4063,13 @@ data-type="fold"${viewOccurrenceID ? ` data-view-occurrence-id="${encodeURICompo
         const viewportRight = Math.min(viewportRect.right, paneRect.right);
         const viewportBottom = Math.min(viewportRect.bottom, paneRect.bottom);
         if (fullGutter) {
-            // 完整层级按左侧可用宽度换行，超出视口的层级可滚动访问。
+            // 完整层级在空间不足时整列排列，超出视口的层级可滚动访问。
             const buttons = Array.from(this.element.querySelectorAll<HTMLElement>("button[data-node-id], button[data-type='fold']"));
             const buttonWidth = Math.max(24, ...buttons.map(button => button.getBoundingClientRect().width));
             const availableWidth = Math.max(buttonWidth, horizontalAnchorLeft - space - gutterGap - viewportLeft);
-            this.element.style.width = `${Math.min(this.naturalWidth, availableWidth, viewportRight - viewportLeft)}px`;
+            const vertical = this.naturalWidth > availableWidth;
+            this.element.style.flexDirection = vertical ? "column" : "";
+            this.element.style.width = `${Math.min(vertical ? buttonWidth : this.naturalWidth, viewportRight - viewportLeft)}px`;
             this.element.style.maxHeight = `${Math.max(0, viewportBottom - Math.max(contentTop, paneRect.top))}px`;
             if (this.element.scrollHeight > this.element.clientHeight) {
                 this.element.style.overflowY = "auto";
@@ -4080,8 +4080,9 @@ data-type="fold"${viewOccurrenceID ? ` data-view-occurrence-id="${encodeURICompo
             }
         }
         if (!element.classList.contains("av__row")) {
+            const firstButtonHeight = fullGutter ? (this.element.firstElementChild as HTMLElement)?.offsetHeight : 0;
             const gutterMarginHeight = getGutterMarginHeight(
-                rect.height, this.element.clientHeight, fullGutter ? this.element.clientHeight : this.naturalHeight,
+                rect.height, firstButtonHeight || this.element.clientHeight, fullGutter ? firstButtonHeight : this.naturalHeight,
                 window.siyuan.config.editor.fontSize);
             if (typeof gutterMarginHeight === "number") {
                 marginHeight = gutterMarginHeight;
