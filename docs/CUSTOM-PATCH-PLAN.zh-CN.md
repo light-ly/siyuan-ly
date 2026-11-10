@@ -4,7 +4,7 @@
 
 ## 1. 目标与基线
 
-本计划基于 `v3.8.6` 标签（2026-10-21 已合并上游 `v3.8.8`，当前基线 3.8.8）和分支 `patch/custom`，目标是构建一个不依赖思源官方账号和官方云服务、支持自有同步后端、开放本地 AI 能力、关闭更新检查与不必要后台外联、取消品牌附加水印的定制版本。
+本计划基于 `v3.8.6` 标签（2026-10-21 已合并上游 `v3.8.8`，2026-11-10 已合并上游 `v3.8.10`，当前基线 3.8.10）和分支 `patch/custom`，目标是构建一个不依赖思源官方账号和官方云服务、支持自有同步后端、开放本地 AI 能力、更新检查与下载通道自有化（2026-11-10 修订：改为自有仓库 release，不再关闭）且关闭其他不必要后台外联、取消品牌附加水印的定制版本。
 
 当前基线提交为 `158812497497c6fa8a6d1031bfa2f025a61ee5c2`，计划创建时工作区干净。2026-10-10 更新：阶段 A、B、C 及部分 E 已以提交 `bcf8e5408a` 落地，本文档相应补充了 Windows 打包 release 环境；阶段 D、F 的实施与阶段 G 整体验证仍在进行。
 
@@ -19,7 +19,7 @@
 | AI | 开放已有 AI、Agent、Embedding、Rerank、MCP 和技能入口；不预填 API Key，不自动启用有外部费用的模型调用 |
 | 导出水印 | 取消品牌或产品强制附加；保留用户主动配置的自定义 PDF 和图片水印能力 |
 | 资源全文搜索 | 开放并确保资源内容索引、搜索入口、重建索引和移动端入口可用；加密资源不得进入全局明文索引 |
-| 更新和遥测 | 关闭自动更新、手动更新检查、更新包下载和不必要的版本公告外联；保留本地版本信息、日志和本地运行统计 |
+| 更新和遥测 | 更新检查、下载与通道设置均指向自有仓库 `light-ly/siyuan-ly` 的 GitHub Releases（2026-11-10 修订）；关闭官方公告外联与不必要的版本信息外联；保留本地版本信息、日志和本地运行统计 |
 
 ## 3. 本地文件系统同步的含义
 
@@ -56,15 +56,17 @@
 
 主要源码范围：`app/src/config/tabs/accountUi.ts`、`app/src/config/tabs/syncTab.ts`、`app/src/config/setting/tabs.ts`、`app/src/layout/topBar.ts`、`app/src/onboarding/`、`app/src/util/needSubscribe.ts`、`app/src/config/entryVisibility/`、相关移动端菜单和侧栏模块，以及官方账号相关的 `kernel/api` 和 `kernel/model` 调用入口。
 
-### 阶段 C：关闭更新检查和不必要后台外联
+### 阶段 C：更新通道自有化并关闭不必要后台外联
 
-1. 关闭启动时、定时任务和手动按钮触发的更新检查。
-2. 关闭更新包自动下载、安装包校验后的安装提示和更新通道设置。
+1. ~~关闭启动时、定时任务和手动按钮触发的更新检查。~~ 2026-11-10 起更新检查恢复，但检查与下载通道全部改为自有仓库 `light-ly/siyuan-ly` 的 GitHub Releases 页面（由维护者自行上传安装包），stable 通道不再走官方云端接口。
+2. ~~关闭更新包自动下载、安装包校验后的安装提示和更新通道设置。~~ 2026-11-10 起更新包下载与安装提示恢复，同样只从自有仓库 release 资产下载；更新通道设置（stable/beta/alpha）恢复可用，语义为对自有仓库 release 的筛选。
 3. 关闭只用于官方公告、官方版本信息或官方账号刷新且不再需要的后台请求。
 4. 保留本地 About 页面中的当前版本、运行时信息、变更日志和本地日志查看；不得把本地运行统计、磁盘空间检查或 PDF.js 空遥测接口误删为遥测上报。
-5. 对网络请求做测试或请求拦截验证，确保启动、空闲、唤醒和手动操作不会访问官方更新与遥测端点。
+5. 对网络请求做测试或请求拦截验证，确保启动、空闲、唤醒和手动操作不会访问官方更新与遥测端点（更新检查仅访问 `api.github.com/repos/light-ly/siyuan-ly`）。
 
-主要源码范围：`kernel/job/cron.go`、`kernel/util/rhy.go`、`kernel/model/updater.go`、`kernel/model/updater_release.go`、`kernel/model/cloud_service.go`、`kernel/api/system.go`、`app/src/config/tabs/aboutTab.ts`、`app/electron/`。
+主要源码范围：`kernel/job/cron.go`、`kernel/util/rhy.go`、`kernel/model/updater*.go`（更新通道已改为自有仓库，恢复并改造上游实现）、`kernel/model/cloud_service.go`、`kernel/api/system.go`、`app/src/config/tabs/aboutTab.ts`、`app/electron/`。
+
+注意：S3 同步引擎 dejavu 以 `kernel/third_party/dejavu` 内嵌维护（S3 列举分页 V2 优先、V1 回退的兼容补丁），同步上游 dejavu 版本时的操作步骤见该目录 README。
 
 ### 阶段 D：开放和梳理 AI 功能
 
@@ -281,7 +283,7 @@ fork 仓库 `light-ly/siyuan-ly` 的 `.github/workflows/cd.yml` 已包含两个 
 
 ### Android 打包 release 环境
 
-Android 打包在 Windows 本机完成，分四步：前端构建、资源 zip、gomobile 内核 AAR、Gradle 出包。`siyuan-android` 工程保持在 `v3.8.8` 标签的干净状态，容器侧仅需一个补丁（见下文），补丁记录在本仓库文档中而不提交进安卓仓库。
+Android 打包在 Windows 本机完成，分四步：前端构建、资源 zip、gomobile 内核 AAR、Gradle 出包。`siyuan-android` 工程保持在 `v3.8.10` 标签的干净状态（随上游版本对齐），容器侧仅需一个补丁（见下文），补丁记录在本仓库文档中而不提交进安卓仓库。
 
 **必需工具**
 
@@ -292,7 +294,7 @@ Android 打包在 Windows 本机完成，分四步：前端构建、资源 zip�
 | JDK | Android Studio 自带 JBR（`C:\Program Files\Android\Android Studio\jbr`） |
 | Android SDK | `C:\Users\15055\AppData\Local\Android\Sdk`（platform-tools、build-tools 36、**platforms android-26 与 android-36**、cmdline-tools） |
 | Android NDK | **28.2.13676358**（CI 锁定版，不要用 30） |
-| siyuan-android | `v3.8.8` 标签检出，与本仓库同级 |
+| siyuan-android | `v3.8.10` 标签检出，与本仓库同级 |
 
 环境变量：`ANDROID_HOME`、`JAVA_HOME`；`gomobile bind` 还需 `PATH` 包含 JBR 的 `bin`（javac）。
 
@@ -308,7 +310,7 @@ cd ..\siyuan-android
 gradlew.bat assembleOfficialRelease
 ```
 
-产物为 `app\build\outputs\apk\official\release\siyuan-3.8.8-official-release.apk`（调试诊断包用 `assembleOfficialDebug`，产物包名带 `.debug` 后缀）。
+产物为 `app\build\outputs\apk\official\release\siyuan-3.8.10-official-release.apk`（调试诊断包用 `assembleOfficialDebug`，产物包名带 `.debug` 后缀）。
 
 **容器侧补丁（构建前手动应用到 siyuan-android，勿提交）**
 
@@ -376,4 +378,4 @@ if (BuildConfig.DEBUG) {
 
 ## 8. 完成标准
 
-只有同时满足以下条件，定制版本才视为完成：无官方账号和官方云入口、无模拟账号、S3/WebDAV/Local 能在无官方账号状态下正常同步、更新和不必要后台外联已关闭、AI 入口可配置使用、默认导出无品牌附加且自定义水印保留、资源全文搜索可用、加密数据兼容与隔离未被破坏，并且相关前端、内核、API、语言和跨端测试通过。
+只有同时满足以下条件，定制版本才视为完成：无官方账号和官方云入口、无模拟账号、S3/WebDAV/Local 能在无官方账号状态下正常同步、更新检查与下载只访问自有仓库 release 且其他不必要后台外联已关闭、AI 入口可配置使用、默认导出无品牌附加且自定义水印保留、资源全文搜索可用、加密数据兼容与隔离未被破坏，并且相关前端、内核、API、语言和跨端测试通过。

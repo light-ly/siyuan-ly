@@ -53,7 +53,8 @@
 - [ ] 逐文件运行第 3 节的三方对比法（至少覆盖全部冲突文件 + 自动合并但双方同改过的文件）
 - [ ] 上游新增的消息分支（switch case）在当前代码中都能找到
 - [ ] 上游重构过的函数，所有调用点都用了新签名
-- [ ] 定制删除清单逐项核对：只删了计划范围内的（账号/官方云/更新器），没有扩大化
+- [ ] 定制删除清单逐项核对：只删了计划范围内的（账号/官方云），没有扩大化
+- [ ] 上游若升级 dejavu 版本：按 `kernel/third_party/dejavu/README.md` 的步骤同步内嵌源码并重放 S3 列举分页补丁（go.mod 的 replace 指向上游新版本会编译失败，能及时发现）
 
 ### 4.3 验证
 
@@ -73,6 +74,6 @@
 以下删除属于定制版计划范围，复查时看到不要恢复：
 
 - `kernel/util/rhy.go` 的 `RefreshRhyResultJob` 定时刷新（计划阶段 C：关闭定时后台外联；集市哈希按需获取不受影响）
-- `updater*.go` 全部更新器文件（计划阶段 C）
 - `refreshUser`/`refreshAnnouncement` 等官方账号/公告刷新（阶段 B/C）
 - 各入口的 `getCloudUser`/`onSetaccount` 调用（阶段 B）
+- 注意：`updater*.go` 更新器在 2026-11-10 合并 v3.8.10 时已恢复并改造为自有仓库 `light-ly/siyuan-ly` 的更新通道（阶段 C 修订），不要再按"有意删除"处理；官方镜像下载地址（release.b3log.org / release.liuyun.io）与 stable 通道官方云端接口仍保持移除

@@ -53,7 +53,8 @@ Complete all of the following after every upstream merge, before committing:
 - [ ] Run the three-way comparison from section 3 for every file (at least all conflicted files plus files both sides touched under auto-merge)
 - [ ] Every upstream-added message case exists in the current code
 - [ ] All call sites of upstream-refactored functions use the new signatures
-- [ ] The custom-removal list is verified item by item: only plan-scope items (account/official cloud/updater) removed, no overreach
+- [ ] The custom-removal list is verified item by item: only plan-scope items (account/official cloud) removed, no overreach
+- [ ] If upstream bumps the dejavu version: sync the vendored copy under `kernel/third_party/dejavu` per its README and re-apply the S3 listing pagination patch (the go.mod `replace` pointing at a newer upstream version fails to compile, surfacing this quickly)
 
 ### 4.3 Verification
 
@@ -73,6 +74,6 @@ Complete all of the following after every upstream merge, before committing:
 The following removals are in scope for the custom edition — do not restore them during reviews:
 
 - `RefreshRhyResultJob` in `kernel/util/rhy.go` (plan phase C: periodic background polling disabled; bazaar hash still resolves on demand)
-- All `updater*.go` files (plan phase C)
 - `refreshUser`/`refreshAnnouncement` and other official account/announcement refresh jobs (phases B/C)
 - `getCloudUser`/`onSetaccount` calls at every entry point (phase B)
+- Note: the `updater*.go` updater was restored and reworked to the own-repo update channel (`light-ly/siyuan-ly` GitHub Releases) when merging v3.8.10 on 2026-11-10 (phase C revision) — do not treat it as an intentional removal anymore; the official mirror download URLs (release.b3log.org / release.liuyun.io) and the stable channel's official cloud endpoint stay removed
