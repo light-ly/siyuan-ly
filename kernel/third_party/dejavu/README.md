@@ -34,3 +34,13 @@
 4. 在 `kernel/` 下运行 `go build -tags "fts5 sqlcipher" ./...`
 
 当前基线：dejavu `v0.0.0-20261109165330-317610e0795e`（2026-11-09）。
+
+## 已知服务商行为（本机 AList v3.66.0 实测）
+
+- AList 的 S3 服务基于 gofakes3，V1 Marker 翻页存在缺陷：排序按修改时间、
+  `NextMarker` 可能返回目录占位条目，翻页会原样重复第一页并触发
+  "list objects marker did not advance"（对象数超过单页时必然出现）。
+- 同一版本 AList 的 ListObjectsV2 翻页正常（ContinuationToken 按页前进）。
+  旧版本 AList 的 V2 可能返回循环续传令牌，已由上面的终止保护兜住并回退 V1。
+- 因此 V2 优先 + V1 回退 + 令牌重复终止是当前对 AList 全版本最稳的组合；
+  升级 AList 到较新版本可让清理数据仓库走完整的 V2 分页。
