@@ -1,121 +1,36 @@
-# DejaVu
+# Vendored dejavu
 
-[中文](README.zh-CN.md)
+本目录内嵌 [siyuan-note/dejavu](https://github.com/siyuan-note/dejavu) 的完整源码，通过
+`kernel/go.mod` 中的 `replace github.com/siyuan-note/dejavu => ./third_party/dejavu` 生效。
 
-## 💡 Introduction
+## 为什么内嵌
 
-[DejaVu](https://github.com/siyuan-note/dejavu) is the component of data snapshot and sync for [SiYuan](https://github.com/siyuan-note/siyuan).
+上游 `cloud/s3.go` 的按前缀列举只使用 ListObjects(V1) Marker 手工翻页。部分 S3 兼容服务端
+对 V1 翻页支持异常（忽略 marker 导致 `list objects marker did not advance`，表现为
+「清理数据仓库失败」，见上游 issue siyuan-note/siyuan#19961 的同类兼容问题），而另一些服务端
+（如腾讯 COS）恰恰相反，只支持 V1、对 V2 返回 404（siyuan-note/siyuan#19109）。
+单方面切换 V1/V2 都会修好一部分服务端、破坏另一部分，因此本 fork 采用
+**V2 优先、失败回退 V1** 的双路径分页，覆盖两类服务端。
 
-## ✨ Features
+## 本 fork 的补丁
 
-* Git-like version control
-* File deduplication in chunks
-* Data compression
-* AES Encrypted
-* Cloud sync and backup
+- `cloud/s3.go`：`listS3Objects` 拆为 `listS3ObjectsV2`（ContinuationToken 翻页）+
+  `listS3ObjectsV1`（原 Marker 翻页），入口先尝试 V2，失败时记录警告并回退 V1。
+  `listObjectsAPIClient` 接口相应新增 `ListObjectsV2` 方法。
+  V2 翻页带终止保护：续传令牌重复（恒定或循环）或页数超过上限时显式报错回退，
+  避免实现不规范的服务端导致死循环空转 CPU、挂死同步与快照等云端请求。
+- `cloud/s3_test.go`：桩同时实现两个列举接口；新增 V2 优先、V2 不支持时回退 V1、
+  V2 空续传令牌、V2 令牌重复四个用例，原有 V1 用例通过强制 V2 报错的桩继续覆盖 V1 路径。
 
-⚠️ Attention
+## 同步上游步骤
 
-* Folders are not supported
-* Permission attributes are not supported
-* Symbolic links are not supported
+每次合并上游、dejavu 版本变化时：
 
-## 🎨 Design
+1. 从 `kernel/go.mod` 原本应使用的 dejavu 版本（合并前上游 go.mod 中的伪版本号）取出源码：
+   目录通常在 `$GOPATH/pkg/mod/github.com/siyuan-note/dejavu@<version>`
+2. 用上游源码整体覆盖本目录（保留本 README），随后重放上述补丁（可用
+   `git log --oneline -- kernel/third_party/dejavu` 找到补丁提交对照重放）
+3. 在 `kernel/third_party/dejavu` 下运行 `go test ./cloud/`
+4. 在 `kernel/` 下运行 `go build -tags "fts5 sqlcipher" ./...`
 
-Design reference from [ArtiVC](https://github.com/InfuseAI/ArtiVC).
-
-### Entity
-
-* `ID` Each entity is identified by SHA-1
-* `Index` file list, each index operation generates a new index
-    * `memo` index memo
-    * `created` index time
-    * `files` file list
-    * `count` count of total files
-    * `size` size of total files
-* `File` file, a new file is generated when the actual data file path or content changes
-    * `path` file path
-    * `size` file size
-    * `updated` last update time
-    * `chunks` file chunk list
-* `Chunk` file chunk
-    * `data` actual data
-* `Ref` refers to the index
-    * `latest` built-in reference, automatically points to the latest index
-    * `tag` tag reference, manually point to the specified index
-* `Repo` repository
-
-### Repo
-
-* `DataPath` data folder path, the folder where the actual data file is located
-* `Path` repo folder path, the repo is not stored in the data folder, we need to specify the repo folder path separately
-
-The repo folder layout is as follows:
-
-```text
-│  sync-source.json
-│
-├─indexes
-│      0531732dca85404e716abd6bb896319a41fa372b
-│      19fc2c2e5317b86f9e048f8d8da2e4ed8300d8af
-│      5f32d78d69e314beee36ad7de302b984da47ddd2
-│      cbd254ca246498978d4f47e535bac87ad7640fe6
-│
-├─objects
-│  ├─1e
-│  │      0ac5f319f5f24b3fe5bf63639e8dbc31a52e3b
-│  │
-│  ├─56
-│  │      322ccdb61feab7f2f76f5eb82006bd51da7348
-│  │
-│  ├─7e
-│  │      dccca8340ebe149b10660a079f34a20f35c4d4
-│  │
-│  ├─83
-│  │      a7d72fe9a071b696fc81a3dc041cf36cbde802
-│  │
-│  ├─85
-│  │      26b9a7efde615b67b4666ae509f9fbc91d370b
-│  │
-│  ├─87
-│  │      1355acd062116d1713e8f7f55969dbb507a040
-│  │
-│  ├─96
-│  │      46ba13a4e8eabeca4f5259bfd7da41d368a1a6
-│  │
-│  ├─a5
-│  │      5b8e6b9ccad3fc9b792d3d453a0793f8635b9f
-│  │      b28787922f4e2a477b4f027e132aa7e35253d4
-│  │
-│  ├─be
-│  │      c7a729d1b5f021f8eca0dd8b6ef689ad753567
-│  │
-│  ├─d1
-│  │      324c714bde18442b5629a84a361b5e7528b14a
-│  │
-│  ├─f1
-│  │      d7229171f4fa1c5eacb411995b16938a04f7f6
-│  │
-│  └─f7
-│          ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0
-│
-└─refs
-    │  latest
-    │
-    └─tags
-            v1.0.0
-            v1.0.1
-```
-
-## 📄 License
-
-DejaVu uses the [GNU AFFERO GENERAL PUBLIC LICENSE, Version 3](https://www.gnu.org/licenses/agpl-3.0.txt) open source license.
-
-## 🙏 Acknowledgement
-
-* [https://github.com/dustin/go-humanize](https://github.com/dustin/go-humanize) `MIT license`
-* [https://github.com/klauspost/compress](https://github.com/klauspost/compress) `BSD-3-Clause license`
-* [https://github.com/panjf2000/ants](https://github.com/panjf2000/ants) `MIT license`
-* [https://github.com/InfuseAI/ArtiVC](https://github.com/InfuseAI/ArtiVC) `Apache-2.0 license`
-* [https://github.com/restic/restic](https://github.com/restic/restic) `BSD-2-Clause license`
-* [https://github.com/sabhiram/go-gitignore](https://github.com/sabhiram/go-gitignore) `MIT license`
+当前基线：dejavu `v0.0.0-20261109165330-317610e0795e`（2026-11-09）。

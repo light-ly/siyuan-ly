@@ -457,7 +457,8 @@ func listS3Objects(ctx context.Context, svc listObjectsAPIClient, input *as3.Lis
 func listS3ObjectsV2(ctx context.Context, svc listObjectsAPIClient, input *as3.ListObjectsInput) (ret []as3Types.Object, err error) {
 	ret = []as3Types.Object{}
 	var token *string
-	for {
+	seenTokens := map[string]bool{}
+	for page := 0; ; page++ {
 		output, listErr := svc.ListObjectsV2(ctx, &as3.ListObjectsV2Input{
 			Bucket:            input.Bucket,
 			Prefix:            input.Prefix,
@@ -482,6 +483,18 @@ func listS3ObjectsV2(ctx context.Context, svc listObjectsAPIClient, input *as3.L
 			err = errors.New("list objects v2 continuation token is empty")
 			return
 		}
+		// 部分 S3 兼容实现的 V2 翻页返回恒定或循环的续传令牌，必须显式终止，
+		// 否则死循环空转 CPU 并挂死所有调用列举的云端请求；回退 V1 由上层处理。
+		if seenTokens[*token] {
+			logging.LogWarnf("list objects v2 continuation token repeated at page [%d], collected [%d] objects, fallback to v1", page, len(ret))
+			err = errors.New("list objects v2 continuation token did not advance")
+			return
+		}
+		if 10000 <= page {
+			err = errors.New("list objects v2 page count exceeded limit")
+			return
+		}
+		seenTokens[*token] = true
 	}
 }
 

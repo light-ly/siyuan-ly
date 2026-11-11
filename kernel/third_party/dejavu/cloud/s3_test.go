@@ -174,6 +174,38 @@ func TestListS3ObjectsFallsBackToV1WhenV2Unsupported(t *testing.T) {
 	}
 }
 
+func TestListS3ObjectsV2RejectsRepeatedContinuationToken(t *testing.T) {
+	stub := &listObjectsStub{
+		errAt: -1,
+		v2Pages: []*as3.ListObjectsV2Output{
+			{
+				Contents:              []as3Types.Object{{Key: aws.String("repo/refs/tags/00")}},
+				IsTruncated:           aws.Bool(true),
+				NextContinuationToken: aws.String("token-a"),
+			},
+			{
+				Contents:              []as3Types.Object{{Key: aws.String("repo/refs/tags/01")}},
+				IsTruncated:           aws.Bool(true),
+				NextContinuationToken: aws.String("token-b"),
+			},
+			{
+				Contents:              []as3Types.Object{{Key: aws.String("repo/refs/tags/00")}},
+				IsTruncated:           aws.Bool(true),
+				NextContinuationToken: aws.String("token-a"),
+			},
+		},
+	}
+	_, err := listS3ObjectsV2(context.Background(), stub, &as3.ListObjectsInput{
+		Bucket: aws.String("bucket"),
+	})
+	if nil == err || "list objects v2 continuation token did not advance" != err.Error() {
+		t.Fatalf("unexpected repeated token error [%v]", err)
+	}
+	if 3 != stub.v2Calls {
+		t.Fatalf("unexpected v2 calls [%d]", stub.v2Calls)
+	}
+}
+
 func TestListS3ObjectsV2RejectsEmptyContinuationToken(t *testing.T) {
 	stub := &listObjectsStub{
 		errAt: -1,
