@@ -337,7 +337,8 @@ if (BuildConfig.DEBUG) {
 **已踩过的坑（勿再犯）**
 
 1. **Git Bash 的 `tar -a -cf app.zip` 产出的是 tar 不是 zip**（GNU tar 无 zip 支持），内核解压时 panic `zip: not a valid zip file`——必须用 `scripts/pack-app-zip.py` 或 CI 的 zip 命令
-2. **debug 构建包名带 `.debug` 后缀**（`org.b3log.siyuan.debug`），外部存储路径、桌面图标、`am start` 都要对应
+2. **`pack-app-zip.py` 默认输出到 `<仓库>/siyuan-android/...`（嵌套布局），本机同级检出时必须显式传输出路径**，否则会在仓库内生成幻影 `siyuan-android/` 目录、真实 APK 继续打包旧前端（症状：新 APK 的界面/报错仍是旧版本号）；脚本现已兼容同级布局，但打包后务必核对目标 app.zip 的时间戳
+3. **debug 构建包名带 `.debug` 后缀**（`org.b3log.siyuan.debug`），外部存储路径、桌面图标、`am start` 都要对应
 3. **Android 11+ Scoped Storage**：应用无权列举 `Android/data/` 父目录（`filepath.Glob` 失效），只能直接读写自己的包目录
 4. **`os.TempDir()` 在安卓返回 `/tmp`（不存在）**，留痕不能依赖它
 5. **Go 包初始化顺序不受导入声明顺序控制**（gofmt/gc 会重排），需要最早执行时用 cgo `__attribute__((constructor))`

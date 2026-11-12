@@ -18,9 +18,16 @@ TOP_ENTRIES = ["appearance", "guide", "stage", "changelogs"]
 ROOT_FILES = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 
+def default_output() -> str:
+    # 优先上游 CI 的嵌套布局（<仓库>/siyuan-android），其次本机同级检出（<仓库>/../siyuan-android）
+    repo_root = os.path.dirname(APP_DIR)
+    nested = os.path.join(repo_root, "siyuan-android")
+    target_root = nested if os.path.isdir(nested) else os.path.join(repo_root, "..", "siyuan-android")
+    return os.path.join(target_root, "app", "src", "main", "assets", "app.zip")
+
+
 def main() -> int:
-    output = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-        os.path.dirname(APP_DIR), "siyuan-android", "app", "src", "main", "assets", "app.zip")
+    output = sys.argv[1] if len(sys.argv) > 1 else default_output()
     if os.path.exists(output):
         os.remove(output)
     os.makedirs(os.path.dirname(output), exist_ok=True)
