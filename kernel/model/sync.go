@@ -1018,6 +1018,10 @@ func formatRepoErrorMsg(err error) string {
 	} else if errors.Is(err, dejavu.ErrIndexFileChanged) {
 		// 同步索引期间工作空间文件被修改，明确提示用户稍后重试 https://ld246.com/article/1789052153692
 		msg = Conf.Language(384)
+		// 附带上游错误中的变更文件路径，便于移动端用户在无日志条件下定位写入方
+		if detail := indexFileChangedPath(err); "" != detail {
+			msg += ": " + detail
+		}
 	} else if errors.Is(err, cloud.ErrSystemTimeIncorrect) {
 		msg = Conf.Language(195)
 	} else if errors.Is(err, cloud.ErrDeprecatedVersion) {
@@ -1066,6 +1070,21 @@ func isDNSError(msg string) bool {
 	return strings.Contains(msg, "no such host") ||
 		strings.Contains(msg, "hostname resolution") ||
 		strings.Contains(msg, "no address associated with hostname")
+}
+
+// indexFileChangedPath 从 "index file changed: [<路径>], ..." 格式的错误文本中提取变更文件路径。
+func indexFileChangedPath(err error) string {
+	text := err.Error()
+	start := strings.Index(text, ": [")
+	if 0 > start {
+		return ""
+	}
+	rest := text[start+3:]
+	end := strings.Index(rest, "]")
+	if 0 > end {
+		return ""
+	}
+	return rest[:end]
 }
 
 // lastDNSFlushTime 及其锁用于 DNS 刷新节流，避免自动同步循环里反复 fork 系统命令。

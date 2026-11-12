@@ -88,7 +88,7 @@ func (source *releaseChangelogSource) get(ctx context.Context, version string) (
 
 func (source *releaseChangelogSource) fetch(ctx context.Context, tag string) (string, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"https://api.github.com/repos/siyuan-note/siyuan/releases/tags/"+url.PathEscape(tag), nil)
+		"https://api.github.com/repos/light-ly/siyuan-ly/releases/tags/"+url.PathEscape(tag), nil)
 	if err != nil {
 		return "", err
 	}
@@ -123,7 +123,7 @@ func (source *releaseChangelogSource) fetch(ctx context.Context, tag string) (st
 	luteEngine := lute.New()
 	luteEngine.SetSanitize(true)
 	luteEngine.SetCodeSyntaxHighlight(false)
-	const linkBase = "https://github.com/siyuan-note/siyuan/"
+	const linkBase = "https://github.com/light-ly/siyuan-ly/"
 	luteEngine.SetLinkBase(linkBase)
 	return util.LinkTarget(luteEngine.MarkdownStr("", release.Body), linkBase), nil
 }

@@ -90,7 +90,7 @@ export const openChangelog = async (force = false, button?: HTMLButtonElement) =
             const message = document.createElement("p");
             message.textContent = window.siyuan.languages.changelogUnavailable;
             const link = document.createElement("a");
-            link.href = "https://github.com/siyuan-note/siyuan/releases/tag/" + encodeURIComponent("v" + kernelVersion);
+            link.href = "https://github.com/light-ly/siyuan-ly/releases/tag/" + encodeURIComponent("v" + kernelVersion);
             link.textContent = "GitHub Release v" + kernelVersion;
             content.append(message, link);
         }
