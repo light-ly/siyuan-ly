@@ -1,0 +1,55 @@
+// 备注面板的飞书式评论卡片：引用条 + 备注内容，双端共用
+.memo-card {
+  margin: 8px;
+  padding: 8px 10px 10px;
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-surface);
+  border: 1px solid var(--b3-border-color);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--b3-theme-primary-lighter);
+  }
+
+  &__quote {
+    border-left: 3px solid var(--b3-theme-primary);
+    background: var(--b3-theme-background);
+    border-radius: 0 var(--b3-border-radius) var(--b3-border-radius) 0;
+    padding: 4px 8px;
+    margin-bottom: 6px;
+    color: var(--b3-theme-on-surface-light);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__row {
+    display: flex;
+    align-items: flex-start;
+  }
+
+  &__content {
+    flex: 1;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 20px;
+    min-height: 20px;
+
+    &--empty {
+      color: var(--b3-theme-on-surface-light);
+    }
+  }
+
+  &__edit.block__icon {
+    margin: -2px -4px 0 4px;
+  }
+
+  textarea.b3-text-field {
+    flex: 1;
+    resize: none;
+    min-height: 20px;
+    padding: 1px 4px;
+  }
+}
