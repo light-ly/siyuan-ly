@@ -24,19 +24,30 @@ interface IMemoGroup extends IInlineMemoItem {
 
 const ANCHOR_LIMIT = 80;
 
-// 两个 span 是否相邻（中间只允许空文本或零宽空格），用于归并同一条备注的拆分片段
-const isAdjacentMemoSpan = (previous: Element, current: Element) => {
+// 同块内两个备注 span 之间的间隙：返回间隙文本（供拼接引用），无法连通（跨块）返回 null。
+// 划线文本含行内代码等元素时备注会被拆成多段，间隙允许存在行内元素；纯文本间隙超过阈值视为两条独立备注。
+const MEMO_GAP_TEXT_LIMIT = 2;
+const gapBetweenMemoSpans = (previous: Element, current: Element): string | null => {
     let node = previous.nextSibling;
+    let gap = "";
     while (node && node !== current) {
-        if (node.nodeType === 3 && (node.textContent || "").split(Constants.ZWSP).join("") !== "") {
-            return false;
+        if (node.nodeType === 1 && (node as Element).hasAttribute("data-node-id")) {
+            return null;
         }
-        if (node.nodeType === 1) {
-            return false;
+        if (node.nodeType === 1 && node.nodeName === "BR") {
+            gap += "\n";
+        } else {
+            gap += node.textContent || "";
         }
         node = node.nextSibling;
     }
-    return node === current;
+    if (node !== current) {
+        return null;
+    }
+    if (gap.split(Constants.ZWSP).join("").replace(/\s+/g, "").length > MEMO_GAP_TEXT_LIMIT) {
+        return null;
+    }
+    return gap;
 };
 
 export class MobileMemo {
@@ -125,10 +136,11 @@ export class MobileMemo {
             const index = counters.get(blockID) || 0;
             counters.set(blockID, index + 1);
             const rawAttr = span.getAttribute("data-inline-memo-content") || "";
-            if (current && current.blockID === blockID && current.rawAttr === rawAttr &&
-                isAdjacentMemoSpan(current.lastSpan, span)) {
+            const gap = current && current.blockID === blockID && current.rawAttr === rawAttr ?
+                gapBetweenMemoSpans(current.lastSpan, span) : null;
+            if (current && gap !== null) {
                 current.indexes.push(index);
-                current.anchor += span.textContent || "";
+                current.anchor += gap + (span.textContent || "");
                 current.lastSpan = span;
                 return;
             }
