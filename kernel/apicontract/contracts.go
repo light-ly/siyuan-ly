@@ -542,6 +542,9 @@ var PushMsg = define[NotificationRequest, NotificationData]("pushMsg", "/api/not
 var PushErrMsg = define[NotificationRequest, NotificationData]("pushErrMsg", "/api/notification/pushErrMsg", AuthenticatedAccess|AdminAccess, JSONBody, ResponseOptions{}, "POST")
 var GetBookmark = define[EmptyRequest, []*Bookmark]("getBookmark", "/api/bookmark/getBookmark", AuthenticatedAccess, NoBody, ResponseOptions{}, "POST")
 
+// GetDocMemos 返回 root_id 匹配且 memo 非空、排除文档块自身（type<>'d'）的块，按文档顺序（rowid）排列；结果为空时返回空数组。
+var GetDocMemos = define[GetDocMemosRequest, []*DocMemo]("getDocMemos", "/api/memo/getDocMemos", AuthenticatedAccess, JSONBody, ResponseOptions{NonNullable: true}, "POST")
+
 // 为管理员返回完整列表的 revision，即使结果按类型、启用状态或关键字筛选。
 // 全量编辑应读取 type="all"、enabled=2 且不设置 keyword；发布读者不获得 revision。
 var GetSnippet = define[GetSnippetRequest, SnippetsData]("getSnippet", "/api/snippet/getSnippet", AuthenticatedAccess, JSONBody, ResponseOptions{}, "POST")

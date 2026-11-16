@@ -18,6 +18,7 @@ import {MobileOutline} from "../dock/MobileOutline";
 import {hasTopClosestByTag} from "../../protyle/util/hasClosest";
 import {MobileBacklinks} from "../dock/MobileBacklinks";
 import {MobileBookmarks} from "../dock/MobileBookmarks";
+import {MobileMemo} from "../dock/MobileMemo";
 import {MobileTags} from "../dock/MobileTags";
 import {activeBlur, initKeyboardToolbar} from "./keyboardToolbar";
 import {syncGuide} from "../../sync/syncGuide";
@@ -220,6 +221,12 @@ const updateDock = (app: App, type: string, element: HTMLElement) => {
             window.siyuan.mobile.docks.bookmark = new MobileBookmarks(app, element);
         } else {
             window.siyuan.mobile.docks.bookmark.update();
+        }
+    } else if (type === "memo") {
+        if (!window.siyuan.mobile.docks.memo) {
+            window.siyuan.mobile.docks.memo = new MobileMemo(app, element);
+        } else {
+            window.siyuan.mobile.docks.memo.update(window.siyuan.mobile.editor?.protyle);
         }
     } else if (type === "tag") {
         if (!window.siyuan.mobile.docks.tag) {

@@ -7,6 +7,7 @@ import {Files} from "./Files";
 import {Outline} from "./Outline";
 import {getAllModels, getAllTabs} from "../getAll";
 import {Bookmark} from "./Bookmark";
+import {Memo} from "./Memo";
 import {Tag} from "./Tag";
 import {Graph} from "./Graph";
 import {Model} from "../Model";
@@ -37,7 +38,7 @@ import {isTouchHoverInput} from "../../util/hoverInput";
 import {getDockBarWidth, isDockBarPointerOver, setDockBarHover, setDockBarPointerOver,
     syncDockBarVisibility} from "./barVisibility";
 
-const TYPES = ["file", "outline", "inbox", "bookmark", "tag", "graph", "globalGraph", "backlink", "agentChat"];
+const TYPES = ["file", "outline", "inbox", "bookmark", "memo", "tag", "graph", "globalGraph", "backlink", "agentChat"];
 const DEFAULT_DOCK_SIZE = 232;
 const WIDE_DOCK_SIZE = 320;
 const WIDE_DOCK_TYPES = ["graph", "globalGraph", "backlink", "inbox"];
@@ -867,6 +868,13 @@ export class Dock {
                         tab = new Tab({
                             callback: (tab: Tab) => {
                                 tab.addModel(new Bookmark(this.app, tab));
+                            }
+                        });
+                        break;
+                    case "memo":
+                        tab = new Tab({
+                            callback: (tab: Tab) => {
+                                tab.addModel(new Memo(this.app, tab));
                             }
                         });
                         break;

@@ -734,6 +734,12 @@
       "references": [
         "src/window/workspace.ts"
       ]
+    },
+    "sy__memo": {
+      "reason": "备注面板识别类，供主题与集成测试锚定结构",
+      "references": [
+        "src/layout/dock/Memo.ts"
+      ]
     }
   },
   "styles": [

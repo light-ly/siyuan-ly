@@ -1,7 +1,7 @@
 type TPluginDockPosition = "LeftTop" | "LeftBottom" | "RightTop" | "RightBottom" | "BottomLeft" | "BottomRight"
 type TDockPosition = "Left" | "Right" | "Bottom"
-type TWS = "main" | "filetree" | "protyle" | "backlink" | "bookmark" | "graph" | "outline" | "tag" | "agentChat"
-type TDock = "file" | "outline" | "inbox" | "bookmark" | "tag" | "graph" | "globalGraph" | "backlink" | "agentChat"
+type TWS = "main" | "filetree" | "protyle" | "backlink" | "bookmark" | "memo" | "graph" | "outline" | "tag" | "agentChat"
+type TDock = "file" | "outline" | "inbox" | "bookmark" | "memo" | "tag" | "graph" | "globalGraph" | "backlink" | "agentChat"
 type TTab = "Outline" | "Graph" | "Backlink" | "Asset" | "Editor" | "Search" | "siyuan-card"
 type TOperation = IOperation["action"];
 type TBazaarType = "templates" | "icons" | "widgets" | "themes" | "plugins"
@@ -607,6 +607,7 @@ interface ISiyuan {
             outline: import("../mobile/dock/MobileOutline").MobileOutline | null,
             file: import("../mobile/dock/MobileFiles").MobileFiles | null,
             bookmark: import("../mobile/dock/MobileBookmarks").MobileBookmarks | null,
+            memo: import("../mobile/dock/MobileMemo").MobileMemo | null,
             tag: import("../mobile/dock/MobileTags").MobileTags | null,
             backlink: import("../mobile/dock/MobileBacklinks").MobileBacklinks | null,
             inbox: import("../layout/dock/Inbox").Inbox | null,
@@ -1009,6 +1010,7 @@ interface IModels {
     inbox: import("../layout/dock/Inbox").Inbox[]
     files: import("../layout/dock/Files").Files[]
     bookmark: import("../layout/dock/Bookmark").Bookmark[]
+    memo: import("../layout/dock/Memo").Memo[]
     tag: import("../layout/dock/Tag").Tag[]
     asset: import("../asset").Asset[]
     search: import("../search").Search[]

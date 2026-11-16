@@ -10,6 +10,7 @@ import {Editor} from "../editor";
 import {Files} from "./dock/Files";
 import {Outline} from "./dock/Outline";
 import {Bookmark} from "./dock/Bookmark";
+import {Memo} from "./dock/Memo";
 import {Tag} from "./dock/Tag";
 import {getAllEditor, getAllModels, getAllTabs, getAllWnds} from "./getAll";
 import {Asset} from "../asset";
@@ -383,9 +384,9 @@ export const getAllLayout = () => {
 
 const DOCK_KEYS = ["left", "right", "bottom"] as const;
 
-// agentChat 停靠按钮：已存在则去重，不存在则按默认布局补全
-const ensureAgentChatDock = (layout: Pick<Config.IUiLayout, "left" | "right" | "bottom">) => {
-    let hasAgentChat = false;
+// 内置停靠按钮：已存在则去重，不存在则按默认布局补全
+const ensureBuiltinDock = (layout: Pick<Config.IUiLayout, "left" | "right" | "bottom">, type: string) => {
+    let found = false;
     for (const key of DOCK_KEYS) {
         const sections = layout[key]?.data;
         if (!sections) {
@@ -396,19 +397,19 @@ const ensureAgentChatDock = (layout: Pick<Config.IUiLayout, "left" | "right" | "
                 continue;
             }
             for (let i = 0; i < sub.length; i++) {
-                if (sub[i]?.type !== "agentChat") {
+                if (sub[i]?.type !== type) {
                     continue;
                 }
-                if (hasAgentChat) {
+                if (found) {
                     sub.splice(i, 1);
                     i--;
                 } else {
-                    hasAgentChat = true;
+                    found = true;
                 }
             }
         }
     }
-    if (!hasAgentChat) {
+    if (!found) {
         for (const key of DOCK_KEYS) {
             const sections = Constants.SIYUAN_EMPTY_LAYOUT[key]?.data;
             if (!sections) {
@@ -421,7 +422,7 @@ const ensureAgentChatDock = (layout: Pick<Config.IUiLayout, "left" | "right" | "
                 }
                 for (let itemIndex = 0; itemIndex < sub.length; itemIndex++) {
                     const item = sub[itemIndex];
-                    if (item?.type === "agentChat") {
+                    if (item?.type === type) {
                         const targetSections = layout[key]?.data;
                         if (targetSections?.[sectionIndex]) {
                             targetSections[sectionIndex].splice(itemIndex, 0, {...item});
@@ -434,6 +435,10 @@ const ensureAgentChatDock = (layout: Pick<Config.IUiLayout, "left" | "right" | "
     }
 };
 
+const ensureAgentChatDock = (layout: Pick<Config.IUiLayout, "left" | "right" | "bottom">) => {
+    ensureBuiltinDock(layout, "agentChat");
+};
+
 const initInternalDock = (dockItem: Config.IUILayoutDockTab[]) => {
     for (let index = dockItem.length - 1; index >= 0; index--) {
         const existSubItem = dockItem[index];
@@ -444,12 +449,15 @@ const initInternalDock = (dockItem: Config.IUILayoutDockTab[]) => {
         }
         if (existSubItem.hotkeyLangId) {
             existSubItem.title = window.siyuan.languages[existSubItem.hotkeyLangId];
+        } else if (existSubItem.type === "memo") {
+            existSubItem.title = window.siyuan.languages.memo;
         }
     }
 };
 
 const JSONToDock = (json: any, app: App) => {
     ensureAgentChatDock(json);
+    ensureBuiltinDock(json, "memo");
     json.left.data.forEach((existItem: Config.IUILayoutDockTab[]) => {
         initInternalDock(existItem);
     });
@@ -798,6 +806,8 @@ export const layoutToJSON = (layout: Layout | Wnd | Tab | Model, json: any, brea
                 json.lang = "backlinks";
             } else if (layout.model instanceof Bookmark) {
                 json.lang = "bookmark";
+            } else if (layout.model instanceof Memo) {
+                json.lang = "memo";
             } else if (layout.model instanceof Graph && layout.model.type !== "local") {
                 json.lang = "graphView";
             } else if (layout.model instanceof Outline && layout.model.type !== "local") {

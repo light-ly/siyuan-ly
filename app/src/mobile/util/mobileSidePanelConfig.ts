@@ -5,6 +5,7 @@ export const MOBILE_SIDE_PANEL_DOCK_IDS = [
     "file",
     "outline",
     "bookmark",
+    "memo",
     "tag",
     "backlink",
     "inbox",
@@ -50,6 +51,7 @@ export type MobileSidePanelConfigEvent = {
 export const DEFAULT_MOBILE_SIDE_PANEL_LEFT: readonly MobileSidePanelBuiltInDockId[] = [
     "file",
     "bookmark",
+    "memo",
     "tag",
     "inbox",
 ];

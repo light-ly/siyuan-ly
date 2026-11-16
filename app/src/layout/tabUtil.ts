@@ -12,6 +12,7 @@ import {Files} from "./dock/Files";
 import {Outline} from "./dock/Outline";
 import {Backlink} from "./dock/Backlink";
 import {Bookmark} from "./dock/Bookmark";
+import {Memo} from "./dock/Memo";
 import {Tag} from "./dock/Tag";
 import {Search} from "../search";
 import {Custom} from "./dock/Custom";
@@ -424,6 +425,8 @@ export const copyTab = (app: App, tab: Tab) => {
                 });
             } else if (tab.model instanceof Bookmark) {
                 model = new Bookmark(app, newTab);
+            } else if (tab.model instanceof Memo) {
+                model = new Memo(app, newTab);
             } else if (tab.model instanceof Tag) {
                 model = new Tag(app, newTab);
             } else if (tab.model instanceof Search) {

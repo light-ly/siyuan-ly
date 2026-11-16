@@ -79,6 +79,7 @@ export const MOBILE_MAIN_MENU_GROUPS: IMobileMainMenuGroup[] = [{
         },
         dockItem("menuOutline", "outline", "iconOutline", lang("outline")),
         dockItem("menuBookmark", "bookmark", "iconBookmark", lang("bookmark")),
+        dockItem("menuMemo", "memo", "iconInfo", lang("memo")),
         dockItem("menuTag", "tag", "iconTag", lang("tag")),
         dockItem("menuBacklink", "backlink", "iconLink", lang("backlinks")),
         dockItem("menuInbox", "inbox", "iconInbox", lang("inbox")),

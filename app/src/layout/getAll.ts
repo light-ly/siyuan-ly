@@ -13,6 +13,7 @@ import {Asset} from "../asset";
 import {Search} from "../search";
 import {Files} from "./dock/Files";
 import {Bookmark} from "./dock/Bookmark";
+import {Memo} from "./dock/Memo";
 import {Tag} from "./dock/Tag";
 import {Custom} from "./dock/Custom";
 import {Wnd} from "./Wnd";
@@ -74,6 +75,7 @@ export const getAllModels = () => {
         inbox: [],
         files: [],
         bookmark: [],
+        memo: [],
         tag: [],
         custom: [],
     };
@@ -102,6 +104,8 @@ export const getAllModels = () => {
                     models.files.push(model);
                 } else if (model instanceof Bookmark) {
                     models.bookmark.push(model);
+                } else if (model instanceof Memo) {
+                    models.memo.push(model);
                 } else if (model instanceof Tag) {
                     models.tag.push(model);
                 } else if (model instanceof Custom) {

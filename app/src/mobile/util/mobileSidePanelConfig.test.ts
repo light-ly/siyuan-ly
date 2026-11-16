@@ -38,7 +38,7 @@ describe("mobile side panel config", () => {
             pluginDockIds: ["pluginRight"],
         };
         const config = normalizeMobileSidePanelConfig(stored);
-        assert.deepEqual(config.left, stored.left);
+        assert.deepEqual(config.left, [...stored.left, "memo"]);
         assert.deepEqual(config.right, stored.right);
         assert.deepEqual(config.pluginDockIds, stored.pluginDockIds);
         assert.deepEqual(config.hidden, []);
@@ -105,7 +105,7 @@ describe("mobile side panel config", () => {
             pluginDockIds: ["pluginLeft", "pluginRight"],
         }), pluginDocks);
 
-        assert.deepEqual(config.left, ["file", "pluginRight", "tag"]);
+        assert.deepEqual(config.left, ["file", "pluginRight", "tag", "memo"]);
         assert.deepEqual(config.right, ["backlink", "outline", "bookmark", "inbox", "pluginLeft", "agent"]);
         assert.deepEqual(config.pluginDockIds, ["pluginRight", "pluginLeft"]);
         assertCompleteConfig(config);
@@ -119,7 +119,7 @@ describe("mobile side panel config", () => {
                 right: ["backlink", "outline"],
             }, pluginDocks);
 
-            assert.deepEqual(config.left, ["file", "bookmark", "tag", "inbox", "pluginLeft"]);
+            assert.deepEqual(config.left, ["file", "bookmark", "tag", "inbox", "memo", "pluginLeft"]);
             assert.deepEqual(config.right, ["backlink", "outline", "agent", "pluginRight"]);
             assert.deepEqual(config.pluginDockIds, ["pluginLeft", "pluginRight"]);
             assertCompleteConfig(config);
@@ -150,7 +150,7 @@ describe("mobile side panel config", () => {
             {id: "pluginLater", side: "left", index: 20},
         ]);
 
-        assert.deepEqual(config.left, ["file", "pluginEarlier", "pluginLater", "bookmark", "tag", "inbox"]);
+        assert.deepEqual(config.left, ["file", "pluginEarlier", "pluginLater", "bookmark", "tag", "inbox", "memo"]);
         assert.deepEqual(config.pluginDockIds, ["pluginEarlier", "pluginLater"]);
         assertCompleteConfig(config);
     });
@@ -167,9 +167,9 @@ describe("mobile side panel config", () => {
             {id: "missingPlugin", side: "right"},
         ]);
 
-        assert.deepEqual(missing.left, stored.left);
+        assert.deepEqual(missing.left, [...stored.left, "memo"]);
         assert.deepEqual(missing.pluginDockIds, ["missingPlugin"]);
-        assert.deepEqual(restored.left, stored.left);
+        assert.deepEqual(restored.left, [...stored.left, "memo"]);
         assert.deepEqual(restored.pluginDockIds, ["missingPlugin"]);
         assertCompleteConfig(missing);
         assertCompleteConfig(restored);
@@ -183,7 +183,7 @@ describe("mobile side panel config", () => {
             pluginDockIds: ["pluginLeft", "pluginLeft", ""],
         }, pluginDocks);
 
-        assert.deepEqual(config.left, ["tag", "outline", "pluginLeft", "bookmark", "inbox"]);
+        assert.deepEqual(config.left, ["tag", "outline", "pluginLeft", "bookmark", "memo", "inbox"]);
         assert.deepEqual(config.right, ["file", "backlink", "agent", "pluginRight"]);
         assert.deepEqual(config.pluginDockIds, ["pluginLeft", "pluginRight"]);
         assertCompleteConfig(config);
@@ -226,7 +226,7 @@ describe("mobile side panel config", () => {
         const state = normalizeMobileSidePanelConfig({
             version: MOBILE_SIDE_PANEL_CONFIG_VERSION,
             left: ["file", "missingPlugin"],
-            right: ["outline", "bookmark", "tag", "backlink", "inbox", "agent"],
+            right: ["outline", "bookmark", "tag", "backlink", "inbox", "agent", "memo"],
             pluginDockIds: ["missingPlugin"],
         });
         const config = reduceMobileSidePanelConfig(state, {
@@ -253,7 +253,7 @@ describe("mobile side panel config", () => {
             toIndex: 0,
         });
 
-        assert.deepEqual(config.left, ["bookmark", "missingPlugin", "file", "tag", "inbox"]);
+        assert.deepEqual(config.left, ["bookmark", "missingPlugin", "file", "tag", "inbox", "memo"]);
         assertCompleteConfig(config);
     });
 

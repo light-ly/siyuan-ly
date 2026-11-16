@@ -54,6 +54,7 @@ import {confirmDialog} from "../dialog/confirmDialog";
 import {shouldCheckOtherWindows} from "./openFileWindow";
 import {getContenteditableElement} from "../protyle/wysiwyg/getBlock";
 import type {Outline} from "../layout/dock/Outline";
+import type {Memo} from "../layout/dock/Memo";
 import {isSameDatabaseRowDomain} from "../protyle/render/av/databaseRowIdentity";
 
 const isSameCustomTab = (type: string, data: any, options: IOpenFileOptions) => {
@@ -781,6 +782,7 @@ export const updatePanelByEditor = (options: {
     // 切换页签或关闭所有页签时，需更新对应的面板
     const models = getAllModels();
     updateOutline(models, options.protyle, options.reload, options.outlineId);
+    updateMemo(models, options.protyle);
     updateBacklinkGraph(models, options.protyle);
 };
 
@@ -887,6 +889,12 @@ export const updateOutline = (models: IModels, protyle: IProtyle, reload = false
         } else {
             syncOutlineCurrent(item, protyle, outlineId);
         }
+    });
+};
+
+export const updateMemo = (models: IModels, protyle?: IProtyle) => {
+    models.memo.forEach((item: Memo) => {
+        item.update(protyle);
     });
 };
 

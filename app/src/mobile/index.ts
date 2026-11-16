@@ -130,6 +130,7 @@ class App {
                     outline: null,
                     file: null,
                     bookmark: null,
+                    memo: null,
                     tag: null,
                     backlink: null,
                     inbox: null,

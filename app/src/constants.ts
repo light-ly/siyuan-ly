@@ -818,6 +818,11 @@ export abstract class Constants {
                     icon: "iconBookmark",
                     hotkeyLangId: "bookmark",
                 }, {
+                    type: "memo",
+                    size: {width: 232, height: 0},
+                    show: false,
+                    icon: "iconInfo",
+                }, {
                     type: "tag",
                     size: {width: 232, height: 0},
                     show: false,

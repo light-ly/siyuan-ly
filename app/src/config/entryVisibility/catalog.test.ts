@@ -561,6 +561,7 @@ test("dock catalog exposes the built-in default positions", () => {
         file: "LeftTop",
         outline: "LeftTop",
         bookmark: "LeftBottom",
+        memo: "LeftBottom",
         tag: "LeftBottom",
         backlink: "RightBottom",
         agentChat: "RightTop",
