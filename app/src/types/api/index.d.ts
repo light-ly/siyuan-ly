@@ -1086,8 +1086,6 @@ export type DocHistorySnapshotsRequestInput = { "created": Array<string>; "id": 
 
 export type DocInfo = { "attrViews": Array<DocAttrView | null> | null; "ial": Record<string, string> | null; "icon": string; "id": string; "name": string; "refCount": number; "refIDs": Array<string> | null; "rootID": string; "subFileCount": number; };
 
-export type DocMemo = { "content": string; "id": string; "memo": string; "subType": string; "type": string; };
-
 export type DocOrdersRequestInput = { "id": string; };
 
 export type DocVersionDiffContent = { "content": string; "id": string; "rootID": string; "title": string; };
@@ -1425,8 +1423,6 @@ export type GetCloudRepoSnapshotsRequestInput = { "endTime"?: number; "page": nu
 export type GetCurrentAttrViewImagesRequestInput = { "blockID"?: string | null; "groupID"?: string | null; "id": string; "query"?: string | null; "viewID"?: string | null; };
 
 export type GetDocCreateTargetRequestInput = { "notebook": string; "purpose": "document" | "reference" | "dailyNote"; };
-
-export type GetDocMemosRequestInput = { "id": string; };
 
 export type GetDocPathsRequestInput = { "ids": Array<string>; "includeIcons"?: boolean; "notebook": string; };
 
@@ -6703,16 +6699,6 @@ export interface APIPOSTRoutes {
         body: "json";
         /** 服务器路由要求；资源权限与笔记本租约仍由内核校验 */
         authorization?: readonly ["authenticated","admin","writable"];
-    };
-    /**
-     * 返回 root_id 匹配且 memo 非空、排除文档块自身（type<>'d'）的块，按文档顺序（rowid）排列；结果为空时返回空数组。
-     */
-    "/api/memo/getDocMemos": {
-        request: GetDocMemosRequestInput;
-        response: { "code": 0; "data": Array<DocMemo | null>; "msg": string; } | { "code": -1; "data": { "closeTimeout": number; } | null; "msg": string; };
-        body: "json";
-        /** 服务器路由要求；资源权限与笔记本租约仍由内核校验 */
-        authorization?: readonly ["authenticated"];
     };
     /**
      * URL、TLS 和 Cookie 诊断对象包含标准库的原始 JSON。

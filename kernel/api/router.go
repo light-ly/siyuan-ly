@@ -25,7 +25,6 @@ func ServeAPI(ginServer *gin.Engine) {
 	registerHistoryRoutes(ginServer)
 	registerOutlineRoutes(ginServer)
 	registerBookmarkRoutes(ginServer)
-	registerMemoRoutes(ginServer)
 	registerTagRoutes(ginServer)
 	registerLuteRoutes(ginServer)
 	registerQueryRoutes(ginServer)
@@ -379,11 +378,6 @@ func registerHistoryRoutes(ginServer *gin.Engine) {
 func registerOutlineRoutes(ginServer *gin.Engine) {
 	ginServer.Handle("POST", "/api/outline/getDocOutline", contractRouteHandlers(apicontract.GetDocOutline, getDocOutline)...)
 	ginServer.Handle("POST", "/api/outline/getDocHeadingNumbers", contractRouteHandlers(apicontract.GetDocHeadingNumbers, getDocHeadingNumbers)...)
-}
-
-// registerMemoRoutes 注册本域的契约路由。
-func registerMemoRoutes(ginServer *gin.Engine) {
-	ginServer.Handle("POST", "/api/memo/getDocMemos", contractRouteHandlers(apicontract.GetDocMemos, getDocMemos)...)
 }
 
 // registerBookmarkRoutes 注册本域的契约路由。

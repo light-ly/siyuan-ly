@@ -25212,34 +25212,6 @@
       ],
       "additionalProperties": false
     },
-    "DocMemo": {
-      "type": "object",
-      "properties": {
-        "content": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "memo": {
-          "type": "string"
-        },
-        "subType": {
-          "type": "string"
-        },
-        "type": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "content",
-        "id",
-        "memo",
-        "subType",
-        "type"
-      ],
-      "additionalProperties": false
-    },
     "DocOrdersRequestInput": {
       "type": "object",
       "properties": {
@@ -31237,18 +31209,6 @@
       "required": [
         "notebook",
         "purpose"
-      ],
-      "additionalProperties": false
-    },
-    "GetDocMemosRequestInput": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
       ],
       "additionalProperties": false
     },
@@ -166019,94 +165979,6 @@
               },
               "data": {
                 "type": "null"
-              },
-              "msg": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "code",
-              "msg",
-              "data"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "integer",
-                "enum": [
-                  -1
-                ]
-              },
-              "data": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "closeTimeout": {
-                        "type": "number"
-                      }
-                    },
-                    "required": [
-                      "closeTimeout"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "msg": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "code",
-              "msg",
-              "data"
-            ],
-            "additionalProperties": true
-          }
-        ]
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/memo/getDocMemos",
-      "handler": "getDocMemos",
-      "authorization": [
-        "authenticated"
-      ],
-      "body": "json",
-      "request": {
-        "$ref": "#/$defs/GetDocMemosRequestInput"
-      },
-      "response": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "integer",
-                "enum": [
-                  0
-                ]
-              },
-              "data": {
-                "type": "array",
-                "items": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/$defs/DocMemo"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
               },
               "msg": {
                 "type": "string"

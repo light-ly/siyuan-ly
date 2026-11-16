@@ -1,23 +1,24 @@
+import dayjs from "dayjs";
 import {Tab} from "../Tab";
 import {bindPanelSearch} from "./panelSearch";
 import {Model} from "../Model";
 import {setPanelFocus} from "../util";
 import {getDockByType} from "../tabUtil";
-import {fetchPost} from "../../util/fetch";
 import {updateHotkeyAfterTip} from "../../protyle/util/compatibility";
 import {openFileById} from "../../editor/util";
-import {hasClosestByClassName} from "../../protyle/util/hasClosest";
+import {hasClosestByAttribute, hasClosestByClassName} from "../../protyle/util/hasClosest";
+import {decodeInlineMemoContent, encodeInlineMemoContent} from "../../protyle/util/inlineMemo";
+import {updateTransaction} from "../../protyle/wysiwyg/transaction";
 import type {App} from "../../index";
 import {Constants} from "../../constants";
 import {checkFold} from "../../util/noRelyPCFunction";
 import {escapeAttr, escapeHtml} from "../../util/escape";
 
-interface IDocMemo {
-    id: string;
-    memo: string;
-    type: string;
-    subType: string;
-    content: string;
+interface IInlineMemoItem {
+    blockID: string;
+    index: number; // 块内第几个行级备注
+    anchor: string; // 划线文本
+    memo: string; // 备注内容
 }
 
 const PREVIEW_LIMIT = 80;
@@ -25,10 +26,9 @@ const PREVIEW_LIMIT = 80;
 export class Memo extends Model {
     private element: HTMLElement;
     private listElement: HTMLElement;
-    private data: IDocMemo[] = [];
+    private data: IInlineMemoItem[] = [];
+    private protyle: IProtyle;
     private rootID = "";
-    private updating = false;
-    private updatePending = false;
 
     constructor(app: App, tab: Tab) {
         super({app});
@@ -93,7 +93,7 @@ export class Memo extends Model {
                 });
             });
         });
-        this.render();
+        this.update();
     }
 
     private handleMsgCallback(data: IWebSocketData) {
@@ -104,58 +104,52 @@ export class Memo extends Model {
 
     public update(protyle?: IProtyle) {
         if (protyle !== undefined) {
+            this.protyle = protyle;
             this.rootID = protyle?.block?.rootID || "";
         }
-        if (!this.rootID) {
+        if (!this.protyle || !this.rootID || !this.protyle.element.isConnected ||
+            this.protyle.block.rootID !== this.rootID) {
             this.data = [];
             this.render();
             return;
         }
-        if (this.updating) {
-            this.updatePending = true;
-            return;
-        }
-        this.updating = true;
-        const element = this.element.querySelector('.block__icon[data-type="refresh"] svg');
-        element?.classList.add("fn__rotate");
-        const rootID = this.rootID;
-        fetchPost("/api/memo/getDocMemos", {id: rootID}, (response) => {
-            if (this.rootID !== rootID) {
-                this.updating = false;
-                this.updatePending = false;
-                this.update();
+        const items: IInlineMemoItem[] = [];
+        const counters = new Map<string, number>();
+        this.protyle.wysiwyg.element.querySelectorAll('[data-type~="inline-memo"]').forEach((span) => {
+            const block = hasClosestByAttribute(span, "data-node-id", null);
+            if (!block) {
                 return;
             }
-            if (this.updatePending) {
-                this.updatePending = false;
-                this.updating = false;
-                this.update();
-                return;
-            }
-            this.data = (Array.isArray(response.data) ? response.data : []).filter((item): item is IDocMemo => !!item);
-            this.render();
-            element?.classList.remove("fn__rotate");
-            this.updating = false;
+            const blockID = block.getAttribute("data-node-id");
+            const index = counters.get(blockID) || 0;
+            counters.set(blockID, index + 1);
+            items.push({
+                blockID,
+                index,
+                anchor: span.textContent || "",
+                memo: decodeInlineMemoContent(span.getAttribute("data-inline-memo-content") || "")
+            });
         });
+        this.data = items;
+        this.render();
     }
 
     private render() {
         const inputElement = this.element.querySelector("input.b3-text-field.search__label") as HTMLInputElement;
         const keywords = inputElement.value.toLowerCase().trim().split(/\s+/).filter(Boolean);
         const items = keywords.length === 0 ? this.data : this.data.filter(item => {
-            const text = `${item.memo || ""} ${item.content || ""}`.toLowerCase();
+            const text = `${item.memo || ""} ${item.anchor || ""}`.toLowerCase();
             return keywords.every(keyword => text.includes(keyword));
         });
         if (items.length === 0) {
             this.listElement.innerHTML = `<div class="b3-list--empty">${window.siyuan.languages.emptyContent}</div>`;
             return;
         }
-        this.listElement.innerHTML = `<ul>${items.map(item => {
-            const preview = (item.content || "").replace(/\s+/g, " ").trim();
-            const previewText = preview.length > PREVIEW_LIMIT ? preview.slice(0, PREVIEW_LIMIT) + "..." : preview;
-            return `<li class="b3-list-item b3-list-item--narrow" data-node-id="${escapeAttr(item.id)}">
-    <span class="b3-list-item__text" title="${escapeAttr(item.memo)}">${escapeHtml(item.memo)}</span>
-    <span class="b3-list-item__meta" title="${escapeAttr(preview)}">${escapeHtml(previewText)}</span>
+        this.listElement.innerHTML = `<ul>${items.map((item, position) => {
+            const anchorText = item.anchor.length > PREVIEW_LIMIT ? item.anchor.slice(0, PREVIEW_LIMIT) + "..." : item.anchor;
+            return `<li class="b3-list-item b3-list-item--narrow" data-node-id="${escapeAttr(item.blockID)}" data-position="${position}">
+    <span class="b3-list-item__text" title="${escapeAttr(item.anchor)}">${escapeHtml(anchorText)}</span>
+    <span class="b3-list-item__meta" title="${escapeAttr(item.memo)}">${escapeHtml(item.memo)}</span>
     <span class="b3-list-item__action" data-type="edit"><svg><use xlink:href="#iconEdit"></use></svg></span>
 </li>`;
         }).join("")}</ul>`;
@@ -165,12 +159,16 @@ export class Memo extends Model {
         if (itemElement.querySelector("input")) {
             return;
         }
-        const id = itemElement.getAttribute("data-node-id");
-        const current = this.data.find(item => item.id === id);
+        const position = parseInt(itemElement.getAttribute("data-position") || "-1", 10);
+        const current = Number.isInteger(position) ? this.getFilteredItems()[position] : undefined;
+        if (!current) {
+            return;
+        }
         const textElement = itemElement.querySelector(".b3-list-item__text") as HTMLElement;
         const inputElement = document.createElement("input");
         inputElement.className = "b3-text-field fn__block";
-        inputElement.value = current?.memo || textElement.textContent || "";
+        inputElement.value = current.memo;
+        inputElement.placeholder = window.siyuan.languages.memo;
         textElement.replaceWith(inputElement);
         inputElement.focus();
         inputElement.select();
@@ -180,14 +178,11 @@ export class Memo extends Model {
                 return;
             }
             finished = true;
-            if (!save || inputElement.value === (current?.memo || "")) {
+            if (!save || inputElement.value === current.memo) {
                 this.render();
                 return;
             }
-            fetchPost("/api/attr/setBlockAttrs", {
-                id,
-                attrs: {memo: inputElement.value}
-            }, () => this.update());
+            this.saveMemo(current, inputElement.value);
         };
         inputElement.addEventListener("keydown", (event) => {
             if (event.isComposing) {
@@ -202,5 +197,51 @@ export class Memo extends Model {
             }
         });
         inputElement.addEventListener("blur", () => finish(true));
+    }
+
+    private getFilteredItems(): IInlineMemoItem[] {
+        const inputElement = this.element.querySelector("input.b3-text-field.search__label") as HTMLInputElement;
+        const keywords = inputElement.value.toLowerCase().trim().split(/\s+/).filter(Boolean);
+        if (keywords.length === 0) {
+            return this.data;
+        }
+        return this.data.filter(item => {
+            const text = `${item.memo || ""} ${item.anchor || ""}`.toLowerCase();
+            return keywords.every(keyword => text.includes(keyword));
+        });
+    }
+
+    private saveMemo(item: IInlineMemoItem, value: string) {
+        if (!this.protyle || !this.protyle.element.isConnected) {
+            this.update();
+            return;
+        }
+        const blockElement = this.protyle.wysiwyg.element.querySelector(`[data-node-id="${CSS.escape(item.blockID)}"]`);
+        if (!blockElement) {
+            this.update();
+            return;
+        }
+        const spans = blockElement.querySelectorAll('[data-type~="inline-memo"]');
+        const span = spans[item.index];
+        if (!span) {
+            this.update();
+            return;
+        }
+        const oldHTML = blockElement.outerHTML;
+        if (value) {
+            span.setAttribute("data-inline-memo-content", encodeInlineMemoContent(value));
+        } else {
+            // 空值移除行级备注类型并保留划线文本，与编辑器工具栏的处理一致
+            const types = (span.getAttribute("data-type") || "").split(" ").filter(type => type && type !== "inline-memo");
+            if (types.length === 0) {
+                span.outerHTML = span.innerHTML;
+            } else {
+                span.setAttribute("data-type", types.join(" "));
+                span.removeAttribute("data-inline-memo-content");
+            }
+        }
+        blockElement.setAttribute("updated", dayjs().format("YYYYMMDDHHmmss"));
+        updateTransaction(this.protyle, blockElement, oldHTML);
+        this.update();
     }
 }
