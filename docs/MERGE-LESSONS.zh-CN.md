@@ -77,3 +77,7 @@
 - `refreshUser`/`refreshAnnouncement` 等官方账号/公告刷新（阶段 B/C）
 - 各入口的 `getCloudUser`/`onSetaccount` 调用（阶段 B）
 - 注意：`updater*.go` 更新器在 2026-11-10 合并 v3.8.10 时已恢复并改造为自有仓库 `light-ly/siyuan-ly` 的更新通道（阶段 C 修订），不要再按"有意删除"处理；官方镜像下载地址（release.b3log.org / release.liuyun.io）与 stable 通道官方云端接口仍保持移除
+
+### 新增的定制功能（合并上游时注意这些接线点）
+
+- 备注停靠面板（`feature/memo-panel` 合入）：面板本体是新文件（`app/src/layout/dock/Memo.ts`、`app/src/mobile/dock/MobileMemo.ts`、`app/src/assets/scss/business/_memo.scss`），不会冲突；但接线点散在共享文件中，上游改动同一位置时需要把"memo"分支一并保留：`app/src/layout/dock/index.ts`（TYPES 与实例化 switch）、`app/src/constants.ts`（默认布局 bookmark 与 tag 之间）、`app/src/layout/util.ts`（ensureBuiltinDock 通用补全、layoutToJSON 的 lang 映射）、`app/src/editor/util.ts`（updatePanelByEditor 里的 updateMemo）、`app/src/layout/getAll.ts` 与 `tabUtil.ts`、`app/src/types/index.d.ts`（TDock/TWS/IModels 插件类型，需与 petal 同步）、`app/src/config/entryVisibility/catalog.ts` 与移动端侧栏配置（目录顺序与默认布局一致：bookmark - memo - tag）

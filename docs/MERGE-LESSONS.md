@@ -77,3 +77,7 @@ The following removals are in scope for the custom edition — do not restore th
 - `refreshUser`/`refreshAnnouncement` and other official account/announcement refresh jobs (phases B/C)
 - `getCloudUser`/`onSetaccount` calls at every entry point (phase B)
 - Note: the `updater*.go` updater was restored and reworked to the own-repo update channel (`light-ly/siyuan-ly` GitHub Releases) when merging v3.8.10 on 2026-11-10 (phase C revision) — do not treat it as an intentional removal anymore; the official mirror download URLs (release.b3log.org / release.liuyun.io) and the stable channel's official cloud endpoint stay removed
+
+### New custom features (watch these wiring points when merging upstream)
+
+- Memo dock panel (merged from `feature/memo-panel`): the panels are new files (`app/src/layout/dock/Memo.ts`, `app/src/mobile/dock/MobileMemo.ts`, `app/src/assets/scss/business/_memo.scss`) and will not conflict, but the wiring lives in shared files — when upstream touches the same spots, keep the `memo` branches: `app/src/layout/dock/index.ts` (TYPES and instantiation switch), `app/src/constants.ts` (default layout between bookmark and tag), `app/src/layout/util.ts` (ensureBuiltinDock backfill, layoutToJSON lang mapping), `app/src/editor/util.ts` (updateMemo in updatePanelByEditor), `app/src/layout/getAll.ts` and `tabUtil.ts`, `app/src/types/index.d.ts` (TDock/TWS/IModels plugin types, sync to petal), `app/src/config/entryVisibility/catalog.ts` and the mobile side panel config (catalog order matches the default layout: bookmark - memo - tag)
