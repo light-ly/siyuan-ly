@@ -4,9 +4,9 @@
 	"Type": "NodeDocument",
 	"Properties": {
 		"id": "20200910201551-h4twhas",
-		"title": "书签和标签",
+		"title": "书签、标签和备注",
 		"type": "doc",
-		"updated": "20261024161440"
+		"updated": "20261117103000"
 	},
 	"Children": [
 		{
@@ -220,6 +220,143 @@
 				{
 					"Type": "NodeText",
 					"Data": "​）中列出。如果需要取消标签，在内容块中删掉该标签即可。"
+				}
+			]
+		},
+		{
+			"ID": "20261117103000-memo0zh1",
+			"Type": "NodeHeading",
+			"HeadingLevel": 2,
+			"Properties": {
+				"id": "20261117103000-memo0zh1",
+				"updated": "20261117103000"
+			},
+			"Children": [
+				{
+					"Type": "NodeHeadingC8hMarker",
+					"Data": "## "
+				},
+				{
+					"Type": "NodeText",
+					"Data": "备注"
+				}
+			]
+		},
+		{
+			"ID": "20261117103000-memo0zh2",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261117103000-memo0zh2",
+				"updated": "20261117103000"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "选中文字，通过工具栏或 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "/"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 菜单添加行级备注。"
+				}
+			]
+		},
+		{
+			"ID": "20261117103000-memo0zh3",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261117103000-memo0zh3",
+				"updated": "20261117103000"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "当前文档的行级备注集中列在备注面板中，桌面端默认在左侧栏书签旁（图标为 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "ℹ"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "），移动端在侧栏菜单中。按钮默认显示，可见性和位置可在 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "设置"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "外观"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "界面"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 的停靠栏中调整。每张卡片上方是被划线的文本，下方是备注内容。点击卡片跳转到对应内容块；点击备注内容或 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "✎"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 图标就地编辑，"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Enter"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 保存，"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Shift"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " + "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Enter"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 换行，"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Esc"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " 取消。清空内容会移除行级备注，但保留划线文本。切换文档后面板自动跟随，正文中修改备注后面板自动刷新，面板内可以搜索过滤。"
 				}
 			]
 		},

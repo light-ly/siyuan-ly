@@ -4,9 +4,9 @@
 	"Type": "NodeDocument",
 	"Properties": {
 		"id": "20200924100635-ms0p9lb",
-		"title": "Bookmark and Tag",
+		"title": "Bookmarks, Tags and Memos",
 		"type": "doc",
-		"updated": "20261024161440"
+		"updated": "20261117103000"
 	},
 	"Children": [
 		{
@@ -220,6 +220,143 @@
 				{
 					"Type": "NodeText",
 					"Data": "​). If you need to cancel the tag, just delete the tag in the content block."
+				}
+			]
+		},
+		{
+			"ID": "20261117103000-memo0en1",
+			"Type": "NodeHeading",
+			"HeadingLevel": 2,
+			"Properties": {
+				"id": "20261117103000-memo0en1",
+				"updated": "20261117103000"
+			},
+			"Children": [
+				{
+					"Type": "NodeHeadingC8hMarker",
+					"Data": "## "
+				},
+				{
+					"Type": "NodeText",
+					"Data": "Memo"
+				}
+			]
+		},
+		{
+			"ID": "20261117103000-memo0en2",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261117103000-memo0en2",
+				"updated": "20261117103000"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Select text and add an inline memo from the toolbar or the "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "/"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " menu."
+				}
+			]
+		},
+		{
+			"ID": "20261117103000-memo0en3",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261117103000-memo0en3",
+				"updated": "20261117103000"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "Inline memos in the current document are listed as cards in the memo panel. On desktop it sits in the left sidebar next to bookmarks by default (icon "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "ℹ"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "); on mobile it is in the sidebar menu. The button is shown by default, and its visibility and position can be changed under "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Settings"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Appearance"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Interface"
+				},
+				{
+					"Type": "NodeText",
+					"Data": ", in the dock bar. Each card shows the underlined text above and the memo below. Click a card to jump to its block; click the memo text or the "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "✎"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " icon to edit it in place, "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Enter"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " to save, "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Shift"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " + "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Enter"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " for a new line, and "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Esc"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " to cancel. Clearing the text removes the inline memo but keeps the underline. The panel follows the open document, refreshes when a memo changes in the editor, and can be filtered by search."
 				}
 			]
 		},

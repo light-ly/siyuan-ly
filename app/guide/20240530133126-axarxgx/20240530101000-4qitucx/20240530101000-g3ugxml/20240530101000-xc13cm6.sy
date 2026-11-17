@@ -5,9 +5,9 @@
 	"Properties": {
 		"ID": "20240530101000-fswowem",
 		"id": "20240530101000-xc13cm6",
-		"title": "ブックマークとタグ",
+		"title": "ブックマーク、タグ、メモ",
 		"type": "doc",
-		"updated": "20261024163013"
+		"updated": "20261117103000"
 	},
 	"Children": [
 		{
@@ -229,6 +229,143 @@
 				{
 					"Type": "NodeText",
 					"Data": "​) に一覧表示されます。タグを解除するには、対象のブックマークを右クリックするかドロップダウンメニューから削除を選ぶか、コンテンツブロック内のタグを削除します。"
+				}
+			]
+		},
+		{
+			"ID": "20261117103000-memo0ja1",
+			"Type": "NodeHeading",
+			"HeadingLevel": 2,
+			"Properties": {
+				"id": "20261117103000-memo0ja1",
+				"updated": "20261117103000"
+			},
+			"Children": [
+				{
+					"Type": "NodeHeadingC8hMarker",
+					"Data": "## "
+				},
+				{
+					"Type": "NodeText",
+					"Data": "メモ"
+				}
+			]
+		},
+		{
+			"ID": "20261117103000-memo0ja2",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261117103000-memo0ja2",
+				"updated": "20261117103000"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "文字列を選択し、ツールバーまたは "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "/"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " メニューからインラインメモを追加します。"
+				}
+			]
+		},
+		{
+			"ID": "20261117103000-memo0ja3",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20261117103000-memo0ja3",
+				"updated": "20261117103000"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "現在のドキュメントのインラインメモは、メモパネルにカードとして一覧表示されます。デスクトップでは左サイドバーのブックマークの隣に既定で表示され（アイコンは "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "ℹ"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "）、モバイルではサイドバーメニューにあります。ボタンは既定で表示され、表示と位置は "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "設定"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "スタイル"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "インターフェース"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " のドックバーで変更できます。各カードは、上が下線付きのテキスト、下がメモの内容です。カードをクリックすると対応するブロックへ移動し、メモの内容または "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "✎"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " アイコンをクリックするとその場で編集できます。"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Enter"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " で保存、"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Shift"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " + "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Enter"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " で改行、"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "Esc"
+				},
+				{
+					"Type": "NodeText",
+					"Data": " でキャンセルします。内容を空にするとインラインメモは削除されますが、下線のテキストは残ります。ドキュメントを切り替えるとパネルは自動的に追従し、本文でメモを変更すると自動的に更新され、パネル内で検索して絞り込めます。"
 				}
 			]
 		},
