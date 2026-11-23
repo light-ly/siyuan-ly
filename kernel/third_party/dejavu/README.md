@@ -33,7 +33,7 @@
 3. 在 `kernel/third_party/dejavu` 下运行 `go test ./cloud/`
 4. 在 `kernel/` 下运行 `go build -tags "fts5 sqlcipher" ./...`
 
-当前基线：dejavu `v0.0.0-20261109165330-317610e0795e`（2026-11-09）。
+当前基线：dejavu `v0.0.0-20261112025505-e0cb9a7a8346`（2026-11-12）。
 
 ## 已知服务商行为（本机 AList v3.66.0 实测）
 
